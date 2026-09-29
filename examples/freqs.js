@@ -11,91 +11,7 @@
   const MONO = '"SFMono-Regular", Consolas, "Liberation Mono", monospace';
   const SANS = 'Inter, "Segoe UI", Arial, sans-serif';
   const SELECTED_FILL = "rgba(255, 105, 95, .16)";
-  const NODE_STORAGE = 'freqs-concept-nodes-v1';
-  let nodes = [0, 200, 400, 500, 700, 900, 1100].map(cents => ({cents}));
-  try {
-    const saved = JSON.parse(localStorage.getItem(NODE_STORAGE));
-    if (Array.isArray(saved) && saved.length >= 1 && saved.length <= 32 &&
-        saved.every(node => Number.isFinite(node.cents) && node.cents >= -2400 && node.cents <= 4800)) nodes = saved;
-  } catch { /* Use the initial scale when no saved list is available. */ }
-
-  function mountNodes({host, repaint}) {
-    const editor = document.createElement('section');
-    editor.className = 'freqs-nodes';
-    editor.setAttribute('aria-label', 'Scale nodes');
-    const header = document.createElement('div');
-    header.className = 'freqs-node-header';
-    for (const label of ['NODE', 'PITCH · Hz', 'CENTS', '']) {
-      const cell = document.createElement('span'); cell.textContent = label; header.append(cell);
-    }
-    const list = document.createElement('div');
-    list.className = 'freqs-node-list';
-    list.setAttribute('aria-label', 'Scrollable node list');
-    const footer = document.createElement('div'); footer.className = 'freqs-node-footer';
-    const count = document.createElement('span');
-    const add = document.createElement('button'); add.type = 'button'; add.textContent = '+ Add node';
-    footer.append(count, add); editor.append(header, list, footer); host.append(editor);
-    const save = () => { try { localStorage.setItem(NODE_STORAGE, JSON.stringify(nodes)); } catch {} repaint(); };
-    function render() {
-      list.replaceChildren();
-      count.textContent = `${nodes.length} ${nodes.length === 1 ? 'node' : 'nodes'}`;
-      add.disabled = nodes.length >= 32;
-      nodes.forEach((node, index) => {
-        const row = document.createElement('div'); row.className = 'freqs-node-row';
-        const label = document.createElement('span'); label.textContent = String(index + 1);
-        const hz = document.createElement('input'); hz.type = 'number'; hz.min = '1'; hz.max = '20000'; hz.step = 'any';
-        hz.setAttribute('aria-label', `Node ${index + 1} pitch in Hz`);
-        const cents = document.createElement('input'); cents.type = 'number'; cents.min = '-2400'; cents.max = '4800'; cents.step = 'any';
-        cents.setAttribute('aria-label', `Node ${index + 1} cents`);
-        const updateValues = () => {
-          hz.value = (220 * 2 ** (node.cents / 1200)).toFixed(2);
-          cents.value = String(Number(node.cents.toFixed(2)));
-        };
-        updateValues();
-        for (const input of [hz, cents]) {
-          input.addEventListener('input', () => {
-            if (input.value === '' || !input.validity.valid) return;
-            const value = input.valueAsNumber;
-            const next = input === hz ? 1200 * Math.log2(value / 220) : value;
-            if (!Number.isFinite(next) || next < -2400 || next > 4800) return;
-            node.cents = next;
-            if (input === hz) cents.value = String(Number(next.toFixed(2)));
-            else hz.value = (220 * 2 ** (next / 1200)).toFixed(2);
-            save();
-          });
-          input.addEventListener('change', updateValues);
-          input.addEventListener('blur', updateValues);
-        }
-        const remove = document.createElement('button'); remove.type = 'button'; remove.textContent = '−';
-        remove.setAttribute('aria-label', `Remove node ${index + 1}`); remove.disabled = nodes.length === 1;
-        remove.addEventListener('click', () => { nodes.splice(index, 1); render(); save(); });
-        row.append(label, hz, cents, remove); list.append(row);
-      });
-    }
-    add.addEventListener('click', () => {
-      nodes.push({cents: Math.min(4800, Math.max(...nodes.map(node => node.cents)) + 100)});
-      render(); save(); list.scrollTop = list.scrollHeight;
-      list.lastElementChild.querySelector('input').focus();
-    });
-    render();
-    const interaction = new AbortController();
-    // Capture the painted variation control before the annotation brush sees
-    // the pointer, then repaint this design in place.
-    const stage = document.getElementById("stage");
-    const canvas = document.getElementById("design");
-    stage.addEventListener("pointerdown", (event) => {
-      if (event.button !== 0 || document.getElementById("design-picker").value !== "freqs") return;
-      const bounds = canvas.getBoundingClientRect();
-      const x = (event.clientX - bounds.left) / bounds.width * W;
-      const y = (event.clientY - bounds.top) / bounds.height * H;
-      if (x < 1498 || x > 1540 || y < 397 || y > 425) return;
-      event.preventDefault();
-      event.stopPropagation();
-      landscapeDots = variationDots(++landscapeSeed);
-      repaint();
-    }, {capture: true, signal: interaction.signal});
-    return () => { interaction.abort(); editor.remove(); };
-  }
+  const nodes = [0, 200, 400, 500, 700, 900, 1100].map(cents => ({cents}));
 
   function box(ctx, x, y, w, h, fill, stroke = null, r = 10) {
     ctx.beginPath(); ctx.roundRect(x, y, w, h, r);
@@ -205,12 +121,11 @@
     text(ctx, caption, x + w / 2, y + h / 2 + .5, small ? 12 : 13,
       active ? C.coral : C.muted, MONO, "center", active ? 600 : 500);
   }
-  function slider(ctx, x, y, w, value, caption, detail) {
+  function progressBar(ctx, x, y, w, value, caption, detail) {
     text(ctx, caption.toUpperCase(), x, y - 19, 10, C.muted, MONO, "left", 500);
     text(ctx, detail, x + w, y - 19, 11, C.text, MONO, "right", 500);
     box(ctx, x, y, w, 6, "#2b3530", null, 3);
     box(ctx, x, y, w * value, 6, C.coral, null, 3);
-    box(ctx, x + w * value - 2, y - 5, 4, 16, C.text, null, 2);
   }
 
   const INITIAL_LANDSCAPE_POINTS = [
@@ -219,37 +134,7 @@
     [.67,.36], [.68,.49], [.69,.29], [.70,.41], [.71,.34], [.73,.38], [.75,.48], [.77,.31],
     [.79,.45], [.81,.40], [.83,.55], [.86,.51], [.89,.59], [.58,.56], [.46,.63], [.31,.72]
   ];
-  let landscapeDots = INITIAL_LANDSCAPE_POINTS.map(([x, y], index) => ({x, y, root: index === 21}));
-  let landscapeSeed = 0x5eed;
-
-  function variationDots(seed) {
-    let state = seed >>> 0;
-    const random = () => {
-      state = (Math.imul(state, 1664525) + 1013904223) >>> 0;
-      return state / 4294967296;
-    };
-    const centerX = .62 + random() * .15;
-    const centerY = .30 + random() * .20;
-    const satelliteX = .27 + random() * .21;
-    const satelliteY = .58 + random() * .20;
-    const spread = () => random() + random() + random() - 1.5;
-    const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
-
-    return Array.from({length: 32}, (_, index) => {
-      if (index === 21) {
-        return {x: centerX, y: centerY, root: true};
-      }
-      const satellite = random() > .78;
-      const cx = satellite ? satelliteX : centerX;
-      const cy = satellite ? satelliteY : centerY;
-      return {
-        x: clamp(cx + spread() * (satellite ? .13 : .12), .10, .91),
-        y: clamp(cy + spread() * (satellite ? .15 : .14), .12, .86),
-        root: false
-      };
-    });
-  }
-
+  const landscapeDots = INITIAL_LANDSCAPE_POINTS.map(([x, y], index) => ({x, y, root: index === 21}));
   function paintLandscapeContours(ctx, gx, gy, gw, gh, dots) {
     const contourCount = 20;
     const sampleCount = 136;
@@ -277,6 +162,21 @@
     }
   }
 
+  // Static field shapes; node management belongs in a row context menu.
+  function paintNodeList(ctx) {
+    text(ctx, "NODE", 64, 180, 10, C.muted);
+    text(ctx, "PITCH · Hz", 144, 180, 10, C.muted);
+    text(ctx, "CENTS", 458, 180, 10, C.muted);
+    nodes.forEach((node, index) => {
+      const y = 197 + index * 32;
+      text(ctx, String(index + 1).padStart(2, "0"), 64, y + 13, 12, index === 4 ? C.coral : C.muted);
+      box(ctx, 132, y, 292, 26, C.panelAlt, C.line, 5);
+      box(ctx, 446, y, 322, 26, C.panelAlt, C.line, 5);
+      text(ctx, (220 * 2 ** (node.cents / 1200)).toFixed(2), 144, y + 13, 12);
+      text(ctx, String(node.cents), 458, y + 13, 12);
+    });
+  }
+
   function paintFreqs(ctx) {
     ctx.fillStyle = C.bg; ctx.fillRect(0, 0, W, H);
 
@@ -294,12 +194,12 @@
 
     // Main analysis panels
     panel(ctx, 34, 104, 756, 336, "01  /  Nodes");
+    paintNodeList(ctx);
     panel(ctx, 810, 104, 756, 336, "02  /  Pitch space");
     text(ctx, "REACH", 1201, 138, 10, C.muted, MONO, "left", 600);
     text(ctx, "±72¢", 1256, 138, 11, C.text, MONO, "left", 600);
     box(ctx, 1310, 135, 210, 5, "#2d3832", null, 3);
     box(ctx, 1310, 135, 74, 5, C.coral, null, 3);
-    box(ctx, 1380, 130, 4, 15, C.coral, null, 2);
     const gx = 834, gy = 190, gw = 704, gh = 218;
     ctx.save(); ctx.beginPath(); ctx.roundRect(gx, gy, gw, gh, 6); ctx.clip();
     paintLandscapeContours(ctx, gx, gy, gw, gh, landscapeDots);
@@ -344,13 +244,13 @@
     button(ctx, 56, 724, 36, 34, "‹", false, true);
     text(ctx, "04", 111, 741, 15, C.text, MONO, "center", 600);
     button(ctx, 130, 724, 36, 34, "›", false, true);
-    slider(ctx, 310, 749, 250, .42, "", "220.00 Hz");
+    progressBar(ctx, 310, 749, 250, .42, "", "220.00 Hz");
     button(ctx, 653, 724, 36, 34, "‹", false, true);
     text(ctx, "60", 707, 741, 15, C.text, MONO, "center", 600);
     button(ctx, 727, 724, 36, 34, "›", false, true);
     text(ctx, "OCTAVE / REPEAT", 56, 790, 10, C.muted, MONO, "left", 600);
     text(ctx, "1200¢   2.000:1", 768, 790, 10, C.text, MONO, "right", 500);
-    slider(ctx, 56, 823, 712, .34, "", "");
+    progressBar(ctx, 56, 823, 712, .34, "", "");
     text(ctx, "SNAP RATIOS", 56, 852, 10, C.muted, MONO, "left", 500);
     button(ctx, 684, 837, 84, 28, "OFF  ⌄", false, true);
 
@@ -378,15 +278,15 @@
     button(ctx, 190, 914, 38, 34, "▧", false, true);
     button(ctx, 238, 914, 38, 34, "／", false, true);
     line(ctx, 300, 910, 300, 950, C.line);
-    slider(ctx, 330, 932, 366, .25, "LEVEL", "25%");
+    progressBar(ctx, 330, 932, 366, .25, "LEVEL", "25%");
     line(ctx, 722, 910, 722, 950, C.line);
-    slider(ctx, 754, 932, 366, .08, "ATTACK", "10 ms");
+    progressBar(ctx, 754, 932, 366, .08, "ATTACK", "10 ms");
     line(ctx, 1146, 910, 1146, 950, C.line);
-    slider(ctx, 1178, 932, 366, .29, "RELEASE", "900 ms");
+    progressBar(ctx, 1178, 932, 366, .29, "RELEASE", "900 ms");
     perimeter(ctx);
   }
 
-  Frame.register({ id: "freqs", name: "Freqs tuner concept", width: W, height: H, paint: paintFreqs, mount: mountNodes });
+  Frame.register({ id: "freqs", name: "Freqs tuner concept", width: W, height: H, paint: paintFreqs });
 
 
 })();

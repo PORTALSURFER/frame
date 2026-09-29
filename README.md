@@ -4,7 +4,7 @@ Frame is a small, code-painted UI design canvas for sketching application interf
 
 Run `node server.js` and open `http://127.0.0.1:8765/` to use Frame. The local server serves the canvas and receives annotation feedback at `/api/feedback`, saving it to `feedback/<design>.json` in the workspace. That folder is ignored by Git. Annotations also remain in browser `localStorage`, and **Download feedback** remains available if automatic sync is unavailable. **Starter UI** is a neutral example, **Sift example** preserves the earlier VST mockup, and **Freqs tuner concept** explores a microtonal tuning interface. These are visual mockups, not functional application controls or generated VST code.
 
-The Freqs concept has a scrollable node list with linked Hz and cents inputs, add/remove buttons, and a live numbered pitch line. Node edits persist in this browser. The upper panels divide the width evenly between the list and a variation landscape. The die button repaints the concept's candidate field. The tuning, scale, and audition controls remain visual mockups; this preview does not send tuning data or play audio.
+The Freqs concept is entirely painted and noninteractive. Its node list shows Hz and cents fields beside the pitch-space landscape; adding and removing nodes is intended for a row context menu, rather than dedicated buttons. Parameter tracks use filled progress bars without slider handles. This preview does not send tuning data or play audio.
 
 ## Add a design
 
@@ -24,7 +24,7 @@ Frame.register({
 });
 ```
 
-The drawing coordinates use the registered width and height. Frame scales the board to fit the window and renders at device resolution. Edit the design script or styles and click **Refresh** to load the changes without reloading the page. The selected design and saved annotations stay in place; Freqs also retains its node values. Refresh failures keep the previous design visible and put the error in the button's tooltip. Changes to Frame's own HTML or runtime scripts still require a page reload. Annotations remain aligned with the design's coordinates, even after resizing.
+The drawing coordinates use the registered width and height. Frame scales the board to fit the window and renders at device resolution. Edit the design script or styles and click **Refresh** to load the changes without reloading the page. The selected design and saved annotations stay in place. Refresh failures keep the previous design visible and put the error in the button's tooltip. Changes to Frame's own HTML or runtime scripts still require a page reload. Annotations remain aligned with the design's coordinates, even after resizing.
 
 A design can optionally provide `mount({host, repaint})` to add DOM controls in design coordinates. The host scales with the canvas and ignores pointer input outside the controls. Call `repaint()` after updating design state and return a cleanup function; Frame calls it when switching designs. Interactive controls sit above the brush so inputs and scrolling remain usable.
 
