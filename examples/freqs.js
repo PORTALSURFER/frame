@@ -52,12 +52,21 @@
     text(ctx, eyebrow.toUpperCase(), x + 22, y + 28, 10, C.muted, MONO, "left", 600);
     line(ctx, x + 20, y + 60, x + w - 20, y + 60, C.lineSoft);
   }
-  function metalPanel(ctx, points) {
+  function metalPanel(ctx, points, horizontal) {
     ctx.beginPath();
     ctx.moveTo(points[0][0], points[0][1]);
     for (let i = 1; i < points.length; i++) ctx.lineTo(points[i][0], points[i][1]);
     ctx.closePath();
-    ctx.fillStyle = "#35403b";
+    const xs = points.map(([x]) => x), ys = points.map(([, y]) => y);
+    const sheen = horizontal
+      ? ctx.createLinearGradient(Math.min(...xs), 0, Math.max(...xs), 0)
+      : ctx.createLinearGradient(0, Math.min(...ys), 0, Math.max(...ys));
+    sheen.addColorStop(0, "#35413a");
+    sheen.addColorStop(.35, "#39463e");
+    sheen.addColorStop(.48, "#48564c");
+    sheen.addColorStop(.6, "#39463e");
+    sheen.addColorStop(1, "#35413a");
+    ctx.fillStyle = sheen;
     ctx.fill();
     ctx.strokeStyle = "#151d19";
     ctx.lineWidth = 1.5;
@@ -71,10 +80,10 @@
       [10, 614], [29, 602], [29, 460], [10, 448]
     ];
     ctx.save();
-    metalPanel(ctx, [[680,0],[920,0],[884,23],[716,23]]);
-    metalPanel(ctx, [[716,979],[884,979],[920,1000],[680,1000]]);
-    metalPanel(ctx, [[0,448],[29,460],[29,602],[0,614]]);
-    metalPanel(ctx, [[1571,460],[1600,448],[1600,614],[1571,602]]);
+    metalPanel(ctx, [[652,0],[948,0],[884,23],[716,23]], true);
+    metalPanel(ctx, [[716,979],[884,979],[942,1000],[658,1000]], true);
+    metalPanel(ctx, [[0,442],[29,460],[29,602],[0,620]], false);
+    metalPanel(ctx, [[1571,460],[1600,442],[1600,620],[1571,602]], false);
     ctx.beginPath();
     ctx.moveTo(points[0][0], points[0][1]);
     for (let i = 1; i < points.length; i++) ctx.lineTo(points[i][0], points[i][1]);
@@ -89,7 +98,7 @@
       [[920, 992], [884, 979]], [[716, 979], [680, 992]],
       [[10, 614], [29, 602]], [[29, 460], [10, 448]]
     ];
-    ctx.strokeStyle = "rgba(255, 105, 95, .22)";
+    ctx.strokeStyle = "rgba(184, 200, 186, .16)";
     ctx.lineWidth = 1.1;
     for (const [[x1, y1], [x2, y2]] of accents) {
       ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke();
@@ -181,9 +190,6 @@
     text(ctx, "freqs", 40, 54, 36, C.coral, SANS, "left", 500);
     text(ctx, "MTS-ESP TUNING SYSTEM", 190, 56, 10, C.muted, MONO, "left", 600);
     line(ctx, 344, 35, 344, 76, C.line);
-    text(ctx, "EXPLORE", 928, 55, 11, C.dim, MONO, "center", 600);
-    text(ctx, "TUNE", 1054, 55, 11, C.text, MONO, "center", 700);
-    box(ctx, 1028, 76, 52, 3, C.coral, null, 2);
     line(ctx, 1110, 35, 1110, 76, C.line);
     circle(ctx, 1142, 55, 4, C.mint);
     text(ctx, "MTS-ESP", 1156, 55, 11, C.text, MONO, "left", 600);
@@ -191,11 +197,9 @@
     line(ctx, 1360, 35, 1360, 76, C.line);
     button(ctx, 1380, 38, 38, 34, "⚙", false, true);
     button(ctx, 1428, 38, 38, 34, "?", false, true);
-    text(ctx, "SESSION 04", 1558, 55, 10, C.dim, MONO, "right", 500);
 
     // Main analysis panels
     panel(ctx, 34, 104, 530, 336, "01  /  Harmonic map");
-    text(ctx, "DEGREE PAIRS", 55, 190, 10, C.muted, MONO, "left", 600);
     const latticeX = 175, latticeY = 216, latticeStepX = 50, latticeStepY = 30;
     for (let col = 0; col < 7; col++) {
       text(ctx, String(col + 1).padStart(2, "0"), latticeX + col * latticeStepX, 188, 10, C.muted, MONO, "center");
@@ -215,10 +219,6 @@
         if (!isDiagonal) circle(ctx, x, y, 1.8, isSelected ? C.coral : "rgba(220,229,220,.38)");
       }
     }
-    line(ctx, 54, 416, 544, 416, C.lineSoft);
-    circle(ctx, 61, 428, 4, C.coral);
-    text(ctx, "SELECTED PAIR  01—05", 73, 428, 10, C.muted, MONO, "left", 500);
-    text(ctx, "7 DEGREES", 542, 428, 10, C.coral, MONO, "right", 600);
 
     panel(ctx, 582, 104, 984, 336, "02  /  Pitch space");
     text(ctx, "REACH", 1201, 138, 10, C.muted, MONO, "left", 600);
@@ -229,7 +229,6 @@
     const gx = 606, gy = 190, gw = 932, gh = 218;
     ctx.save(); ctx.beginPath(); ctx.roundRect(gx, gy, gw, gh, 6); ctx.clip();
     paintLandscapeContours(ctx, gx, gy, gw, gh, landscapeDots);
-    text(ctx, "ROOT GRAVITY  ↑", gx + 12, gy + 14, 10, C.dim, MONO, "left", 600);
     landscapeDots.forEach((point, i) => {
       const x = gx + point.x * gw, y = gy + point.y * gh;
       if (point.root) circle(ctx, x, y, 11, "rgba(255,105,95,.16)", C.coral, 2.5);
@@ -240,10 +239,11 @@
       }
     });
     ctx.restore();
-    text(ctx, "LOW COHESION", gx, 426, 10, C.dim, MONO, "left");
-    text(ctx, "COHESION  →", gx + gw / 2, 426, 10, C.dim, MONO, "center");
-    text(ctx, "HIGH COHESION", gx + gw - 174, 426, 10, C.dim, MONO, "right");
-    button(ctx, 1368, 397, 172, 28, "↻  NEW VARIATIONS", false, true);
+    box(ctx, 1498, 397, 42, 28, C.raised, C.line, 6);
+    box(ctx, 1510, 402, 18, 18, null, C.muted, 3);
+    for (const [x, y] of [[1514,406],[1524,406],[1519,411],[1514,416],[1524,416]]) {
+      circle(ctx, x, y, 1.3, C.muted);
+    }
 
     // Pitch distribution ruler
     panel(ctx, 34, 460, 1532, 142, "03  /  Cent deviation");
@@ -323,8 +323,6 @@
     slider(ctx, 844, 932, 205, .29, "RELEASE", "900 ms");
     line(ctx, 1074, 910, 1074, 950, C.line);
     text(ctx, "AUDITION VOICE", 1540, 930, 10, C.dim, MONO, "right", 500);
-    text(ctx, "FREQS  /  TUNING ENVIRONMENT", 38, 986, 9, C.dim, MONO, "left", 500);
-    text(ctx, "CONCEPT UI    •    03.2", 1562, 986, 9, C.dim, MONO, "right", 500);
     perimeter(ctx);
   }
 
@@ -339,7 +337,7 @@
     const bounds = canvas.getBoundingClientRect();
     const x = (event.clientX - bounds.left) / bounds.width * W;
     const y = (event.clientY - bounds.top) / bounds.height * H;
-    if (x < 1368 || x > 1540 || y < 397 || y > 425) return;
+    if (x < 1498 || x > 1540 || y < 397 || y > 425) return;
     event.preventDefault();
     event.stopPropagation();
     landscapeDots = variationDots(++landscapeSeed);
