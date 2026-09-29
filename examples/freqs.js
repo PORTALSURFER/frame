@@ -11,6 +11,75 @@
   const MONO = '"SFMono-Regular", Consolas, "Liberation Mono", monospace';
   const SANS = 'Inter, "Segoe UI", Arial, sans-serif';
   const SELECTED_FILL = "rgba(255, 105, 95, .16)";
+  const NODE_STORAGE = 'freqs-concept-nodes-v1';
+  let nodes = [0, 200, 400, 500, 700, 900, 1100].map(cents => ({cents}));
+  try {
+    const saved = JSON.parse(localStorage.getItem(NODE_STORAGE));
+    if (Array.isArray(saved) && saved.length >= 1 && saved.length <= 32 &&
+        saved.every(node => Number.isFinite(node.cents) && node.cents >= -2400 && node.cents <= 4800)) nodes = saved;
+  } catch { /* Use the initial scale when no saved list is available. */ }
+
+  function mountNodes({host, repaint}) {
+    const editor = document.createElement('section');
+    editor.className = 'freqs-nodes';
+    editor.setAttribute('aria-label', 'Scale nodes');
+    const header = document.createElement('div');
+    header.className = 'freqs-node-header';
+    for (const label of ['NODE', 'PITCH · Hz', 'CENTS', '']) {
+      const cell = document.createElement('span'); cell.textContent = label; header.append(cell);
+    }
+    const list = document.createElement('div');
+    list.className = 'freqs-node-list';
+    list.setAttribute('aria-label', 'Scrollable node list');
+    const footer = document.createElement('div'); footer.className = 'freqs-node-footer';
+    const count = document.createElement('span');
+    const add = document.createElement('button'); add.type = 'button'; add.textContent = '+ Add node';
+    footer.append(count, add); editor.append(header, list, footer); host.append(editor);
+    const save = () => { try { localStorage.setItem(NODE_STORAGE, JSON.stringify(nodes)); } catch {} repaint(); };
+    function render() {
+      list.replaceChildren();
+      count.textContent = `${nodes.length} ${nodes.length === 1 ? 'node' : 'nodes'}`;
+      add.disabled = nodes.length >= 32;
+      nodes.forEach((node, index) => {
+        const row = document.createElement('div'); row.className = 'freqs-node-row';
+        const label = document.createElement('span'); label.textContent = String(index + 1);
+        const hz = document.createElement('input'); hz.type = 'number'; hz.min = '1'; hz.max = '20000'; hz.step = 'any';
+        hz.setAttribute('aria-label', `Node ${index + 1} pitch in Hz`);
+        const cents = document.createElement('input'); cents.type = 'number'; cents.min = '-2400'; cents.max = '4800'; cents.step = 'any';
+        cents.setAttribute('aria-label', `Node ${index + 1} cents`);
+        const updateValues = () => {
+          hz.value = (220 * 2 ** (node.cents / 1200)).toFixed(2);
+          cents.value = String(Number(node.cents.toFixed(2)));
+        };
+        updateValues();
+        for (const input of [hz, cents]) {
+          input.addEventListener('input', () => {
+            if (input.value === '' || !input.validity.valid) return;
+            const value = input.valueAsNumber;
+            const next = input === hz ? 1200 * Math.log2(value / 220) : value;
+            if (!Number.isFinite(next) || next < -2400 || next > 4800) return;
+            node.cents = next;
+            if (input === hz) cents.value = String(Number(next.toFixed(2)));
+            else hz.value = (220 * 2 ** (next / 1200)).toFixed(2);
+            save();
+          });
+          input.addEventListener('change', updateValues);
+          input.addEventListener('blur', updateValues);
+        }
+        const remove = document.createElement('button'); remove.type = 'button'; remove.textContent = '−';
+        remove.setAttribute('aria-label', `Remove node ${index + 1}`); remove.disabled = nodes.length === 1;
+        remove.addEventListener('click', () => { nodes.splice(index, 1); render(); save(); });
+        row.append(label, hz, cents, remove); list.append(row);
+      });
+    }
+    add.addEventListener('click', () => {
+      nodes.push({cents: Math.min(4800, Math.max(...nodes.map(node => node.cents)) + 100)});
+      render(); save(); list.scrollTop = list.scrollHeight;
+      list.lastElementChild.querySelector('input').focus();
+    });
+    render();
+    return () => editor.remove();
+  }
 
   function box(ctx, x, y, w, h, fill, stroke = null, r = 10) {
     ctx.beginPath(); ctx.roundRect(x, y, w, h, r);
@@ -208,34 +277,14 @@
     button(ctx, 1428, 38, 38, 34, "?", false, true);
 
     // Main analysis panels
-    panel(ctx, 34, 104, 530, 336, "01  /  Harmonic map");
-    const latticeX = 175, latticeY = 216, latticeStepX = 50, latticeStepY = 30;
-    for (let col = 0; col < 7; col++) {
-      text(ctx, String(col + 1).padStart(2, "0"), latticeX + col * latticeStepX, 188, 10, C.muted, MONO, "center");
-    }
-    for (let row = 0; row < 7; row++) {
-      const y = latticeY + row * latticeStepY;
-      text(ctx, String(row + 1).padStart(2, "0"), 105, y, 10, C.muted, MONO, "center");
-      for (let col = 0; col < 7; col++) {
-        const x = latticeX + col * latticeStepX;
-        const isDiagonal = row === col;
-        const isSelected = (row === 0 && col === 4) || (row === 4 && col === 0);
-        const low = Math.min(row, col), high = Math.max(row, col);
-        const fit = ((low * 5 + high * 3 + 2) % 9) / 9;
-        const radius = isDiagonal ? 5 : 7 + fit * 3;
-        circle(ctx, x, y, radius, isDiagonal ? "#36413c" : `rgba(255,105,95,${.10 + fit * .29})`);
-        if (isSelected) circle(ctx, x, y, radius + 4, null, C.coral, 1.8);
-        if (!isDiagonal) circle(ctx, x, y, 1.8, isSelected ? C.coral : "rgba(220,229,220,.38)");
-      }
-    }
-
-    panel(ctx, 582, 104, 984, 336, "02  /  Pitch space");
+    panel(ctx, 34, 104, 756, 336, "01  /  Nodes");
+    panel(ctx, 810, 104, 756, 336, "02  /  Pitch space");
     text(ctx, "REACH", 1201, 138, 10, C.muted, MONO, "left", 600);
     text(ctx, "±72¢", 1256, 138, 11, C.text, MONO, "left", 600);
     box(ctx, 1310, 135, 210, 5, "#2d3832", null, 3);
     box(ctx, 1310, 135, 74, 5, C.coral, null, 3);
     box(ctx, 1380, 130, 4, 15, C.coral, null, 2);
-    const gx = 606, gy = 190, gw = 932, gh = 218;
+    const gx = 834, gy = 190, gw = 704, gh = 218;
     ctx.save(); ctx.beginPath(); ctx.roundRect(gx, gy, gw, gh, 6); ctx.clip();
     paintLandscapeContours(ctx, gx, gy, gw, gh, landscapeDots);
     landscapeDots.forEach((point, i) => {
@@ -258,17 +307,17 @@
     panel(ctx, 34, 460, 1532, 142, "03  /  Cent deviation");
     const py = 548, left = 100, right = 1500;
     line(ctx, left, py, right, py, "#536159", 1.5);
-    const ticks = [0, .17, .34, .43, .61, .74, .91, 1];
-    const cents = ["0¢", "+200¢", "+400¢", "+500¢", "+700¢", "+900¢", "+1100¢", "+1200¢"];
-    ticks.forEach((t, i) => {
-      const x = left + t * (right - left);
-      const isEnd = i === 0 || i === ticks.length - 1;
+    const minCents = Math.min(0, ...nodes.map(node => node.cents));
+    const maxCents = Math.max(1200, ...nodes.map(node => node.cents));
+    nodes.forEach((node, i) => {
+      const x = left + (node.cents - minCents) / (maxCents - minCents) * (right - left);
+      const isEnd = i === 0;
       const selected = i === 4;
       circle(ctx, x, py, isEnd ? 8 : 6, isEnd ? C.coral : selected ? C.panel : C.white,
         selected ? C.coralSoft : null, selected ? 2.5 : 1);
       if (selected) circle(ctx, x, py, 2, C.coral);
       text(ctx, String(i + 1), x, py - 23, 11, selected ? C.coral : C.muted, MONO, "center", 600);
-      text(ctx, cents[i], x, 577, 10, selected ? C.coral : C.muted, MONO, "center", selected ? 600 : 500);
+      text(ctx, `${node.cents > 0 ? "+" : ""}${Number(node.cents.toFixed(1))}¢`, x, 577, 10, selected ? C.coral : C.muted, MONO, "center", selected ? 600 : 500);
     });
 
     // Detailed controls
@@ -321,10 +370,10 @@
     perimeter(ctx);
   }
 
-  Frame.register({ id: "freqs", name: "Freqs tuner concept", width: W, height: H, paint: paintFreqs });
+  Frame.register({ id: "freqs", name: "Freqs tuner concept", width: W, height: H, paint: paintFreqs, mount: mountNodes });
 
-  // Frame designs are paint-only. Capture the variation control before the
-  // annotation brush sees the pointer, then repaint this design in place.
+  // Capture the painted variation control before the annotation brush sees
+  // the pointer, then repaint this design in place.
   const stage = document.getElementById("stage");
   const canvas = document.getElementById("design");
   stage.addEventListener("pointerdown", (event) => {

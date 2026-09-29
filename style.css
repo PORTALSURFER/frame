@@ -28,9 +28,25 @@ select { min-width: 142px; cursor: pointer; }
 .board { position: relative; flex: none; background: #1b2120; box-shadow: 0 0 0 1px #53605b, 0 18px 70px #0009; overflow: hidden; }
 .design, .brush { position: absolute; display: block; inset: 0; width: 100%; height: 100%; }
 .design { pointer-events: none; user-select: none; }
+.design-controls { position: absolute; top: 0; left: 0; z-index: 3; transform-origin: top left; pointer-events: none; }
 .brush { z-index: 2; cursor: crosshair; touch-action: none; user-select: none; }
 .brush path { fill: none; stroke: #ff3434; stroke-width: 3; stroke-linecap: round; stroke-linejoin: round; }
 footer { min-height: 42px; display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 8px 26px; border-top: 1px solid #343e3a; color: #92a19b; font-size: 10px; line-height: 1.4; }
 #mark-count { color: #e39187; white-space: nowrap; }
 @media (max-width: 920px) { .topbar { align-items: flex-start; flex-direction: column; } .tools { justify-content: flex-start; } }
 @media (max-width: 600px) { .topbar { padding: 13px; } .stage { min-height: 320px; padding: 15px; } footer { padding: 8px 13px; } }
+
+.freqs-nodes { position: absolute; left: 56px; top: 170px; width: 712px; height: 254px; display: flex; flex-direction: column; color: #a9b4ac; font: 13px "SFMono-Regular", Consolas, monospace; pointer-events: auto; }
+.freqs-node-header, .freqs-node-row { display: grid; grid-template-columns: 64px 1fr 1fr 32px; gap: 16px; align-items: center; }
+.freqs-node-header { padding: 0 14px 10px 8px; font-size: 10px; letter-spacing: .06em; }
+.freqs-node-list { flex: 1; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; scrollbar-color: #536459 #18211c; padding-right: 8px; }
+.freqs-node-list::-webkit-scrollbar { width: 6px; }
+.freqs-node-list::-webkit-scrollbar-thumb { background: #536459; border-radius: 3px; }
+.freqs-node-row { min-height: 40px; padding: 4px 6px 4px 8px; border-bottom: 1px solid #252e2a; }
+.freqs-nodes input { width: 100%; min-width: 0; height: 30px; padding: 4px 10px; border: 1px solid #303a35; border-radius: 5px; color: #edf0e9; background: #101615; font: inherit; outline: none; }
+.freqs-nodes input:focus { border-color: #ff695f; background: #18211c; }
+.freqs-nodes button { height: 30px; border: 1px solid #303a35; border-radius: 5px; color: #a9b4ac; background: #1a2220; cursor: pointer; font: inherit; }
+.freqs-nodes button:hover:not(:disabled) { background: #303c35; color: #edf0e9; }
+.freqs-nodes button:disabled { opacity: .35; cursor: default; }
+.freqs-node-footer { display: flex; justify-content: space-between; align-items: center; padding-top: 10px; font-size: 11px; }
+.freqs-node-footer button { padding: 0 14px; color: #ff695f; }

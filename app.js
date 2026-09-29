@@ -18,6 +18,10 @@
   let activePath = null;
   let syncQueue = Promise.resolve();
   let syncRevision = 0;
+  let unmountControls;
+  const controls = document.createElement('div');
+  controls.className = 'design-controls';
+  board.append(controls);
 
   function storageKey() { return `${STORAGE_PREFIX}${design.id}`; }
   function validLines(value) {
@@ -114,6 +118,9 @@
     const scale = Math.min(1, usableWidth / design.width, usableHeight / design.height);
     board.style.width = `${design.width * Math.max(scale, 0.01)}px`;
     board.style.height = `${design.height * Math.max(scale, 0.01)}px`;
+    controls.style.width = `${design.width}px`;
+    controls.style.height = `${design.height}px`;
+    controls.style.transform = `scale(${Math.max(scale, 0.01)})`;
     redrawMarks();
   }
   function paintDesign() {
@@ -127,6 +134,9 @@
   }
   function selectDesign(id) {
     if (active) finishLine();
+    unmountControls?.();
+    unmountControls = null;
+    controls.replaceChildren();
     design = Frame.designs.get(id);
     if (!design) return;
     picker.value = id;
@@ -136,6 +146,10 @@
     lines = load();
     paintDesign();
     fitBoard();
+    const mountedDesign = design;
+    unmountControls = design.mount?.({host: controls, repaint: () => {
+      if (design === mountedDesign) paintDesign();
+    }});
     if (lines.length) syncFeedback();
     else setSyncStatus("SYNC IDLE", "idle");
     try { localStorage.setItem("frame-last-design", id); } catch { /* optional */ }
@@ -186,6 +200,7 @@
   });
   picker.addEventListener("change", () => selectDesign(picker.value));
   document.addEventListener("keydown", (event) => {
+    if (event.target.closest('input, textarea, [contenteditable]')) return;
     if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "z" && lines.length) {
       event.preventDefault(); undo.click();
     }
