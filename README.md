@@ -24,7 +24,7 @@ Frame.register({
 });
 ```
 
-The drawing coordinates use the registered width and height. Frame scales the board to fit the window and renders at device resolution. Edit the script and reload to see changes. Annotations remain aligned with the design's coordinates, even after resizing.
+The drawing coordinates use the registered width and height. Frame scales the board to fit the window and renders at device resolution. Edit the design script or styles and click **Refresh** to load the changes without reloading the page. The selected design and saved annotations stay in place; Freqs also retains its node values. Refresh failures keep the previous design visible and put the error in the button's tooltip. Changes to Frame's own HTML or runtime scripts still require a page reload. Annotations remain aligned with the design's coordinates, even after resizing.
 
 A design can optionally provide `mount({host, repaint})` to add DOM controls in design coordinates. The host scales with the canvas and ignores pointer input outside the controls. Call `repaint()` after updating design state and return a cleanup function; Frame calls it when switching designs. Interactive controls sit above the brush so inputs and scrolling remain usable.
 

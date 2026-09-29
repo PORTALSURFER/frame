@@ -12,6 +12,8 @@
   const count = document.getElementById("mark-count");
   const syncStatus = document.getElementById("sync-status");
   const sizeLabel = document.getElementById("design-size");
+  const refresh = document.getElementById('refresh');
+  let refreshMessageTimer;
   let design;
   let lines = [];
   let active = null;
@@ -199,6 +201,36 @@
     setTimeout(() => URL.revokeObjectURL(url), 1000);
   });
   picker.addEventListener("change", () => selectDesign(picker.value));
+  refresh.addEventListener('click', async () => {
+    if (active) finishLine();
+    clearTimeout(refreshMessageTimer);
+    const id = design.id;
+    refresh.disabled = picker.disabled = true;
+    refresh.textContent = 'Refreshing…';
+    try {
+      await Promise.all([...document.querySelectorAll('link[rel="stylesheet"]')].map(link => new Promise((resolve, reject) => {
+        const updated = link.cloneNode();
+        const url = new URL(link.href);
+        url.searchParams.set('frame-refresh', Date.now());
+        updated.href = url.href;
+        updated.onload = () => { link.remove(); resolve(); };
+        updated.onerror = () => { updated.remove(); reject(new Error('Could not load the updated styles')); };
+        link.after(updated);
+      })));
+      await Frame.refresh(id);
+      selectDesign(id);
+      const option = [...picker.options].find(option => option.value === id);
+      if (option) option.textContent = design.name;
+      refresh.textContent = 'Refreshed';
+      refresh.title = 'Refresh design code and styles';
+    } catch (error) {
+      refresh.textContent = 'Refresh failed';
+      refresh.title = error.message;
+    } finally {
+      refresh.disabled = picker.disabled = false;
+      refreshMessageTimer = setTimeout(() => { refresh.textContent = 'Refresh'; }, 2000);
+    }
+  });
   document.addEventListener("keydown", (event) => {
     if (event.target.closest('input, textarea, [contenteditable]')) return;
     if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "z" && lines.length) {

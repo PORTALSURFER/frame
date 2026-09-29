@@ -78,7 +78,23 @@
       list.lastElementChild.querySelector('input').focus();
     });
     render();
-    return () => editor.remove();
+    const interaction = new AbortController();
+    // Capture the painted variation control before the annotation brush sees
+    // the pointer, then repaint this design in place.
+    const stage = document.getElementById("stage");
+    const canvas = document.getElementById("design");
+    stage.addEventListener("pointerdown", (event) => {
+      if (event.button !== 0 || document.getElementById("design-picker").value !== "freqs") return;
+      const bounds = canvas.getBoundingClientRect();
+      const x = (event.clientX - bounds.left) / bounds.width * W;
+      const y = (event.clientY - bounds.top) / bounds.height * H;
+      if (x < 1498 || x > 1540 || y < 397 || y > 425) return;
+      event.preventDefault();
+      event.stopPropagation();
+      landscapeDots = variationDots(++landscapeSeed);
+      repaint();
+    }, {capture: true, signal: interaction.signal});
+    return () => { interaction.abort(); editor.remove(); };
   }
 
   function box(ctx, x, y, w, h, fill, stroke = null, r = 10) {
@@ -372,23 +388,5 @@
 
   Frame.register({ id: "freqs", name: "Freqs tuner concept", width: W, height: H, paint: paintFreqs, mount: mountNodes });
 
-  // Capture the painted variation control before the annotation brush sees
-  // the pointer, then repaint this design in place.
-  const stage = document.getElementById("stage");
-  const canvas = document.getElementById("design");
-  stage.addEventListener("pointerdown", (event) => {
-    if (event.button !== 0 || document.getElementById("design-picker").value !== "freqs") return;
-    const bounds = canvas.getBoundingClientRect();
-    const x = (event.clientX - bounds.left) / bounds.width * W;
-    const y = (event.clientY - bounds.top) / bounds.height * H;
-    if (x < 1498 || x > 1540 || y < 397 || y > 425) return;
-    event.preventDefault();
-    event.stopPropagation();
-    landscapeDots = variationDots(++landscapeSeed);
-    const context = canvas.getContext("2d");
-    const scale = canvas.width / W;
-    context.setTransform(scale, 0, 0, scale, 0, 0);
-    context.clearRect(0, 0, W, H);
-    paintFreqs(context);
-  }, true);
+
 })();
