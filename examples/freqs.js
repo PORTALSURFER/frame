@@ -52,22 +52,31 @@
     text(ctx, eyebrow.toUpperCase(), x + 22, y + 28, 10, C.muted, MONO, "left", 600);
     line(ctx, x + 20, y + 60, x + w - 20, y + 60, C.lineSoft);
   }
-  function metalPanel(ctx, points, horizontal) {
+  function metalPanel(ctx, points, { reverse = false, reflection = null } = {}) {
     ctx.beginPath();
     ctx.moveTo(points[0][0], points[0][1]);
     for (let i = 1; i < points.length; i++) ctx.lineTo(points[i][0], points[i][1]);
     ctx.closePath();
     const xs = points.map(([x]) => x), ys = points.map(([, y]) => y);
-    const sheen = horizontal
-      ? ctx.createLinearGradient(Math.min(...xs), 0, Math.max(...xs), 0)
-      : ctx.createLinearGradient(0, Math.min(...ys), 0, Math.max(...ys));
-    sheen.addColorStop(0, "#35413a");
-    sheen.addColorStop(.35, "#39463e");
-    sheen.addColorStop(.48, "#48564c");
-    sheen.addColorStop(.6, "#39463e");
-    sheen.addColorStop(1, "#35413a");
-    ctx.fillStyle = sheen;
+    const minX = Math.min(...xs), maxX = Math.max(...xs);
+    const minY = Math.min(...ys), maxY = Math.max(...ys);
+    const shade = ctx.createLinearGradient(minX, reverse ? maxY : minY, maxX, reverse ? minY : maxY);
+    shade.addColorStop(0, reverse ? "#39463e" : "#2e3933");
+    shade.addColorStop(.6, "#354139");
+    shade.addColorStop(1, reverse ? "#2d3832" : "#3b473f");
+    ctx.fillStyle = shade;
     ctx.fill();
+    if (reflection) {
+      const sheen = ctx.createLinearGradient(...reflection);
+      sheen.addColorStop(0, "rgba(188, 207, 193, 0)");
+      sheen.addColorStop(.3, "rgba(188, 207, 193, .025)");
+      sheen.addColorStop(.46, "rgba(188, 207, 193, .17)");
+      sheen.addColorStop(.57, "rgba(188, 207, 193, .055)");
+      sheen.addColorStop(.85, "rgba(188, 207, 193, 0)");
+      sheen.addColorStop(1, "rgba(188, 207, 193, 0)");
+      ctx.fillStyle = sheen;
+      ctx.fill();
+    }
     ctx.strokeStyle = "#151d19";
     ctx.lineWidth = 1.5;
     ctx.stroke();
@@ -80,10 +89,10 @@
       [10, 614], [29, 602], [29, 460], [10, 448]
     ];
     ctx.save();
-    metalPanel(ctx, [[652,0],[948,0],[884,23],[716,23]], true);
-    metalPanel(ctx, [[716,979],[884,979],[942,1000],[658,1000]], true);
-    metalPanel(ctx, [[0,442],[29,460],[29,602],[0,620]], false);
-    metalPanel(ctx, [[1571,460],[1600,442],[1600,620],[1571,602]], false);
+    metalPanel(ctx, [[652,0],[948,0],[884,23],[716,23]], { reflection: [718,-24,788,46] });
+    metalPanel(ctx, [[716,979],[884,979],[942,1000],[658,1000]], { reverse: true });
+    metalPanel(ctx, [[0,442],[29,460],[29,602],[0,620]], { reverse: true });
+    metalPanel(ctx, [[1571,460],[1600,442],[1600,620],[1571,602]], { reflection: [1550,464,1620,534] });
     ctx.beginPath();
     ctx.moveTo(points[0][0], points[0][1]);
     for (let i = 1; i < points.length; i++) ctx.lineTo(points[i][0], points[i][1]);
@@ -258,59 +267,47 @@
       circle(ctx, x, py, isEnd ? 8 : 6, isEnd ? C.coral : selected ? C.panel : C.white,
         selected ? C.coralSoft : null, selected ? 2.5 : 1);
       if (selected) circle(ctx, x, py, 2, C.coral);
+      text(ctx, String(i + 1), x, py - 23, 11, selected ? C.coral : C.muted, MONO, "center", 600);
       text(ctx, cents[i], x, 577, 10, selected ? C.coral : C.muted, MONO, "center", selected ? 600 : 500);
     });
 
     // Detailed controls
-    panel(ctx, 34, 622, 535, 256, "04  /  Reference");
+    panel(ctx, 34, 622, 756, 256, "04  /  Reference");
     text(ctx, "ROOT DEGREE", 56, 710, 10, C.muted, MONO, "left", 600);
-    text(ctx, "ROOT PITCH", 240, 710, 10, C.muted, MONO, "left", 600);
-    text(ctx, "MIDI KEY", 422, 710, 10, C.muted, MONO, "left", 600);
+    text(ctx, "ROOT PITCH", 310, 710, 10, C.muted, MONO, "left", 600);
+    text(ctx, "MIDI KEY", 653, 710, 10, C.muted, MONO, "left", 600);
     button(ctx, 56, 724, 36, 34, "‹", false, true);
     text(ctx, "04", 111, 741, 15, C.text, MONO, "center", 600);
     button(ctx, 130, 724, 36, 34, "›", false, true);
-    slider(ctx, 240, 749, 150, .42, "", "220.00 Hz");
-    button(ctx, 422, 724, 36, 34, "‹", false, true);
-    text(ctx, "60", 476, 741, 15, C.text, MONO, "center", 600);
-    button(ctx, 496, 724, 36, 34, "›", false, true);
+    slider(ctx, 310, 749, 250, .42, "", "220.00 Hz");
+    button(ctx, 653, 724, 36, 34, "‹", false, true);
+    text(ctx, "60", 707, 741, 15, C.text, MONO, "center", 600);
+    button(ctx, 727, 724, 36, 34, "›", false, true);
     text(ctx, "OCTAVE / REPEAT", 56, 790, 10, C.muted, MONO, "left", 600);
-    text(ctx, "1200¢   2.000:1", 547, 790, 10, C.text, MONO, "right", 500);
-    slider(ctx, 56, 823, 490, .34, "", "");
+    text(ctx, "1200¢   2.000:1", 768, 790, 10, C.text, MONO, "right", 500);
+    slider(ctx, 56, 823, 712, .34, "", "");
     text(ctx, "SNAP RATIOS", 56, 852, 10, C.muted, MONO, "left", 500);
-    button(ctx, 462, 837, 84, 28, "OFF  ⌄", false, true);
+    button(ctx, 684, 837, 84, 28, "OFF  ⌄", false, true);
 
-    panel(ctx, 589, 622, 583, 256, "05  /  Slots & structure");
-    text(ctx, "NOTES PER REPEAT", 612, 710, 10, C.muted, MONO, "left", 600);
-    button(ctx, 612, 724, 40, 36, "−", false, true);
-    button(ctx, 660, 724, 40, 36, "+", false, true);
-    box(ctx, 712, 724, 54, 36, SELECTED_FILL, C.coralSoft, 7);
-    text(ctx, "07", 739, 742, 13, C.coral, MONO, "center", 600);
-    [12, 24, 36, 48].forEach((n, i) => button(ctx, 784 + i * 62, 724, 52, 36, String(n), false, true));
-    line(ctx, 612, 781, 1148, 781, C.lineSoft);
-    button(ctx, 612, 798, 39, 34, "‹", false, true);
-    button(ctx, 659, 798, 39, 34, "›", false, true);
-    box(ctx, 709, 798, 206, 34, C.panelAlt, C.line, 7);
-    text(ctx, "SLOT 01", 725, 815, 10, C.muted, MONO, "left", 600);
-    text(ctx, "•", 798, 815, 12, C.dim, MONO, "center");
-    text(ctx, "EMPTY", 825, 815, 10, C.dim, MONO, "left", 500);
-    button(ctx, 928, 798, 105, 34, "↓  SAVE", false, true);
-    button(ctx, 1042, 798, 106, 34, "□  LOAD", false, true);
-
-    panel(ctx, 1192, 622, 374, 256, "06  /  Quality");
-    const stats = [["COHESION", "47%", .47], ["ROOT GRAVITY", "49%", .49], ["ENERGY", "61%", .61], ["PAIR FIT", "66%", .66]];
-    stats.forEach(([name, value, amount], i) => {
-      const y = 716 + i * 35;
-      text(ctx, name, 1215, y, 10, C.muted, MONO, "left", 500);
-      box(ctx, 1350, y - 2, 105, 4, "#29332f", null, 2);
-      box(ctx, 1350, y - 2, 105 * amount, 4, i === 0 ? C.coral : "#b4bfb5", null, 2);
-      text(ctx, value, 1541, y, 10, C.text, MONO, "right", 600);
-    });
-    line(ctx, 1215, 850, 1542, 850, C.lineSoft);
-    text(ctx, "ROOT SHAPE", 1215, 864, 9, C.muted, MONO, "left", 500);
-    text(ctx, "1—2—5", 1541, 864, 11, C.text, MONO, "right", 600);
+    panel(ctx, 810, 622, 756, 256, "05  /  Slots & structure");
+    text(ctx, "NOTES PER REPEAT", 833, 710, 10, C.muted, MONO, "left", 600);
+    button(ctx, 833, 724, 40, 36, "−", false, true);
+    button(ctx, 881, 724, 40, 36, "+", false, true);
+    box(ctx, 933, 724, 54, 36, SELECTED_FILL, C.coralSoft, 7);
+    text(ctx, "07", 960, 742, 13, C.coral, MONO, "center", 600);
+    [12, 24, 36, 48].forEach((n, i) => button(ctx, 1040 + i * 124, 724, 110, 36, String(n), false, true));
+    line(ctx, 833, 781, 1542, 781, C.lineSoft);
+    button(ctx, 833, 798, 39, 34, "‹", false, true);
+    button(ctx, 880, 798, 39, 34, "›", false, true);
+    box(ctx, 930, 798, 320, 34, C.panelAlt, C.line, 7);
+    text(ctx, "SLOT 01", 946, 815, 10, C.muted, MONO, "left", 600);
+    text(ctx, "•", 1019, 815, 12, C.dim, MONO, "center");
+    text(ctx, "EMPTY", 1046, 815, 10, C.dim, MONO, "left", 500);
+    button(ctx, 1263, 798, 130, 34, "↓  SAVE", false, true);
+    button(ctx, 1406, 798, 136, 34, "□  LOAD", false, true);
 
     // Compact, aligned audition strip
-    surface(ctx, 34, 896, 1532, 68, 10);
+    surface(ctx, 34, 896, 1040, 68, 10);
     text(ctx, "AUDITION", 56, 930, 10, C.coral, MONO, "left", 700);
     button(ctx, 142, 914, 38, 34, "△", true, true);
     button(ctx, 190, 914, 38, 34, "▧", false, true);
@@ -321,8 +318,6 @@
     slider(ctx, 582, 932, 205, .08, "ATTACK", "10 ms");
     line(ctx, 812, 910, 812, 950, C.line);
     slider(ctx, 844, 932, 205, .29, "RELEASE", "900 ms");
-    line(ctx, 1074, 910, 1074, 950, C.line);
-    text(ctx, "AUDITION VOICE", 1540, 930, 10, C.dim, MONO, "right", 500);
     perimeter(ctx);
   }
 
