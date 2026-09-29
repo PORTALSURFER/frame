@@ -306,18 +306,18 @@
     button(ctx, 1263, 798, 130, 34, "↓  SAVE", false, true);
     button(ctx, 1406, 798, 136, 34, "□  LOAD", false, true);
 
-    // Compact, aligned audition strip
-    surface(ctx, 34, 896, 1040, 68, 10);
+    // Full-width audition strip with evenly spaced controls.
+    surface(ctx, 34, 896, 1532, 68, 10);
     text(ctx, "AUDITION", 56, 930, 10, C.coral, MONO, "left", 700);
     button(ctx, 142, 914, 38, 34, "△", true, true);
     button(ctx, 190, 914, 38, 34, "▧", false, true);
     button(ctx, 238, 914, 38, 34, "／", false, true);
     line(ctx, 300, 910, 300, 950, C.line);
-    slider(ctx, 330, 932, 196, .25, "LEVEL", "25%");
-    line(ctx, 550, 910, 550, 950, C.line);
-    slider(ctx, 582, 932, 205, .08, "ATTACK", "10 ms");
-    line(ctx, 812, 910, 812, 950, C.line);
-    slider(ctx, 844, 932, 205, .29, "RELEASE", "900 ms");
+    slider(ctx, 330, 932, 366, .25, "LEVEL", "25%");
+    line(ctx, 722, 910, 722, 950, C.line);
+    slider(ctx, 754, 932, 366, .08, "ATTACK", "10 ms");
+    line(ctx, 1146, 910, 1146, 950, C.line);
+    slider(ctx, 1178, 932, 366, .29, "RELEASE", "900 ms");
     perimeter(ctx);
   }
 
