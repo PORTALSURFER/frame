@@ -10,11 +10,14 @@
   const clear = document.getElementById("clear");
   const download = document.getElementById("download");
   const count = document.getElementById("mark-count");
+  const syncStatus = document.getElementById("sync-status");
   const sizeLabel = document.getElementById("design-size");
   let design;
   let lines = [];
   let active = null;
   let activePath = null;
+  let syncQueue = Promise.resolve();
+  let syncRevision = 0;
 
   function storageKey() { return `${STORAGE_PREFIX}${design.id}`; }
   function validLines(value) {
@@ -34,10 +37,37 @@
     undo.disabled = clear.disabled = download.disabled = lines.length === 0;
     count.textContent = `${lines.length} ${lines.length === 1 ? "line" : "lines"}`;
   }
+  function setSyncStatus(message, state) {
+    syncStatus.textContent = message;
+    syncStatus.dataset.state = state;
+  }
+  function syncFeedback() {
+    const current = design;
+    const revision = ++syncRevision;
+    const payload = {
+      design: current.id,
+      width: current.width,
+      height: current.height,
+      lines: lines.map((stroke) => stroke.map(([x, y]) => [x, y]))
+    };
+    setSyncStatus("SYNCING", "syncing");
+    syncQueue = syncQueue.catch(() => {}).then(async () => {
+      const response = await fetch("/api/feedback", {
+        method: "POST",
+        headers: {"Content-Type": "application/json"},
+        body: JSON.stringify(payload)
+      });
+      if (!response.ok) throw new Error(`Feedback sync failed (${response.status})`);
+      if (revision === syncRevision && picker.value === current.id) setSyncStatus("SYNCED", "synced");
+    }).catch(() => {
+      if (revision === syncRevision && picker.value === current.id) setSyncStatus("LOCAL ONLY", "local");
+    });
+  }
   function save() {
     try { localStorage.setItem(storageKey(), JSON.stringify(lines)); }
     catch { /* The brush still works if storage is unavailable. */ }
     updateControls();
+    syncFeedback();
   }
 
   function geometry() {
@@ -106,6 +136,8 @@
     lines = load();
     paintDesign();
     fitBoard();
+    if (lines.length) syncFeedback();
+    else setSyncStatus("SYNC IDLE", "idle");
     try { localStorage.setItem("frame-last-design", id); } catch { /* optional */ }
   }
   function finishLine() {

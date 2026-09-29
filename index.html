@@ -9,6 +9,7 @@
   <script src="examples/starter.js" defer></script>
   <script src="examples/sift-waveform-data.js" defer></script>
   <script src="examples/sift.js" defer></script>
+  <script src="examples/freqs.js" defer></script>
   <script src="app.js" defer></script>
 </head>
 <body>
@@ -19,6 +20,7 @@
         <label class="design-choice">Design <select id="design-picker" aria-label="Design"></select></label>
         <span id="design-size" class="design-size"></span>
         <span class="brush-status"><span class="red-dot"></span> RED BRUSH</span>
+        <span id="sync-status" class="sync-status" data-state="idle" aria-live="polite">SYNC IDLE</span>
         <button id="undo" type="button" disabled>Undo line</button>
         <button id="clear" type="button" disabled>Clear all lines</button>
         <button id="download" type="button" disabled>Download feedback</button>
