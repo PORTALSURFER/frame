@@ -2,7 +2,9 @@
 
 Frame is a small, code-painted UI design canvas for sketching application interfaces and collecting visual feedback. It uses plain HTML, CSS, JavaScript, and Canvas 2D; there is no build step. The user-facing controls are a design picker and a red annotation brush. Agents or developers change the actual interface by editing its design script.
 
-Run `node server.js` and open `http://127.0.0.1:8765/` to use Frame. The local server serves the canvas and receives annotation feedback at `/api/feedback`, saving it to `feedback/<design>.json` in the workspace. That folder is ignored by Git. Annotations also remain in browser `localStorage`, and **Download feedback** remains available if automatic sync is unavailable. The included **Starter UI** is a neutral example. **Sift example** preserves the original VST mockup and its traced waveform as a separate design. These are visual mockups, not functional application controls or generated VST code.
+Run `node server.js` and open `http://127.0.0.1:8765/` to use Frame. The local server serves the canvas and receives annotation feedback at `/api/feedback`, saving it to `feedback/<design>.json` in the workspace. That folder is ignored by Git. Annotations also remain in browser `localStorage`, and **Download feedback** remains available if automatic sync is unavailable. **Starter UI** is a neutral example, **Sift example** preserves the earlier VST mockup, and **Freqs tuner concept** explores a microtonal tuning interface. These are visual mockups, not functional application controls or generated VST code.
+
+The Freqs concept paints a seven-degree pair-fit lattice, a variation landscape plotted by cohesion and root gravity, a pitch line, tuning and scale controls, stats, and an audition strip. **New Variations** repaints the concept's candidate field so its visual states can be reviewed. This preview does not edit or audition an actual scale.
 
 ## Add a design
 

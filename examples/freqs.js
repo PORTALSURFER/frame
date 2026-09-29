@@ -47,11 +47,10 @@
     ctx.strokeStyle = "rgba(0, 0, 0, .30)"; ctx.stroke();
     ctx.restore();
   }
-  function panel(ctx, x, y, w, h, title, eyebrow = "") {
+  function panel(ctx, x, y, w, h, eyebrow) {
     surface(ctx, x, y, w, h, 12);
-    if (eyebrow) text(ctx, eyebrow.toUpperCase(), x + 22, y + 24, 10, C.muted, MONO, "left", 600);
-    text(ctx, title, x + 22, y + (eyebrow ? 51 : 30), 17, C.text, SANS, "left", 600);
-    line(ctx, x + 20, y + (eyebrow ? 76 : 56), x + w - 20, y + (eyebrow ? 76 : 56), C.lineSoft);
+    text(ctx, eyebrow.toUpperCase(), x + 22, y + 28, 10, C.muted, MONO, "left", 600);
+    line(ctx, x + 20, y + 60, x + w - 20, y + 60, C.lineSoft);
   }
   function insetPlate(ctx, wellPoints, platePoints, innerEdge) {
     const path = (points) => {
@@ -127,11 +126,11 @@
     }
 
     insetPlate(ctx,
-      [[719,12],[727,11],[873,11],[881,12],[881,21],[873,22],[727,22],[719,21]],
-      [[722,14],[728,13],[872,13],[878,14],[878,19],[872,20],[728,20],[722,19]], "top");
+      [[704,3],[727,13],[873,13],[896,3],[907,3],[876,23],[724,23],[693,3]],
+      [[707,6],[729,16],[871,16],[893,6],[900,6],[875,21],[725,21],[700,6]], "top");
     insetPlate(ctx,
-      [[719,990],[727,991],[873,991],[881,990],[881,981],[873,980],[727,980],[719,981]],
-      [[722,988],[728,989],[872,989],[878,988],[878,983],[872,982],[728,982],[722,983]], "bottom");
+      [[704,997],[727,987],[873,987],[896,997],[907,997],[876,977],[724,977],[693,997]],
+      [[707,994],[729,984],[871,984],[893,994],[900,994],[875,979],[725,979],[700,994]], "bottom");
     insetPlate(ctx,
       [[12,462],[25,468],[25,594],[12,600]],
       [[14,464],[23,470],[23,592],[14,598]], "left");
@@ -191,7 +190,7 @@
   }
 
   function paintLandscapeContours(ctx, gx, gy, gw, gh, dots) {
-    const contourCount = 28;
+    const contourCount = 20;
     const sampleCount = 136;
     const sigmaX = gw * .09;
     const sigmaY = gh * .12;
@@ -211,8 +210,8 @@
         const y = baseline + Math.max(-27, Math.min(27, deformation));
         if (sample === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
       }
-      ctx.strokeStyle = "rgba(196, 204, 197, .15)";
-      ctx.lineWidth = 1;
+      ctx.strokeStyle = "rgba(196, 204, 197, .12)";
+      ctx.lineWidth = 1.1;
       ctx.stroke();
     }
   }
@@ -237,31 +236,33 @@
     text(ctx, "SESSION 04", 1558, 55, 10, C.dim, MONO, "right", 500);
 
     // Main analysis panels
-    panel(ctx, 34, 104, 530, 336, "Note lattice", "01  /  Harmonic map");
-    text(ctx, "PARTIALS", 55, 198, 10, C.muted, MONO, "left", 600);
-    for (let col = 0; col < 8; col++) text(ctx, String(col + 1).padStart(2, "0"), 153 + col * 48, 198, 10, C.muted, MONO, "center");
-    for (let row = 0; row < 5; row++) {
-      const y = 231 + row * 36;
-      text(ctx, ["ROOT", "OCT 2", "OCT 3", "OCT 4", "OCT 5"][row], 55, y, 10, C.muted, MONO, "left", 500);
-      for (let col = 0; col < 8; col++) {
-        const x = 153 + col * 48;
-        const strength = ((row * 5 + col * 3 + 2) % 9) / 9;
-        const isRoot = row === 0 && col === 3;
-        const isSelected = (row === 2 && col === 5) || (row === 4 && col === 1);
-        const radius = 8 + strength * 3;
-        circle(ctx, x, y, radius, isSelected ? SELECTED_FILL : `rgba(255,105,95,${.08 + strength * .26})`);
-        if (isRoot || isSelected) circle(ctx, x, y, radius + 3, null, isRoot ? C.coral : C.coralSoft, isRoot ? 2 : 1.5);
-        circle(ctx, x, y, 2, isRoot || isSelected ? C.coral : "rgba(220,229,220,.38)");
+    panel(ctx, 34, 104, 530, 336, "01  /  Harmonic map");
+    text(ctx, "DEGREE PAIRS", 55, 190, 10, C.muted, MONO, "left", 600);
+    const latticeX = 175, latticeY = 216, latticeStepX = 50, latticeStepY = 30;
+    for (let col = 0; col < 7; col++) {
+      text(ctx, String(col + 1).padStart(2, "0"), latticeX + col * latticeStepX, 188, 10, C.muted, MONO, "center");
+    }
+    for (let row = 0; row < 7; row++) {
+      const y = latticeY + row * latticeStepY;
+      text(ctx, String(row + 1).padStart(2, "0"), 105, y, 10, C.muted, MONO, "center");
+      for (let col = 0; col < 7; col++) {
+        const x = latticeX + col * latticeStepX;
+        const isDiagonal = row === col;
+        const isSelected = (row === 0 && col === 4) || (row === 4 && col === 0);
+        const low = Math.min(row, col), high = Math.max(row, col);
+        const fit = ((low * 5 + high * 3 + 2) % 9) / 9;
+        const radius = isDiagonal ? 5 : 7 + fit * 3;
+        circle(ctx, x, y, radius, isDiagonal ? "#36413c" : `rgba(255,105,95,${.10 + fit * .29})`);
+        if (isSelected) circle(ctx, x, y, radius + 4, null, C.coral, 1.8);
+        if (!isDiagonal) circle(ctx, x, y, 1.8, isSelected ? C.coral : "rgba(220,229,220,.38)");
       }
     }
     line(ctx, 54, 416, 544, 416, C.lineSoft);
     circle(ctx, 61, 428, 4, C.coral);
-    text(ctx, "ROOT", 72, 428, 10, C.muted, MONO, "left", 500);
-    circle(ctx, 136, 428, 4, C.coralSoft);
-    text(ctx, "CANDIDATE PARTIAL", 147, 428, 10, C.muted, MONO, "left", 500);
-    text(ctx, "7 ACTIVE", 542, 428, 10, C.coral, MONO, "right", 600);
+    text(ctx, "SELECTED PAIR  01—05", 73, 428, 10, C.muted, MONO, "left", 500);
+    text(ctx, "7 DEGREES", 542, 428, 10, C.coral, MONO, "right", 600);
 
-    panel(ctx, 582, 104, 984, 336, "Scale landscape", "02  /  Pitch space");
+    panel(ctx, 582, 104, 984, 336, "02  /  Pitch space");
     text(ctx, "REACH", 1201, 138, 10, C.muted, MONO, "left", 600);
     text(ctx, "±72¢", 1256, 138, 11, C.text, MONO, "left", 600);
     box(ctx, 1310, 135, 210, 5, "#2d3832", null, 3);
@@ -270,19 +271,24 @@
     const gx = 606, gy = 190, gw = 932, gh = 218;
     ctx.save(); ctx.beginPath(); ctx.roundRect(gx, gy, gw, gh, 6); ctx.clip();
     paintLandscapeContours(ctx, gx, gy, gw, gh, landscapeDots);
+    text(ctx, "ROOT GRAVITY  ↑", gx + 12, gy + 14, 10, C.dim, MONO, "left", 600);
     landscapeDots.forEach((point, i) => {
       const x = gx + point.x * gw, y = gy + point.y * gh;
       if (point.root) circle(ctx, x, y, 11, "rgba(255,105,95,.16)", C.coral, 2.5);
       circle(ctx, x, y, i % 7 === 0 ? 4.5 : 3.5, i % 5 === 0 || point.root ? "#ff9a83" : "#d88978");
+      if (point.root) {
+        box(ctx, x + 17, y - 20, 103, 22, "rgba(14, 19, 18, .88)", C.lineSoft, 4);
+        text(ctx, "CURRENT SCALE", x + 24, y - 9, 9, C.text, MONO, "left", 600);
+      }
     });
     ctx.restore();
-    text(ctx, "−600¢", gx, 426, 10, C.dim, MONO, "left");
-    text(ctx, "0¢", gx + gw / 2, 426, 10, C.dim, MONO, "center");
-    text(ctx, "+600¢", gx + gw, 426, 10, C.dim, MONO, "right");
-    button(ctx, 1420, 397, 120, 28, "↻  RESHUFFLE", false, true);
+    text(ctx, "LOW COHESION", gx, 426, 10, C.dim, MONO, "left");
+    text(ctx, "COHESION  →", gx + gw / 2, 426, 10, C.dim, MONO, "center");
+    text(ctx, "HIGH COHESION", gx + gw - 174, 426, 10, C.dim, MONO, "right");
+    button(ctx, 1368, 397, 172, 28, "↻  NEW VARIATIONS", false, true);
 
     // Pitch distribution ruler
-    panel(ctx, 34, 460, 1532, 142, "Pitch line", "03  /  Cent deviation");
+    panel(ctx, 34, 460, 1532, 142, "03  /  Cent deviation");
     const py = 548, left = 100, right = 1500;
     line(ctx, left, py, right, py, "#536159", 1.5);
     const ticks = [0, .17, .34, .43, .61, .74, .91, 1];
@@ -298,7 +304,7 @@
     });
 
     // Detailed controls
-    panel(ctx, 34, 622, 535, 256, "Tuning", "04  /  Reference");
+    panel(ctx, 34, 622, 535, 256, "04  /  Reference");
     text(ctx, "ROOT DEGREE", 56, 710, 10, C.muted, MONO, "left", 600);
     text(ctx, "ROOT PITCH", 240, 710, 10, C.muted, MONO, "left", 600);
     text(ctx, "MIDI KEY", 422, 710, 10, C.muted, MONO, "left", 600);
@@ -315,11 +321,13 @@
     text(ctx, "SNAP RATIOS", 56, 852, 10, C.muted, MONO, "left", 500);
     button(ctx, 462, 837, 84, 28, "OFF  ⌄", false, true);
 
-    panel(ctx, 589, 622, 583, 256, "Scale", "05  /  Slots & structure");
+    panel(ctx, 589, 622, 583, 256, "05  /  Slots & structure");
     text(ctx, "NOTES PER REPEAT", 612, 710, 10, C.muted, MONO, "left", 600);
     button(ctx, 612, 724, 40, 36, "−", false, true);
     button(ctx, 660, 724, 40, 36, "+", false, true);
-    [7, 12, 24, 36, 48].forEach((n, i) => button(ctx, 712 + i * 53, 724, 45, 36, String(n), i === 0, true));
+    box(ctx, 712, 724, 54, 36, SELECTED_FILL, C.coralSoft, 7);
+    text(ctx, "07", 739, 742, 13, C.coral, MONO, "center", 600);
+    [12, 24, 36, 48].forEach((n, i) => button(ctx, 784 + i * 62, 724, 52, 36, String(n), false, true));
     line(ctx, 612, 781, 1148, 781, C.lineSoft);
     button(ctx, 612, 798, 39, 34, "‹", false, true);
     button(ctx, 659, 798, 39, 34, "›", false, true);
@@ -330,7 +338,7 @@
     button(ctx, 928, 798, 105, 34, "↓  SAVE", false, true);
     button(ctx, 1042, 798, 106, 34, "□  LOAD", false, true);
 
-    panel(ctx, 1192, 622, 374, 256, "Scale stats", "06  /  Quality");
+    panel(ctx, 1192, 622, 374, 256, "06  /  Quality");
     const stats = [["COHESION", "47%", .47], ["ROOT GRAVITY", "49%", .49], ["ENERGY", "61%", .61], ["PAIR FIT", "66%", .66]];
     stats.forEach(([name, value, amount], i) => {
       const y = 716 + i * 35;
@@ -373,7 +381,7 @@
     const bounds = canvas.getBoundingClientRect();
     const x = (event.clientX - bounds.left) / bounds.width * W;
     const y = (event.clientY - bounds.top) / bounds.height * H;
-    if (x < 1420 || x > 1540 || y < 397 || y > 425) return;
+    if (x < 1368 || x > 1540 || y < 397 || y > 425) return;
     event.preventDefault();
     event.stopPropagation();
     landscapeDots = variationDots(++landscapeSeed);
