@@ -52,50 +52,16 @@
     text(ctx, eyebrow.toUpperCase(), x + 22, y + 28, 10, C.muted, MONO, "left", 600);
     line(ctx, x + 20, y + 60, x + w - 20, y + 60, C.lineSoft);
   }
-  function insetPlate(ctx, wellPoints, platePoints, innerEdge) {
-    const path = (points) => {
-      ctx.beginPath();
-      ctx.moveTo(points[0][0], points[0][1]);
-      for (let i = 1; i < points.length; i++) ctx.lineTo(points[i][0], points[i][1]);
-      ctx.closePath();
-    };
-    path(wellPoints);
-    ctx.fillStyle = "#080b0b";
-    ctx.fill();
-    ctx.strokeStyle = "rgba(3, 6, 6, .9)";
-    ctx.lineWidth = 1;
-    ctx.stroke();
-
-    const xs = platePoints.map(([x]) => x), ys = platePoints.map(([, y]) => y);
-    const minX = Math.min(...xs), maxX = Math.max(...xs);
-    const minY = Math.min(...ys), maxY = Math.max(...ys);
-    const gradients = {
-      top: [minX, maxY, minX, minY],
-      bottom: [minX, minY, minX, maxY],
-      left: [maxX, minY, minX, minY],
-      right: [minX, minY, maxX, minY]
-    };
-    const gradient = ctx.createLinearGradient(...gradients[innerEdge]);
-    gradient.addColorStop(0, "#3a4540");
-    gradient.addColorStop(.38, "#313b37");
-    gradient.addColorStop(1, "#272f2c");
-    path(platePoints);
-    ctx.fillStyle = gradient;
-    ctx.fill();
-    ctx.strokeStyle = "rgba(139, 152, 143, .38)";
-    ctx.lineWidth = 1;
-    ctx.stroke();
-
-    ctx.save();
-    ctx.strokeStyle = "rgba(190, 201, 192, .27)";
-    ctx.lineWidth = 1;
+  function metalPanel(ctx, points) {
     ctx.beginPath();
-    const [innerStart, innerEnd] = innerEdge === "top" || innerEdge === "bottom"
-      ? [platePoints[5], platePoints[6]] : [platePoints[1], platePoints[2]];
-    ctx.moveTo(innerStart[0], innerStart[1]);
-    ctx.lineTo(innerEnd[0], innerEnd[1]);
+    ctx.moveTo(points[0][0], points[0][1]);
+    for (let i = 1; i < points.length; i++) ctx.lineTo(points[i][0], points[i][1]);
+    ctx.closePath();
+    ctx.fillStyle = "#35403b";
+    ctx.fill();
+    ctx.strokeStyle = "#151d19";
+    ctx.lineWidth = 1.5;
     ctx.stroke();
-    ctx.restore();
   }
   function perimeter(ctx) {
     const points = [
@@ -105,6 +71,10 @@
       [10, 614], [29, 602], [29, 460], [10, 448]
     ];
     ctx.save();
+    metalPanel(ctx, [[680,0],[920,0],[884,23],[716,23]]);
+    metalPanel(ctx, [[716,979],[884,979],[920,1000],[680,1000]]);
+    metalPanel(ctx, [[0,448],[29,460],[29,602],[0,614]]);
+    metalPanel(ctx, [[1571,460],[1600,448],[1600,614],[1571,602]]);
     ctx.beginPath();
     ctx.moveTo(points[0][0], points[0][1]);
     for (let i = 1; i < points.length; i++) ctx.lineTo(points[i][0], points[i][1]);
@@ -125,18 +95,6 @@
       ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke();
     }
 
-    insetPlate(ctx,
-      [[704,3],[727,13],[873,13],[896,3],[907,3],[876,23],[724,23],[693,3]],
-      [[707,6],[729,16],[871,16],[893,6],[900,6],[875,21],[725,21],[700,6]], "top");
-    insetPlate(ctx,
-      [[704,997],[727,987],[873,987],[896,997],[907,997],[876,977],[724,977],[693,997]],
-      [[707,994],[729,984],[871,984],[893,994],[900,994],[875,979],[725,979],[700,994]], "bottom");
-    insetPlate(ctx,
-      [[12,462],[25,468],[25,594],[12,600]],
-      [[14,464],[23,470],[23,592],[14,598]], "left");
-    insetPlate(ctx,
-      [[1588,462],[1575,468],[1575,594],[1588,600]],
-      [[1586,464],[1577,470],[1577,592],[1586,598]], "right");
     ctx.restore();
   }
   function button(ctx, x, y, w, h, caption, active = false, small = false) {
