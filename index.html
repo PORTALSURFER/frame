@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Frame — UI design canvas</title>
+  <link rel="stylesheet" href="style.css">
+  <script src="frame.js" defer></script>
+  <script src="examples/starter.js" defer></script>
+  <script src="examples/sift-waveform-data.js" defer></script>
+  <script src="examples/sift.js" defer></script>
+  <script src="app.js" defer></script>
+</head>
+<body>
+  <main class="app">
+    <header class="topbar">
+      <div class="brand"><span class="brand-mark">F</span><div><strong>FRAME</strong><small>UI DESIGN CANVAS</small></div></div>
+      <div class="tools">
+        <label class="design-choice">Design <select id="design-picker" aria-label="Design"></select></label>
+        <span id="design-size" class="design-size"></span>
+        <span class="brush-status"><span class="red-dot"></span> RED BRUSH</span>
+        <button id="undo" type="button" disabled>Undo line</button>
+        <button id="clear" type="button" disabled>Clear all lines</button>
+        <button id="download" type="button" disabled>Download feedback</button>
+      </div>
+    </header>
+    <div class="stage" id="stage">
+      <div class="board" id="board" aria-label="Interface design">
+        <canvas id="design" class="design" role="img" aria-label="Painted interface"></canvas>
+      </div>
+      <svg id="brush" class="brush" preserveAspectRatio="none" aria-label="Draw red feedback lines anywhere on the canvas"></svg>
+    </div>
+    <footer><span>Draw red lines anywhere. Hold Shift for a straight line. Marks save per design in this browser.</span><span id="mark-count">0 lines</span></footer>
+  </main>
+</body>
+</html>
