@@ -129,6 +129,7 @@
     lines.push(active);
     activePath = makePath(active);
     brush.setPointerCapture(event.pointerId);
+    updateControls();
   });
   function updateActive(event) {
     if (!active || event.pointerId !== activePointerId) return;
@@ -154,8 +155,18 @@
   }
   brush.addEventListener("pointercancel", finishPointer);
   brush.addEventListener("lostpointercapture", finishPointer);
-  undo.addEventListener("click", () => { lines.pop(); redrawMarks(); save(); });
-  clear.addEventListener("click", () => { lines = []; redrawMarks(); save(); });
+  undo.addEventListener("click", () => {
+    finishLine();
+    lines.pop();
+    redrawMarks();
+    save();
+  });
+  clear.addEventListener("click", () => {
+    finishLine();
+    lines = [];
+    redrawMarks();
+    save();
+  });
   download.addEventListener("click", () => {
     const data = JSON.stringify({design: design.id, width: design.width, height: design.height, lines}, null, 2);
     const url = URL.createObjectURL(new Blob([data], {type: "application/json"}));

@@ -15,7 +15,7 @@ The main gap is the feedback-to-revision loop. An agent can edit a drawing scrip
 ## 1. Make existing feedback reliable
 
 - [x] **Track the active pointer.** Ignore other pointers during a stroke and handle pointer cancellation and lost capture consistently. Verified in Chromium with mouse, touch, and pen input and cancellation/lost-capture regression checks.
-- [ ] **Make undo and clear safe during drawing.** Finish or cancel the active stroke before changing history so the active path cannot refer to a removed mark. Verify keyboard undo while a pointer is held down.
+- [x] **Make undo and clear safe during drawing.** Finish the active stroke before changing history and enable controls when drawing begins. Verified keyboard undo with and without previous feedback, both controls during drawing, continued drawing, and reload persistence in Chromium.
 - [ ] **Handle empty coalesced pointer events.** Fall back to the original event when `getCoalescedEvents()` returns an empty array, so movement and the final endpoint are recorded.
 - [ ] **Make feedback limits explicit and consistent.** Loading currently truncates to 1,000 strokes and 5,000 points per stroke, while drawing and saving have no matching limit. Simplify strokes or enforce documented limits without silently losing saved feedback.
 - [ ] **Show persistence failures.** When browser storage is unavailable or full, display that feedback is unsaved and keep export available.

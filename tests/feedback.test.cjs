@@ -124,3 +124,44 @@ test('touch and pen input can draw and save strokes', async t => {
   assert.equal(lines.length, 2);
   assert.ok(lines.every(line => line.length >= 2));
 });
+
+for (const previousStroke of [false, true]) {
+  test(`keyboard undo during drawing removes the active stroke (${previousStroke ? 'with' : 'without'} previous feedback)`, async t => {
+    const page = await openPage(t);
+    if (previousStroke) {
+      await beginMouse(page);
+      await page.mouse.up();
+    }
+    const previous = await savedLines(page);
+    await beginMouse(page);
+    await page.keyboard.press('Control+z');
+    await page.mouse.move(800, 500);
+    await page.mouse.up();
+    assert.deepEqual(await savedLines(page), previous);
+    assert.equal(await page.locator('#brush path').count(), previous.length);
+    await beginMouse(page);
+    await page.mouse.up();
+    assert.equal((await savedLines(page)).length, previous.length + 1);
+    await page.reload();
+    assert.equal(await page.locator('#brush path').count(), previous.length + 1);
+  });
+}
+
+for (const action of ['undo', 'clear']) {
+  test(`${action} control safely ends an active stroke`, async t => {
+    const page = await openPage(t);
+    await beginMouse(page);
+    await page.mouse.up();
+    const previous = await savedLines(page);
+    await beginMouse(page);
+    await page.locator(`#${action}`).dispatchEvent('click');
+    await page.mouse.move(800, 500);
+    await page.mouse.up();
+    const expected = action === 'undo' ? previous : [];
+    assert.deepEqual(await savedLines(page), expected);
+    assert.equal(await page.locator('#brush path').count(), expected.length);
+    await beginMouse(page);
+    await page.mouse.up();
+    assert.equal((await savedLines(page)).length, expected.length + 1);
+  });
+}
