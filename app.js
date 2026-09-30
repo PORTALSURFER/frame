@@ -57,6 +57,13 @@
   let selectedNote = null;
   let noteDraft = null;
   let noteDrag = null;
+  const importDialog = document.getElementById("import-dialog");
+  const importFile = document.getElementById("import-file");
+  const importPreview = document.getElementById("import-preview");
+  const importError = document.getElementById("import-error");
+  const confirmImport = document.getElementById("confirm-import");
+  let importDraft = null;
+  let importRequest = 0;
   let strokeBefore = null;
   let history = {undo: [], redo: []};
 
@@ -81,6 +88,7 @@
     }
   }
   function updateControls() {
+    document.getElementById("import-feedback").disabled = !design;
     for (const button of toolButtons) button.disabled = !designReady;
     selectionStatus.textContent = selectedNote ? `Note ${notes.indexOf(selectedNote) + 1} selected. Drag it or use arrow keys to move.` : selectedLine ? `Line ${lines.indexOf(selectedLine) + 1} selected.` : "";
     undo.disabled = !active && !noteDrag?.moved && history.undo.length === 0;
@@ -88,7 +96,7 @@
     undo.title = active ? "Undo drawing line" : noteDrag?.moved ? "Undo moving note" : history.undo.at(-1)?.label || "Undo";
     redo.title = history.redo.at(-1)?.label ? `Redo: ${history.redo.at(-1).label}` : "Redo";
     clear.disabled = lines.length === 0 && notes.length === 0;
-    download.disabled = clear.disabled && !feedback.unsaved;
+    download.disabled = !design;
     deleteSelected.disabled = !designReady || (!selectedLine && !selectedNote);
     retrySave.hidden = !feedback.unsaved;
     retrySave.disabled = active !== null || noteDrag !== null;
@@ -436,6 +444,8 @@
     if (active) finishLine();
     finishNoteDrag();
     closeNoteEditor();
+    importDraft = null; importRequest++;
+    if (importDialog.open) importDialog.close();
     selectedLine = null;
     selectedNote = null;
     design = Frame.designs.get(id);
@@ -590,6 +600,43 @@
     link.click();
     setTimeout(() => URL.revokeObjectURL(url), 1000);
   });
+  document.getElementById("import-feedback").addEventListener("click", () => {
+    finishLine(); finishNoteDrag(); closeNoteEditor();
+    importDraft = null; importRequest++;
+    importFile.value = ""; importError.textContent = ""; importPreview.textContent = "";
+    confirmImport.disabled = true;
+    importDialog.showModal(); importFile.focus();
+  });
+  importFile.addEventListener("change", async () => {
+    const request = ++importRequest;
+    const target = design;
+    importDraft = null; confirmImport.disabled = true; importError.textContent = ""; importPreview.textContent = "Reading feedback…";
+    try {
+      const file = importFile.files[0];
+      if (!file) { importPreview.textContent = ""; return; }
+      const data = FrameFeedback.importDocument(JSON.parse(await file.text()), target);
+      if (request !== importRequest || !importDialog.open || design !== target) return;
+      importDraft = data;
+      importPreview.textContent = `${data.lines.length} lines and ${data.notes.length} notes for ${data.design} (${data.width} × ${data.height}). Current feedback will be replaced.`;
+      confirmImport.disabled = false;
+    } catch (error) {
+      if (request !== importRequest) return;
+      importPreview.textContent = ""; importError.textContent = `Import cancelled: ${error.message}`;
+    }
+  });
+  confirmImport.addEventListener("click", () => {
+    if (!importDraft) return;
+    const before = snapshot();
+    const imported = unpack(importDraft);
+    lines = imported.lines; notes = imported.notes;
+    record(before, "Import feedback");
+    feedback.blocked = false;
+    importDialog.close(); importDraft = null;
+    selectedLine = null; selectedNote = null; pointLimitReached = false;
+    redrawMarks(); save();
+  });
+  document.getElementById("cancel-import").addEventListener("click", () => importDialog.close());
+  importDialog.addEventListener("close", () => { if (!importDialog.open) { importDraft = null; importRequest++; } });
   picker.addEventListener("change", () => selectDesign(picker.value));
   for (const button of toolButtons) button.addEventListener("click", () => setMode(button.dataset.feedbackTool));
   document.addEventListener("keydown", (event) => {
