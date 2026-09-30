@@ -112,6 +112,8 @@ Use **Delete selected**, **Delete**, or **Backspace** to remove only the selecte
 
 Draw red lines anywhere in the stage, including outside the interface. Hold **Shift** while dragging for a straight line. **Undo** (Command/Ctrl+Z) reverses the latest feedback change. **Redo** (Command/Ctrl+Shift+Z or Ctrl+Y) reapplies it. **Clear feedback** removes strokes and notes for the selected design and can be undone. Feedback is saved separately for each design in browser `localStorage`. **Download feedback** exports the selected design's dimensions, strokes, and notes as JSON. Existing Sift brush marks saved by the earlier canvas are loaded automatically.
 
+In **Note** mode, Tab to the feedback canvas to place notes by keyboard: arrows move the visible crosshair ten design units, Shift+arrows move one, and Enter or Space opens the editor. Existing marks remain available through Tab, selection, resolve/reopen, Delete, and visible focus.
+
 In **Note** mode, click a location to open the note editor, write your request, and choose **Save note** (or Command/Ctrl+Enter). Click an existing note to edit or delete it. In **Select** mode, double-click a note or focus it and press Enter to edit. Drag a note to move it, or use arrow keys while the note is focused; arrows move one design unit, and Shift+arrows move ten. Cancel or Escape discards the draft; a cancelled drag restores its previous anchor. Notes stay aligned with design coordinates when the board resizes.
 
 New notes allow up to **4,000 characters**, with **1,000 notes per design**. Longer previews are shortened on the canvas; the editor and export retain the full saved text. Undo and redo cover drawing, note creation and edits, dragging, each arrow-key move, individual deletion, and clearing feedback.

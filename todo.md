@@ -32,7 +32,7 @@ The main gap is the feedback-to-revision loop. An agent can edit a drawing scrip
 - [x] **Define a versioned feedback schema.** Extend the current v2 stroke/note document with per-item IDs and types, design/revision IDs, timestamps, and optional element anchors. Notes already have stable IDs, text, and positional anchors; complete this metadata for all marks while preserving legacy feedback.
 - [x] **Add feedback import and complete export.** Validate imported JSON and export strokes plus notes with their schema version and design context. Verify a round trip preserves all items and coordinates.
 - [x] **Add open/resolved status.** Let people and agents track which feedback still needs attention and reopen an item when needed.
-- [ ] **Make feedback controls accessible.** Support keyboard navigation, visible focus, accessible tool names, and keyboard placement of notes. Check toolbar usability on small screens.
+- [x] **Make feedback controls accessible.** Support keyboard navigation, visible focus, accessible tool names, and keyboard placement of notes. Check toolbar usability on small screens.
 
 Milestone: a person can circle a control, attach a written request, export the feedback, and review the agent's revision with the original context intact.
 
