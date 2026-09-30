@@ -13,7 +13,7 @@
   function register(design) {
     if (!design || !/^[a-z0-9-]+$/.test(design.id || "") ||
         typeof design.name !== "string" || !design.name.trim() || !Number.isInteger(design.width) || !Number.isInteger(design.height) ||
-        design.width < 1 || design.height < 1 || typeof design.paint !== "function") {
+        design.width < 1 || design.height < 1 || (design.revisionId !== undefined && (typeof design.revisionId !== "string" || !design.revisionId.trim())) || typeof design.paint !== "function") {
       return reject(design, "Frame.register expects an id, name, positive integer size, and paint function");
     }
     if (designs.has(design.id)) return reject(design, "Duplicate design id; the original design was kept");
