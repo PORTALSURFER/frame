@@ -1,6 +1,6 @@
 // Pump composition study; Frame's brush is the interaction surface.
 (() => {
-  const C={bg:'#1b1e1e',panel:'#202323',line:'#3a3d3d',muted:'#999b9a',text:'#d8d7d3',accent:'#e95843',blue:'#809ec6'};
+  const C={bg:'#1b1e1e',panel:'#202323',line:'#3a3d3d',muted:'#999b9a',text:'#d8d7d3',accent:'#e95843',low:'#8fc5aa',blue:'#809ec6'};
   function rect(c,x,y,w,h,r=2,fill=C.panel,stroke=C.line){c.beginPath();c.roundRect(x,y,w,h,r);c.fillStyle=fill;c.fill();if(stroke){c.strokeStyle=stroke;c.lineWidth=1;c.stroke();}}
   function text(c,t,x,y,size=10,color=C.text,weight=400){c.fillStyle=color;c.font=`${weight} ${size}px ui-monospace, SFMono-Regular, monospace`;c.textBaseline='middle';c.fillText(t,x,y);}
   function button(c,t,x,y,w,active=false){rect(c,x,y,w,22,1,active?'#282725':C.panel);text(c,t,x+7,y+11,9,active?C.accent:C.text);}
@@ -13,10 +13,10 @@
     const py=y+10,ph=h-22,cutoff=Math.tan(Math.PI*200/48000);
     for(let band=0;band<2;band++){
       const points=[];for(let i=0;i<=w;i++){const f=20*Math.pow(1000,i/w),r=Math.tan(Math.PI*f/48000)/cutoff,p=Math.pow(r,4),gain=band?p/(1+p):1/(1+p);points.push([x+i,py+(1-gain)*ph]);}
-      c.beginPath();c.moveTo(x,py+ph);for(const q of points)c.lineTo(...q);c.lineTo(x+w,py+ph);c.closePath();c.fillStyle=band?'rgba(128,158,198,.04)':'rgba(233,88,67,.04)';c.fill();
-      c.beginPath();for(let i=0;i<points.length;i++)i?c.lineTo(...points[i]):c.moveTo(...points[i]);c.strokeStyle=band?'#6b819d':'#8a5148';c.lineWidth=1;c.stroke();
+      c.beginPath();c.moveTo(x,py+ph);for(const q of points)c.lineTo(...q);c.lineTo(x+w,py+ph);c.closePath();c.fillStyle=band?'rgba(128,158,198,.04)':'rgba(143,197,170,.04)';c.fill();
+      c.beginPath();for(let i=0;i<points.length;i++)i?c.lineTo(...points[i]):c.moveTo(...points[i]);c.strokeStyle=band?'#6b819d':'#628976';c.lineWidth=1;c.stroke();
     }
-    const marker=x+w/3;c.strokeStyle='#4a4f4e';c.beginPath();c.moveTo(marker,py);c.lineTo(marker,py+ph);c.stroke();text(c,'LP',x+7,y+25,7,'#b67668');text(c,'HP',x+w-18,y+25,7,C.blue);text(c,'200 Hz',marker+6,y+h-5,7,C.muted);
+    const marker=x+w/3;c.strokeStyle='#4a4f4e';c.beginPath();c.moveTo(marker,py);c.lineTo(marker,py+ph);c.stroke();text(c,'LP',x+7,y+25,7,C.low);text(c,'HP',x+w-18,y+25,7,C.blue);text(c,'200 Hz',marker+6,y+h-5,7,C.muted);
   }
   function shell(c,mode){
     c.fillStyle=C.bg;c.fillRect(0,0,640,400);rect(c,1,1,638,398,5,C.bg,C.line);
@@ -33,7 +33,7 @@
     rect(c,10,292,620,29,1,C.bg,C.line);
     if(mode==='dual'){
       button(c,'DUAL',15,296,43,true);button(c,'200 Hz',64,296,78);button(c,'24 dB/oct',148,296,74);
-      mixRow(c,'LP',235,301,1,C.accent);mixRow(c,'HP',235,314,1,C.blue);button(c,'SPECTRAL',544,296,80);
+      mixRow(c,'LP',235,301,1,C.low);mixRow(c,'HP',235,314,1,C.blue);button(c,'SPECTRAL',544,296,80);
     }else{
       button(c,'SPECTRAL',15,296,78,true);button(c,'12 dB',99,296,75);button(c,'10 ms',180,296,75);button(c,'150 ms',261,296,75);button(c,'DEPTH',342,296,72,true);button(c,'DUAL',550,296,74);
       for(let i=0;i<24;i++){const v=.12+.7*Math.exp(-Math.pow((i-9)/3,2));c.fillStyle='#526576';c.fillRect(435+i*5.5,83+35*(1-v),3,35*v);}text(c,'EXT · ILLUSTRATIVE',435,125,6,C.muted);
