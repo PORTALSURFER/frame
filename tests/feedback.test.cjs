@@ -245,7 +245,11 @@ test('the 1,000-line boundary blocks new strokes without losing feedback and und
   await page.locator('#design-picker').selectOption('sift');
   assert.equal(await page.locator('#feedback-limit-notice').textContent(), '');
   await page.locator('#design-picker').selectOption('starter');
-  await page.locator('#undo').click();
+  assert.equal(await page.locator('#undo').isDisabled(), true);
+  await page.locator('#tool-select').click();
+  await page.locator('#brush path').last().focus();
+  await page.locator('#delete-selected').click();
+  await page.locator('#tool-pen').click();
   assert.equal(await page.locator('#feedback-limit-notice').textContent(), '');
   await beginMouse(page);
   await page.mouse.up();
@@ -312,7 +316,9 @@ test('older feedback above both limits is preserved through load, export, and la
   await beginMouse(page);
   await page.mouse.up();
   assert.deepEqual(await savedLines(page), legacy);
-  await page.locator('#undo').click();
+  await page.locator('#tool-select').click();
+  await page.locator('#brush path').last().focus();
+  await page.locator('#delete-selected').click();
   const afterUndo = legacy.slice(0, -1);
   assert.deepEqual(await savedLines(page), afterUndo);
   await page.reload();
@@ -1013,4 +1019,218 @@ test('stroke selection uses screen-pixel tolerance after the design scales down'
   assert.equal(await page.locator('#brush path.selected').count(), 1);
   await page.locator('#delete-selected').click();
   assert.deepEqual(await savedLines(page), []);
+});
+
+async function savedFeedback(page, id = 'starter') {
+  return page.evaluate(id => JSON.parse(localStorage.getItem('frame-feedback-v2:' + id)), id);
+}
+
+test('undo/redo restores strokes, individual deletion, and clear with exact exported data', async t => {
+  const page = await openPage(t);
+  await beginMouse(page); await page.mouse.up();
+  await addNote(page, 'Keep this note');
+  const original = await savedFeedback(page);
+  await page.locator('#tool-select').click();
+  await page.locator('#brush path').focus();
+  await page.locator('#delete-selected').click();
+  assert.equal((await savedFeedback(page)).lines.length, 0);
+  await page.locator('#undo').click();
+  assert.deepEqual(await savedFeedback(page), original);
+  assert.equal(await page.locator('#delete-selected').isDisabled(), true);
+  await page.keyboard.press('Control+Shift+Z');
+  assert.equal((await savedFeedback(page)).lines.length, 0);
+  await page.keyboard.press('Control+Z');
+  await page.locator('#clear').click();
+  assert.deepEqual(await savedFeedback(page), {version: 2, lines: [], notes: []});
+  await page.keyboard.press('Control+Z');
+  assert.deepEqual(await savedFeedback(page), original);
+  const exported = await exportFeedback(page);
+  assert.deepEqual(exported.lines, original.lines);
+  assert.deepEqual(exported.notes, original.notes);
+  await page.keyboard.press('Control+Y');
+  assert.equal(await page.locator('#notes-layer .note-pin').count(), 0);
+  assert.equal(await page.locator('#brush path').count(), 0);
+  await page.locator('#undo').click();
+  await page.reload();
+  assert.deepEqual(await savedFeedback(page), original);
+  assert.equal(await page.locator('#undo').isDisabled(), true);
+  assert.equal(await page.locator('#redo').isDisabled(), true);
+});
+
+test('notes undo through editing, arrow movement, dragging, deletion and creation without changing IDs', async t => {
+  const page = await openPage(t);
+  await addNote(page, 'Original');
+  const original = await savedFeedback(page);
+  await page.locator('.note-pin').click();
+  await page.locator('#note-text').fill('Edited');
+  await page.locator('#note-form button[type=submit]').click();
+  const edited = await savedFeedback(page);
+  await page.locator('#tool-select').click();
+  await page.locator('.note-pin').focus();
+  await page.keyboard.press('Shift+ArrowRight');
+  const nudged = await savedFeedback(page);
+  const pin = await page.locator('.note-number').boundingBox();
+  await page.mouse.move(pin.x + pin.width / 2, pin.y + pin.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(pin.x + pin.width / 2 + 40, pin.y + pin.height / 2 + 20, {steps: 5});
+  await page.mouse.up();
+  const dragged = await savedFeedback(page);
+  assert.notDeepEqual(dragged, nudged);
+  await page.locator('#delete-selected').click();
+  for (const expected of [dragged, nudged, edited, original, {version: 2, lines: [], notes: []}]) {
+    await page.locator('#undo').click();
+    assert.deepEqual(await savedFeedback(page), expected);
+  }
+  assert.equal(await page.locator('#undo').isDisabled(), true);
+  for (const expected of [original, edited, nudged, dragged, {version: 2, lines: [], notes: []}]) {
+    await page.locator('#redo').click();
+    assert.deepEqual(await savedFeedback(page), expected);
+  }
+  assert.equal(await page.locator('#redo').isDisabled(), true);
+});
+
+test('per-design undo and redo survive switching without crossing histories', async t => {
+  const page = await openPage(t);
+  await addNote(page, 'Starter feedback');
+  const starter = await savedFeedback(page);
+  await page.locator('#undo').click();
+  await page.locator('#design-picker').selectOption('sift');
+  assert.equal(await page.locator('#undo').isDisabled(), true);
+  assert.equal(await page.locator('#redo').isDisabled(), true);
+  await addNote(page, 'Sift feedback');
+  const sift = await savedFeedback(page, 'sift');
+  await page.locator('#design-picker').selectOption('starter');
+  await page.locator('#redo').click();
+  assert.deepEqual(await savedFeedback(page), starter);
+  await page.locator('#design-picker').selectOption('sift');
+  assert.deepEqual(await savedFeedback(page, 'sift'), sift);
+  await page.locator('#undo').click();
+  assert.equal((await savedFeedback(page, 'sift')).notes.length, 0);
+  assert.deepEqual(await savedFeedback(page), starter);
+});
+
+test('new edits replace redo while cancelled and unchanged note edits preserve it', async t => {
+  const page = await openPage(t);
+  await addNote(page, 'Keep');
+  await addNote(page, 'Undone', [500, 300]);
+  await page.locator('#undo').click();
+  await page.locator('.note-pin').click();
+  await page.locator('#note-text').fill('Cancelled');
+  await page.locator('#note-cancel').click();
+  assert.equal(await page.locator('#redo').isDisabled(), false);
+  await page.locator('.note-pin').click();
+  await page.locator('#note-form button[type=submit]').click();
+  assert.equal(await page.locator('#redo').isDisabled(), false);
+  await page.locator('.note-pin').click();
+  await page.locator('#note-text').fill('New edit');
+  await page.locator('#note-form button[type=submit]').click();
+  assert.equal(await page.locator('#redo').isDisabled(), true);
+  await page.locator('#undo').click();
+  assert.equal((await savedFeedback(page)).notes[0].text, 'Keep');
+});
+
+test('active stroke can be undone and redone after pointer release without duplicate commits', async t => {
+  const page = await openPage(t);
+  await beginMouse(page);
+  await page.keyboard.press('Control+Z');
+  assert.equal(await page.locator('#brush path').count(), 0);
+  await page.mouse.move(800, 500);
+  await page.mouse.up();
+  await page.keyboard.press('Meta+Shift+Z');
+  const restored = await savedFeedback(page);
+  assert.equal(restored.lines.length, 1);
+  await page.locator('#undo').click();
+  assert.equal(await page.locator('#undo').isDisabled(), true);
+  await page.locator('#tool-pen').click();
+  await beginMouse(page);
+  assert.equal(await page.locator('#redo').isDisabled(), true);
+  await page.mouse.up();
+  assert.equal(await page.locator('#redo').isDisabled(), true);
+});
+
+test('failed undo/redo saves stay in memory across designs and retry persists the current history state', async t => {
+  const page = await openPage(t);
+  await addNote(page, 'Recover me');
+  const original = await savedFeedback(page);
+  await page.evaluate(() => {
+    window.originalSetItem = Storage.prototype.setItem;
+    Storage.prototype.setItem = function(key, value) {
+      if (key.startsWith('frame-feedback-v2:')) throw new DOMException('Full', 'QuotaExceededError');
+      return window.originalSetItem.call(this, key, value);
+    };
+  });
+  await page.locator('#clear').click();
+  await page.locator('#undo').click();
+  assert.deepEqual((await exportFeedback(page)).notes, original.notes);
+  await page.locator('#redo').click();
+  assert.equal((await exportFeedback(page)).notes.length, 0);
+  await page.locator('#design-picker').selectOption('sift');
+  await page.locator('#design-picker').selectOption('starter');
+  await page.locator('#undo').click();
+  assert.equal(await page.locator('.note-pin').count(), 1);
+  await page.evaluate(() => { Storage.prototype.setItem = window.originalSetItem; });
+  await page.locator('#retry-save').click();
+  assert.equal(await page.locator('#retry-save').isHidden(), true);
+  assert.deepEqual(await savedFeedback(page), original);
+  await page.reload();
+  assert.equal(await page.locator('.note-pin').count(), 1);
+});
+
+test('history shortcuts leave textarea native undo and redo available', async t => {
+  const page = await openPage(t);
+  await addNote(page, 'Saved');
+  await page.locator('.note-pin').click();
+  await page.locator('#note-text').press('End');
+  await page.locator('#note-text').pressSequentially(' draft');
+  await page.keyboard.press('Control+Z');
+  assert.equal(await page.locator('#note-text').inputValue(), 'Saved');
+  await page.keyboard.press('Control+Shift+Z');
+  assert.equal(await page.locator('#note-text').inputValue(), 'Saved draft');
+  assert.equal((await savedFeedback(page)).notes[0].text, 'Saved');
+  await page.locator('#note-cancel').click();
+  await page.locator('#undo').click();
+  assert.equal((await savedFeedback(page)).notes.length, 0);
+});
+
+test('history retains the latest 100 changes and still saves and redoes the oldest retained state', async t => {
+  const page = await openPage(t);
+  await addNote(page, 'History boundary');
+  await page.locator('#tool-select').click();
+  await page.locator('.note-pin').focus();
+  await page.evaluate(() => {
+    const pin = document.querySelector('.note-pin');
+    for (let i = 0; i < 101; i++) pin.dispatchEvent(new KeyboardEvent('keydown', {key: 'ArrowRight', bubbles: true, cancelable: true}));
+    const undo = document.getElementById('undo');
+    for (let i = 0; i < 100; i++) undo.click();
+  });
+  assert.equal(await page.locator('#undo').isDisabled(), true);
+  assert.deepEqual((await savedFeedback(page)).notes[0].anchor, [301, 200]);
+  await page.evaluate(() => {
+    const redo = document.getElementById('redo');
+    for (let i = 0; i < 100; i++) redo.click();
+  });
+  assert.deepEqual((await savedFeedback(page)).notes[0].anchor, [401, 200]);
+  assert.equal(await page.locator('#redo').isDisabled(), true);
+});
+
+test('undo during a note drag reverses the completed gesture once and redo restores its position', async t => {
+  const page = await openPage(t);
+  await addNote(page, 'Drag recovery');
+  const original = await savedFeedback(page);
+  await page.locator('#tool-select').click();
+  const pin = await page.locator('.note-number').boundingBox();
+  await page.mouse.move(pin.x + pin.width / 2, pin.y + pin.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(pin.x + pin.width / 2 + 40, pin.y + pin.height / 2 + 20, {steps: 3});
+  assert.equal(await page.locator('#redo').isDisabled(), true);
+  await page.keyboard.press('Control+Z');
+  assert.deepEqual(await savedFeedback(page), original);
+  await page.mouse.move(800, 500); await page.mouse.up();
+  await page.locator('#redo').click();
+  const dragged = await savedFeedback(page);
+  assert.notDeepEqual(dragged.notes[0].anchor, original.notes[0].anchor);
+  await page.locator('#undo').click();
+  assert.deepEqual(await savedFeedback(page), original);
+  await page.locator('#undo').click();
+  assert.equal((await savedFeedback(page)).notes.length, 0);
 });

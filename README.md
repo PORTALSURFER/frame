@@ -37,7 +37,7 @@ Available today:
 
 - Register and render multiple designs from JavaScript.
 - Scale the board to fit the window and render at device resolution.
-- Draw freehand red marks or straight lines, with undo and clear controls.
+- Draw freehand red marks or straight lines, with undo, redo, and recoverable clear controls.
 - Switch between Pen, Note, and Select tools; place, edit, move, and delete text notes.
 - Keep marks aligned with design coordinates when the board resizes.
 - Save feedback per design in browser `localStorage` and export strokes and notes as JSON.
@@ -82,17 +82,19 @@ If a design's paint function fails, Frame shows a render error with details and 
 
 Choose **Pen** (shortcut **P**) to draw, **Note** (**N**) to place or edit text annotations, or **Select** (**V**) to inspect a line or note. Select a line by clicking within eight screen pixels of it or focusing it with Tab; the selected mark is highlighted. Click empty space or press Escape to deselect. Changing tools finishes an active stroke safely. Frame shortcuts leave normal editing and undo behavior intact inside text inputs, textareas, and editable text.
 
-Use **Delete selected**, **Delete**, or **Backspace** to remove only the selected line or note. Selection clears afterward, and focus returns to the active tool. Deletion keeps unrelated marks and is saved and exported normally; failed saves remain recoverable through the unsaved feedback flow. Deletions are not yet undoable.
+Use **Delete selected**, **Delete**, or **Backspace** to remove only the selected line or note. Selection clears afterward, and focus returns to the active tool. Deletion keeps unrelated marks and is saved and exported normally; failed saves remain recoverable through the unsaved feedback flow. Deletions can be undone and redone.
 
-Draw red lines anywhere in the stage, including outside the interface. Hold **Shift** while dragging for a straight line. **Undo line** (or Command/Ctrl+Z) removes the latest stroke; **Clear feedback** removes strokes and notes for the selected design. Feedback is saved separately for each design in browser `localStorage`. **Download feedback** exports the selected design's dimensions, strokes, and notes as JSON. Existing Sift brush marks saved by the earlier canvas are loaded automatically.
+Draw red lines anywhere in the stage, including outside the interface. Hold **Shift** while dragging for a straight line. **Undo** (Command/Ctrl+Z) reverses the latest feedback change. **Redo** (Command/Ctrl+Shift+Z or Ctrl+Y) reapplies it. **Clear feedback** removes strokes and notes for the selected design and can be undone. Feedback is saved separately for each design in browser `localStorage`. **Download feedback** exports the selected design's dimensions, strokes, and notes as JSON. Existing Sift brush marks saved by the earlier canvas are loaded automatically.
 
 In **Note** mode, click a location to open the note editor, write your request, and choose **Save note** (or Command/Ctrl+Enter). Click an existing note to edit or delete it. In **Select** mode, double-click a note or focus it and press Enter to edit. Drag a note to move it, or use arrow keys while the note is focused; arrows move one design unit, and Shift+arrows move ten. Cancel or Escape discards the draft; a cancelled drag restores its previous anchor. Notes stay aligned with design coordinates when the board resizes.
 
-New notes allow up to **4,000 characters**, with **1,000 notes per design**. Longer previews are shortened on the canvas; the editor and export retain the full saved text. Undo currently applies to strokes; undo/redo for note edits and clears is planned.
+New notes allow up to **4,000 characters**, with **1,000 notes per design**. Longer previews are shortened on the canvas; the editor and export retain the full saved text. Undo and redo cover drawing, note creation and edits, dragging, each arrow-key move, individual deletion, and clearing feedback.
+
+History retains the last **100 changes per design** during the current browser session, including across design switches. A new change replaces that design's redo branch; cancelled or unchanged note edits leave it available. Undo during a stroke or note drag finishes the gesture, then reverses it. Feedback saves after undo and redo, and remains available for export and retry if storage fails. Reloading keeps saved feedback but starts fresh history. History reads each design's storage on its first visit; edits in another browser tab appear after reload.
 
 Strokes and notes save together in a version 2 feedback document under `frame-feedback-v2:<design-id>`. Version 1 stroke arrays and the original Sift storage key remain readable; editing saves the new format without overwriting those legacy backups. Exports include `version`, `design`, `width`, `height`, `lines`, and `notes`; each note has a stable `id`, `text`, and `[x, y]` anchor. Complete per-mark revision metadata is planned.
 
-New drawings are limited to **1,000 lines per design** and **5,000 points per line**. At the line-count limit, undo or clear lines before drawing more. A line automatically ends and saves when it reaches the point limit; lift your pointer and start a new line to continue. Frame displays a message when either limit is reached. Points less than one design unit apart are not recorded.
+New drawings are limited to **1,000 lines per design** and **5,000 points per line**. At the line-count limit, delete, undo, or clear lines before drawing more. A line automatically ends and saves when it reaches the point limit; lift your pointer and start a new line to continue. Frame displays a message when either limit is reached. Points less than one design unit apart are not recorded.
 
 Older feedback above these limits is preserved in full when loaded, saved, and exported. Frame displays a notice for it and blocks new lines if the design already has 1,000 or more. These drawing limits do not guarantee that the browser has enough storage available.
 
