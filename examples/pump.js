@@ -24,7 +24,7 @@
   }
   function shell(c){
     c.fillStyle=C.bg;c.fillRect(0,0,640,400);rect(c,.5,.5,639,399,1,C.bg,C.line);
-    text(c,'PUMP',16,28,17,C.text);text(c,'PORTALSURFER',72,29,8,C.muted);alignedText(c,'0.2.8+preview',624,6,6,'#434a48','right');
+    text(c,'PORTALSURFER /',16,28,10,C.muted);text(c,'PUMP',108,28,10,C.accent);alignedText(c,'0.2.8+preview',624,6,6,'#434a48','right');
     button(c,'SYNC',264,16,42);button(c,'1/4 ▾',314,16,78);button(c,'‹',404,16,24);button(c,'›',432,16,24);button(c,'A',472,16,28,true);button(c,'→',504,16,24);button(c,'B',532,16,28);button(c,'?',600,16,24);
     heading(c,'ENVELOPE',16,54,568);alignedText(c,'GR dB',612,54,7,C.muted);
     const x=48,y=72,w=536,h=166;
