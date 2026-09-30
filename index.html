@@ -32,6 +32,7 @@
         <button id="redo" type="button" disabled aria-keyshortcuts="Control+Shift+Z Meta+Shift+Z Control+Y">Redo</button>
         <button id="delete-selected" type="button" disabled aria-keyshortcuts="Delete Backspace">Delete selected</button>
         <button id="clear" type="button" disabled>Clear feedback</button>
+        <button id="import-feedback" type="button">Import feedback</button>
         <button id="download" type="button" disabled>Download feedback</button>
         <button id="retry-save" type="button" hidden>Retry save</button>
       </div>
@@ -64,6 +65,13 @@
       <span id="mark-count">0 lines</span>
     </footer>
   </main>
+  <dialog id="import-dialog" aria-labelledby="import-title" data-text-editor>
+    <h2 id="import-title">Import feedback</h2>
+    <p>Choose a JSON feedback file for this design. Review it before replacing current marks; replacement can be undone.</p>
+    <label for="import-file">Feedback JSON</label><input id="import-file" type="file" accept=".json,application/json">
+    <p id="import-preview" role="status"></p><p id="import-error" role="alert"></p>
+    <div class="note-actions"><button id="confirm-import" type="button" disabled>Replace feedback</button><button id="cancel-import" type="button">Cancel</button></div>
+  </dialog>
   <dialog id="styleguide-dialog" aria-labelledby="styleguide-title" data-text-editor>
     <div class="guide-heading"><h2 id="styleguide-title"></h2><button id="close-styleguide" type="button" autofocus>Close</button></div>
     <p id="styleguide-summary"></p>

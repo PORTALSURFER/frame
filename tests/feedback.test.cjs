@@ -823,7 +823,7 @@ test('cancelled and blank note edits do not mutate feedback; text is rendered li
   await page.locator('.note-pin').click();
   await page.locator('#note-delete').click();
   assert.equal(await page.locator('.note-pin').count(), 0);
-  assert.equal(await page.locator('#download').isDisabled(), true);
+  assert.equal(await page.locator('#download').isDisabled(), false);
   await page.reload();
   assert.equal(await page.locator('.note-pin').count(), 0);
 });
@@ -1443,4 +1443,71 @@ test('v2 backups remain untouched, migration IDs are stable before save, and cor
   assert.equal(await page.evaluate(()=>localStorage.getItem('frame-feedback-v3:starter')), corrupt);
   assert.equal((await exportFeedback(page,true)).lines.length,1);
   assert.match(await page.locator('#feedback-save-notice').textContent(), /protected/);
+});
+
+async function chooseImport(page, data) {
+  await page.locator('#import-feedback').click();
+  await page.locator('#import-file').setInputFiles({name:'feedback.json',mimeType:'application/json',buffer:Buffer.from(typeof data === 'string' ? data : JSON.stringify(data))});
+}
+test('feedback import round-trips all metadata and geometry, is undoable, and rejects invalid replacements', async t => {
+  const page = await openPage(t);
+  await beginMouse(page); await page.mouse.up(); await addNote(page, 'Round trip');
+  const original = await exportFeedback(page, true);
+  original.notes[0].elementAnchor = {elementId:'save',offset:[2,3]};
+  await page.locator('#clear').click();
+  await chooseImport(page, original);
+  await page.locator('#confirm-import').click();
+  assert.deepEqual(await exportFeedback(page,true), original);
+  await page.locator('#undo').click();
+  assert.equal(await page.locator('#brush path').count(), 0);
+  await page.locator('#redo').click();
+  for (const bad of ['invalid JSON', {...original,design:'other'}, {...original,width:1}, {...original,notes:[original.notes[0],original.notes[0]]}]) {
+    await chooseImport(page,bad);
+    await page.waitForFunction(()=>!!document.getElementById('import-error').textContent);
+    assert.equal(await page.locator('#confirm-import').isDisabled(), true);
+    await page.locator('#cancel-import').click();
+    assert.deepEqual(await exportFeedback(page,true), original);
+  }
+  await page.reload();
+  assert.deepEqual(await exportFeedback(page,true), original);
+});
+test('legacy import is strict and cancelled imports preserve existing feedback', async t => {
+  const page = await openPage(t); await addNote(page,'Keep');
+  const original = await exportFeedback(page,true);
+  await chooseImport(page,[[[1,2],[3,null]]]);
+  await page.waitForFunction(()=>!!document.getElementById('import-error').textContent);
+  await page.locator('#cancel-import').click();
+  assert.deepEqual(await exportFeedback(page,true),original);
+  await chooseImport(page,[[[1,2],[3,4]]]);
+  await page.waitForFunction(()=>!document.getElementById('confirm-import').disabled);
+  await page.keyboard.press('Escape');
+  assert.deepEqual(await exportFeedback(page,true),original);
+  await chooseImport(page,[[[1,2],[3,4]]]);
+  await page.locator('#confirm-import').click();
+  assert.deepEqual((await exportFeedback(page)).lines,[[[1,2],[3,4]]]);
+  assert.equal((await exportFeedback(page,true)).lines[0].createdAt,null);
+});
+
+test('empty feedback exports and failed imports remain recoverable through export and retry', async t => {
+  const page = await openPage(t);
+  const empty = await exportFeedback(page,true);
+  assert.deepEqual(empty.lines,[]);
+  assert.deepEqual(empty.notes,[]);
+  await addNote(page,'Recover imported note');
+  const original = await exportFeedback(page,true);
+  await page.locator('#clear').click();
+  await page.evaluate(()=>{
+    window.savedSetItem = Storage.prototype.setItem;
+    Storage.prototype.setItem = function(key,value) {
+      if (key.startsWith('frame-feedback-v3:')) throw new DOMException('Full','QuotaExceededError');
+      return window.savedSetItem.call(this,key,value);
+    };
+  });
+  await chooseImport(page,original); await page.locator('#confirm-import').click();
+  assert.deepEqual(await exportFeedback(page,true),original);
+  await page.locator('#design-picker').selectOption('sift'); await page.locator('#design-picker').selectOption('starter');
+  assert.equal(await page.locator('.note-pin').count(),1);
+  await page.evaluate(()=>Storage.prototype.setItem=window.savedSetItem);
+  await page.locator('#retry-save').click(); await page.reload();
+  assert.deepEqual(await exportFeedback(page,true),original);
 });

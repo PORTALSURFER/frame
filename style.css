@@ -76,3 +76,6 @@ pre { white-space: pre-wrap; overflow-wrap: anywhere; }
 #styleguide-document { font-size: 13px; line-height: 1.6; }
 #styleguide-registration-notice { color: #e39187; }
 @media (max-width: 600px) { .styleguide-choice select { min-width: 0; max-width: 180px; } #styleguide-dialog { padding: 16px; } }
+
+#import-file { max-width: 100%; font: inherit; }
+#import-error { color: #ffc3b3; }

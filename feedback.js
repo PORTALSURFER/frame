@@ -46,10 +46,23 @@
     });
     return {version: 3, design: design.id, revisionId: null, width: data.width || design.width, height: data.height || design.height, lines, notes};
   }
+  function importDocument(data, design) {
+    const migrated = read(data, design);
+    if (migrated.width !== design.width || migrated.height !== design.height) throw new Error("Feedback dimensions do not match this design");
+    if (data?.version !== 3) {
+      const originalLines = Array.isArray(data) ? data : data.lines;
+      const originalNotes = Array.isArray(data) ? [] : (data.notes ?? []);
+      if (!Array.isArray(originalLines) || !Array.isArray(originalNotes) || originalLines.length !== migrated.lines.length ||
+          originalNotes.length !== migrated.notes.length || originalLines.some((line, i) => !Array.isArray(line) || line.length !== migrated.lines[i].points.length)) {
+        throw new Error("Legacy feedback contains invalid marks; import was cancelled");
+      }
+    }
+    return validate(migrated, design);
+  }
   function document(design, lines, notes) {
     return {version: 3, design: design.id, revisionId: design.revisionId ?? null, width: design.width, height: design.height, lines, notes};
   }
-  const api = {metadata, validate, read, document};
+  const api = {metadata, validate, read, importDocument, document};
   if (typeof module !== "undefined") module.exports = api;
   else root.FrameFeedback = api;
 })(typeof window === "undefined" ? globalThis : window);
