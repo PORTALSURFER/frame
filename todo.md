@@ -1,6 +1,6 @@
 # Frame implementation todo
 
-This backlog follows a source review of `README.md`, `frame.js`, `app.js`, `index.html`, `style.css`, and the example designs. Items below are proposed work, not implemented capabilities. Browser behavior has not yet been verified as part of this review.
+This backlog follows a source review of `README.md`, `frame.js`, `app.js`, `index.html`, `style.css`, and the example designs. Checked items have been implemented and verified with Chromium browser tests; unchecked items are proposed work.
 
 ## What we have
 
@@ -20,7 +20,7 @@ The main gap is the feedback-to-revision loop. An agent can edit a drawing scrip
 - [x] **Make feedback limits explicit and consistent.** Enforce 1,000 lines per design and 5,000 points per new line during drawing, with visible limit notices. Preserve older feedback above either limit in full when loading, saving, and exporting. Cover boundaries, continued drawing, undo/clear, and oversized legacy feedback with browser regression tests.
 - [x] **Show persistence failures.** Display unsaved feedback and a retry action when browser storage is unavailable or full. Keep export available, including failed clears, retain unsaved marks across design switches, and clear the notice only after saving succeeds. Verify quota/security failures and recovery in browser tests.
 - [x] **Recover from design errors.** Reject invalid or duplicate registrations with visible diagnostics, show an empty state when no designs are valid, and catch paint failures with a retry action. Preserve feedback for export and allow switching to a working design. Verify startup, registration, painting, and retry recovery in browser tests.
-- [ ] **Add focused browser regression checks.** Cover draw → resize → switch design → reload → export, pointer cancellation, undo during a stroke, and storage failures. Confirm coordinate alignment and retained feedback.
+- [x] **Add focused browser regression checks.** Cover draw → resize → switch design → reload → export with measured SVG alignment, outside-board Shift lines, pointer cancellation, undo during a stroke, storage failures, and leaving with unsaved feedback. Run the suite in GitHub Actions on PRs and main updates.
 
 ## 2. Complete the human feedback loop
 

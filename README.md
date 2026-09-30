@@ -100,3 +100,5 @@ npm test
 ```
 
 To use an existing Chromium installation, run `FRAME_BROWSER_PATH=/path/to/chromium npm test` instead. Tests serve the app locally and exercise it in a headless browser with isolated storage.
+
+The suite covers drawing and pointer recovery, undo/clear, drawing limits, storage failures and retry, design error recovery, and the full draw → resize → switch → reload → export workflow. It measures SVG endpoint alignment with the design and checks marks outside the board. GitHub Actions runs these checks on pull requests and updates to `main` using Playwright's Chromium.

@@ -520,3 +520,121 @@ test('a missing Canvas context produces a recoverable render error', async t => 
   await page.mouse.up();
   assert.equal((await savedLines(page)).length, 1);
 });
+
+async function assertMarksAligned(page, feedback) {
+  // Wait for layout and ResizeObserver redraws before measuring actual SVG coordinates.
+  await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+  const measurements = await page.evaluate(feedback => {
+    const board = document.getElementById('board').getBoundingClientRect();
+    return [...document.querySelectorAll('#brush path')].map((path, index) => {
+      const line = feedback.lines[index];
+      return [0, 1].map(endpoint => {
+        const actual = path.getPointAtLength(endpoint ? path.getTotalLength() : 0).matrixTransform(path.getScreenCTM());
+        const expected = endpoint ? line.at(-1) : line[0];
+        return Math.hypot(
+          actual.x - (board.x + expected[0] * board.width / feedback.width),
+          actual.y - (board.y + expected[1] * board.height / feedback.height)
+        );
+      });
+    });
+  }, feedback);
+  assert.equal(measurements.length, feedback.lines.length);
+  for (const endpoints of measurements) {
+    assert.ok(endpoints.every(error => error < 0.2), `marks align within 0.2 CSS pixels: ${endpoints}`);
+  }
+}
+
+test('draw → resize → switch design → reload → export preserves feedback and visual alignment', async t => {
+  const page = await openPage(t);
+  await beginMouse(page);
+  await page.mouse.up();
+  const starter = await exportFeedback(page);
+  assert.equal(starter.design, 'starter');
+  assert.equal(starter.width, 960);
+  assert.equal(starter.height, 600);
+  assert.deepEqual(starter.lines[0][0], [100, 100]);
+  assert.deepEqual(starter.lines[0].at(-1), [150, 150]);
+  await assertMarksAligned(page, starter);
+  await page.setViewportSize({width: 600, height: 700});
+  await assertMarksAligned(page, starter);
+  assert.deepEqual(await savedLines(page), starter.lines);
+  await page.locator('#design-picker').selectOption('sift');
+  assert.equal(await page.locator('#brush path').count(), 0);
+  await beginMouse(page);
+  await page.mouse.up();
+  const sift = await exportFeedback(page);
+  assert.equal(sift.design, 'sift');
+  await assertMarksAligned(page, sift);
+  await page.locator('#design-picker').selectOption('starter');
+  assert.deepEqual(await exportFeedback(page), starter);
+  await assertMarksAligned(page, starter);
+  await page.reload();
+  assert.equal(await page.locator('#design-picker').inputValue(), 'starter');
+  assert.deepEqual(await exportFeedback(page), starter);
+  await assertMarksAligned(page, starter);
+  await page.setViewportSize({width: 1280, height: 900});
+  await assertMarksAligned(page, starter);
+  await page.locator('#design-picker').selectOption('sift');
+  assert.deepEqual(await exportFeedback(page), sift);
+  await assertMarksAligned(page, sift);
+});
+
+test('outside-board Shift lines retain their endpoints after resizing and reload', async t => {
+  const page = await openPage(t);
+  const board = await page.locator('#board').boundingBox();
+  await page.mouse.move(board.x - 12, board.y + 50);
+  await page.mouse.down();
+  await page.keyboard.down('Shift');
+  await page.mouse.move(board.x + 250, board.y + 200, {steps: 8});
+  await page.mouse.up();
+  await page.keyboard.up('Shift');
+  const feedback = await exportFeedback(page);
+  assert.equal(feedback.lines[0].length, 2);
+  assert.deepEqual(feedback.lines[0][0], [-12, 50]);
+  assert.deepEqual(feedback.lines[0][1], [250, 200]);
+  await page.setViewportSize({width: 600, height: 700});
+  await assertMarksAligned(page, feedback);
+  await page.reload();
+  assert.deepEqual(await exportFeedback(page), feedback);
+  await assertMarksAligned(page, feedback);
+});
+
+test('leaving prompts for unsaved feedback in another design and stops prompting after recovery', async t => {
+  const page = await openPage(t);
+  await page.evaluate(() => {
+    const original = Storage.prototype.setItem;
+    window.restoreStorage = () => { Storage.prototype.setItem = original; };
+    Storage.prototype.setItem = function (key, value) {
+      if (key.startsWith('frame-feedback-')) throw new DOMException('Full', 'QuotaExceededError');
+      return original.call(this, key, value);
+    };
+  });
+  await beginMouse(page);
+  await page.mouse.up();
+  const feedback = await exportFeedback(page);
+  await page.locator('#design-picker').selectOption('sift');
+  const prevented = await page.evaluate(() => {
+    const event = new Event('beforeunload', {cancelable: true});
+    window.dispatchEvent(event);
+    return event.defaultPrevented;
+  });
+  assert.equal(prevented, true, 'unsaved feedback in another design also prevents leaving silently');
+  const dialogEvent = page.waitForEvent('dialog');
+  const navigation = page.goto(`${baseURL}/?leaving`).catch(error => error);
+  const dialog = await dialogEvent;
+  assert.equal(dialog.type(), 'beforeunload');
+  await dialog.dismiss();
+  const result = await navigation;
+  assert.ok(result instanceof Error, 'declining the prompt cancels navigation');
+  await page.locator('#design-picker').selectOption('starter');
+  assert.deepEqual((await exportFeedback(page)).lines, feedback.lines);
+  await page.evaluate(() => window.restoreStorage());
+  await page.locator('#retry-save').click();
+  assert.equal(await page.evaluate(() => {
+    const event = new Event('beforeunload', {cancelable: true});
+    window.dispatchEvent(event);
+    return event.defaultPrevented;
+  }), false);
+  await page.reload();
+  assert.deepEqual((await exportFeedback(page)).lines, feedback.lines);
+});
