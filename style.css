@@ -100,3 +100,4 @@ pre { white-space: pre-wrap; overflow-wrap: anywhere; }
 /* Keep zoomed boards inside a stable viewport instead of growing the flex stage. */
 .app { height:100dvh; }
 .stage { flex:1 1 0; }
+.topbar, .review-toolbar, footer { flex-shrink:0; }
