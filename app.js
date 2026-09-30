@@ -13,6 +13,7 @@
   const picker = document.getElementById("design-picker");
   const undo = document.getElementById("undo");
   const clear = document.getElementById("clear");
+  const deleteSelected = document.getElementById("delete-selected");
   const download = document.getElementById("download");
   const retrySave = document.getElementById("retry-save");
   const count = document.getElementById("mark-count");
@@ -86,6 +87,7 @@
     undo.disabled = lines.length === 0;
     clear.disabled = lines.length === 0 && notes.length === 0;
     download.disabled = clear.disabled && !feedback.unsaved;
+    deleteSelected.disabled = !designReady || (!selectedLine && !selectedNote);
     retrySave.hidden = !feedback.unsaved;
     retrySave.disabled = active !== null || noteDrag !== null;
     saveNotice.textContent = feedback.notice;
@@ -173,6 +175,19 @@
     selectedNote = note;
     updateNoteSelection();
     updateControls();
+  }
+  function deleteSelection() {
+    if (!selectedLine && !selectedNote) return;
+    finishLine();
+    finishNoteDrag();
+    closeNoteEditor();
+    if (selectedLine) lines = lines.filter(line => line !== selectedLine);
+    if (selectedNote) notes = notes.filter(note => note !== selectedNote);
+    selectLine(null);
+    pointLimitReached = false;
+    redrawMarks();
+    save();
+    document.querySelector(`[data-feedback-tool="${mode}"]`).focus();
   }
   function updateNoteSelection() {
     for (const [note, pin] of notePins) {
@@ -499,13 +514,10 @@
   });
   noteDelete.addEventListener("click", () => {
     if (!noteDraft?.note) return;
-    notes = notes.filter(note => note !== noteDraft.note);
-    closeNoteEditor();
-    selectLine(null);
-    redrawNotes();
-    save();
-    document.getElementById("tool-note").focus();
+    selectNote(noteDraft.note);
+    deleteSelection();
   });
+  deleteSelected.addEventListener("click", deleteSelection);
   retrySave.addEventListener("click", save);
   retryRender.addEventListener("click", () => {
     paintDesign();
@@ -526,6 +538,11 @@
   for (const button of toolButtons) button.addEventListener("click", () => setMode(button.dataset.feedbackTool));
   document.addEventListener("keydown", (event) => {
     if (event.defaultPrevented || event.isComposing || event.target?.isContentEditable || event.target?.closest?.("input, textarea, select, [data-text-editor]")) return;
+    if ((selectedLine || selectedNote) && ["Delete", "Backspace"].includes(event.key) && !event.metaKey && !event.ctrlKey && !event.altKey) {
+      event.preventDefault();
+      deleteSelection();
+      return;
+    }
     if (selectedNote && notePins.get(selectedNote) === event.target && ["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"].includes(event.key)) {
       event.preventDefault();
       const step = event.shiftKey ? 10 : 1;

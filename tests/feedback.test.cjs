@@ -910,3 +910,107 @@ test('a note drag records the release position even without a preceding move eve
   assert.deepEqual((await exportFeedback(page)).notes[0].anchor, [360, 240]);
   assert.equal(await page.locator('#note-dialog').isVisible(), false);
 });
+
+test('deleting a selected middle stroke preserves other strokes and notes through export/reload', async t => {
+  const page = await openPage(t);
+  const lines = [[[100, 100], [200, 100]], [[100, 200], [200, 200]], [[100, 300], [200, 300]]];
+  await seedFeedback(page, lines);
+  await addNote(page, 'Keep this note.', [400, 300]);
+  const original = await exportFeedback(page);
+  await page.locator('#tool-select').click();
+  const board = await page.locator('#board').boundingBox();
+  await page.mouse.click(board.x + 150, board.y + 200);
+  assert.equal(await page.locator('#brush path.selected').getAttribute('data-line-index'), '1');
+  await page.locator('#delete-selected').click();
+  const deleted = await exportFeedback(page);
+  assert.deepEqual(deleted.lines, [lines[0], lines[2]]);
+  assert.deepEqual(deleted.notes, original.notes);
+  assert.equal(await page.locator('#brush path.selected').count(), 0);
+  assert.equal(await page.locator('#delete-selected').isDisabled(), true);
+  await page.reload();
+  assert.deepEqual(await exportFeedback(page), deleted);
+  await page.locator('#tool-select').click();
+  await page.locator('#brush path').last().focus();
+  await page.keyboard.press('Delete');
+  assert.deepEqual((await exportFeedback(page)).lines, [lines[0]]);
+});
+
+test('Backspace deletes a selected note without deleting strokes or other notes', async t => {
+  const page = await openPage(t);
+  await beginMouse(page);
+  await page.mouse.up();
+  await addNote(page, 'Remove this note.', [300, 200]);
+  await addNote(page, 'Keep this note.', [600, 400]);
+  const original = await exportFeedback(page);
+  await page.locator('#tool-select').click();
+  await page.locator('.note-pin').first().click();
+  await page.keyboard.press('Backspace');
+  const deleted = await exportFeedback(page);
+  assert.deepEqual(deleted.lines, original.lines);
+  assert.deepEqual(deleted.notes, [original.notes[1]]);
+  assert.equal(await page.locator('#delete-selected').isDisabled(), true);
+  await page.locator('#design-picker').selectOption('sift');
+  await page.locator('#design-picker').selectOption('starter');
+  await page.reload();
+  assert.deepEqual(await exportFeedback(page), deleted);
+});
+
+test('Delete and Backspace in the note editor edit text instead of deleting the selected note', async t => {
+  const page = await openPage(t);
+  await addNote(page, 'Keep this note.');
+  const original = await exportFeedback(page);
+  await page.locator('.note-pin').click();
+  await page.locator('#note-text').fill('ab');
+  await page.keyboard.press('End');
+  await page.keyboard.press('Backspace');
+  assert.equal(await page.locator('#note-text').inputValue(), 'a');
+  await page.keyboard.press('Home');
+  await page.keyboard.press('Delete');
+  assert.equal(await page.locator('#note-text').inputValue(), '');
+  assert.equal(await page.locator('.note-pin').count(), 1);
+  await page.locator('#note-cancel').click();
+  assert.deepEqual(await exportFeedback(page), original);
+});
+
+test('a failed selected deletion stays deleted across design switches and retry persists it', async t => {
+  const page = await openPage(t);
+  const lines = [[[100, 100], [200, 100]], [[100, 200], [200, 200]]];
+  await seedFeedback(page, lines);
+  await page.evaluate(() => {
+    const original = Storage.prototype.setItem;
+    window.restoreStorage = () => { Storage.prototype.setItem = original; };
+    Storage.prototype.setItem = function (key, value) {
+      if (key.startsWith('frame-feedback-')) throw new DOMException('Full', 'QuotaExceededError');
+      return original.call(this, key, value);
+    };
+  });
+  await page.locator('#tool-select').click();
+  await page.locator('#brush path').first().focus();
+  await page.keyboard.press('Delete');
+  assert.deepEqual((await exportFeedback(page)).lines, [lines[1]]);
+  assert.match(await page.locator('#feedback-save-notice').textContent(), /Feedback is unsaved/);
+  await page.locator('#design-picker').selectOption('sift');
+  await page.locator('#design-picker').selectOption('starter');
+  assert.deepEqual((await exportFeedback(page)).lines, [lines[1]]);
+  await page.evaluate(() => window.restoreStorage());
+  await page.locator('#retry-save').click();
+  await page.reload();
+  assert.deepEqual((await exportFeedback(page)).lines, [lines[1]]);
+});
+
+test('stroke selection uses screen-pixel tolerance after the design scales down', async t => {
+  const page = await openPage(t);
+  await seedFeedback(page, [[[100, 100], [200, 100]]]);
+  await page.locator('#tool-select').click();
+  await page.setViewportSize({width: 600, height: 700});
+  await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+  const board = await page.locator('#board').boundingBox();
+  const x = board.x + 150 * board.width / 960;
+  const y = board.y + 100 * board.height / 600;
+  await page.mouse.click(x, y + 9);
+  assert.equal(await page.locator('#delete-selected').isDisabled(), true);
+  await page.mouse.click(x, y + 7);
+  assert.equal(await page.locator('#brush path.selected').count(), 1);
+  await page.locator('#delete-selected').click();
+  assert.deepEqual(await savedLines(page), []);
+});
