@@ -6,11 +6,11 @@ This backlog follows a source review of `README.md`, `frame.js`, `app.js`, `inde
 
 - A small browser app with no build step and two example designs.
 - A `Frame.register` API for fixed-size designs painted with Canvas 2D.
-- A design picker, automatic board scaling, and a red feedback brush.
-- Freehand and Shift-constrained lines, undo, clear, per-design browser storage, and JSON feedback export.
+- A design picker, automatic board scaling, and Pen, Note, and Select tools.
+- Freehand and Shift-constrained lines, placed/editable/movable notes, stroke undo, clear, per-design browser storage, and JSON feedback export.
 - A README describing the AI-first product vision and current limitations.
 
-The main gap is the feedback-to-revision loop. An agent can edit a drawing script, but Frame cannot yet identify the elements in that drawing, attach written feedback to them, or expose review and testing operations. Fitting a fixed canvas into a window also does not test a responsive layout.
+The main gap is the feedback-to-revision loop. An agent can edit a drawing script and read positioned written feedback, but Frame cannot yet identify the elements in that drawing, attach notes to stable element identities, or expose design review and testing operations. Fitting a fixed canvas into a window also does not test a responsive layout.
 
 ## 1. Make existing feedback reliable
 
@@ -25,11 +25,11 @@ The main gap is the feedback-to-revision loop. An agent can edit a drawing scrip
 
 ## 2. Complete the human feedback loop
 
-- [ ] **Add explicit feedback modes.** Pen and Select tools are implemented with active-state indicators, keyboard access, and safe text shortcuts. Add the Note tool alongside placed annotations to complete this item.
-- [ ] **Add placed text annotations.** Click to place a note in design coordinates, then edit, move, or delete it. Keep its anchor aligned when the board resizes.
+- [x] **Add explicit feedback modes.** Provide Pen, Note, and Select tools with active-state indicators, keyboard access, mode guidance, and safe text editing shortcuts.
+- [x] **Add placed text annotations.** Click to place notes in design coordinates, edit/delete them in an editor, and move them by dragging or arrow keys. Save and export notes with strokes, retain legacy feedback, and verify alignment after resizing, design switching, and reload. Cover cancelled edits/drags and storage failures in browser tests.
 - [ ] **Allow individual mark selection and deletion.** Let a person remove a specific stroke or note without clearing all feedback.
 - [ ] **Add redo and recoverable clear.** Keep a per-design history for strokes and notes; make clearing feedback undoable.
-- [ ] **Define a versioned feedback schema.** Give each item an ID, type, design ID, revision ID, timestamp, and positional anchor. Include note text and an optional element ID; preserve existing stroke-only feedback through migration.
+- [ ] **Define a versioned feedback schema.** Extend the current v2 stroke/note document with per-item IDs and types, design/revision IDs, timestamps, and optional element anchors. Notes already have stable IDs, text, and positional anchors; complete this metadata for all marks while preserving legacy feedback.
 - [ ] **Add feedback import and complete export.** Validate imported JSON and export strokes plus notes with their schema version and design context. Verify a round trip preserves all items and coordinates.
 - [ ] **Add open/resolved status.** Let people and agents track which feedback still needs attention and reopen an item when needed.
 - [ ] **Make feedback controls accessible.** Support keyboard navigation, visible focus, accessible tool names, and keyboard placement of notes. Check toolbar usability on small screens.

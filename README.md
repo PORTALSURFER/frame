@@ -27,21 +27,22 @@ Giving feedback should require very little setup or knowledge of design software
 
 For example, a human could circle a toolbar and add “Give these controls more space.” The AI could then adjust the layout, review the result, and present the revised design for another pass.
 
-The red pen is available in the current prototype. Placed text annotations and revision-aware feedback are planned capabilities.
+The red pen and placed text annotations are available in the current prototype. Revision-aware feedback is a planned capability.
 
 ## Current prototype
 
-Frame currently provides a code-painted design canvas using plain HTML, CSS, JavaScript, and Canvas 2D, with no build step. Agents or developers edit design scripts; humans select a design and draw feedback over it.
+Frame currently provides a code-painted design canvas using plain HTML, CSS, JavaScript, and Canvas 2D, with no build step. Agents or developers edit design scripts; humans select a design and draw or place feedback over it.
 
 Available today:
 
 - Register and render multiple designs from JavaScript.
 - Scale the board to fit the window and render at device resolution.
 - Draw freehand red marks or straight lines, with undo and clear controls.
+- Switch between Pen, Note, and Select tools; place, edit, move, and delete text notes.
 - Keep marks aligned with design coordinates when the board resizes.
-- Save feedback per design in browser `localStorage` and export strokes as JSON.
+- Save feedback per design in browser `localStorage` and export strokes and notes as JSON.
 
-The included designs are visual mockups. Interactive prototypes, automated review and testing tools, placed annotations, and revision comparisons are part of the vision, not implemented features.
+The included designs are visual mockups. Interactive prototypes, automated design review and testing tools, and revision comparisons are part of the vision, not implemented features.
 
 ## Run locally
 
@@ -79,9 +80,15 @@ If a design's paint function fails, Frame shows a render error with details and 
 
 ## Feedback
 
-Choose **Pen** (shortcut **P**) to draw or **Select** (**V**) to inspect an individual feedback line. Select by clicking within eight screen pixels of a line or focusing it with Tab; the selected line is highlighted. Click empty space or press Escape to deselect. Changing tools finishes an active stroke safely. Frame shortcuts leave normal editing and undo behavior intact inside text inputs, textareas, and editable text.
+Choose **Pen** (shortcut **P**) to draw, **Note** (**N**) to place or edit text annotations, or **Select** (**V**) to inspect a line or note. Select a line by clicking within eight screen pixels of it or focusing it with Tab; the selected mark is highlighted. Click empty space or press Escape to deselect. Changing tools finishes an active stroke safely. Frame shortcuts leave normal editing and undo behavior intact inside text inputs, textareas, and editable text.
 
-Draw red lines anywhere in the stage, including outside the interface. Hold **Shift** while dragging for a straight line. **Undo line** (or Command/Ctrl+Z) removes the latest stroke; **Clear all lines** removes every stroke for the selected design. Feedback is saved separately for each design in browser `localStorage`. **Download feedback** exports the selected design's dimensions and strokes as JSON. Existing Sift brush marks saved by the earlier canvas are loaded automatically.
+Draw red lines anywhere in the stage, including outside the interface. Hold **Shift** while dragging for a straight line. **Undo line** (or Command/Ctrl+Z) removes the latest stroke; **Clear feedback** removes strokes and notes for the selected design. Feedback is saved separately for each design in browser `localStorage`. **Download feedback** exports the selected design's dimensions, strokes, and notes as JSON. Existing Sift brush marks saved by the earlier canvas are loaded automatically.
+
+In **Note** mode, click a location to open the note editor, write your request, and choose **Save note** (or Command/Ctrl+Enter). Click an existing note to edit or delete it. In **Select** mode, double-click a note or focus it and press Enter to edit. Drag a note to move it, or use arrow keys while the note is focused; arrows move one design unit, and Shift+arrows move ten. Cancel or Escape discards the draft; a cancelled drag restores its previous anchor. Notes stay aligned with design coordinates when the board resizes.
+
+New notes allow up to **4,000 characters**, with **1,000 notes per design**. Longer previews are shortened on the canvas; the editor and export retain the full saved text. Undo currently applies to strokes; undo/redo for note edits and clears is planned.
+
+Strokes and notes save together in a version 2 feedback document under `frame-feedback-v2:<design-id>`. Version 1 stroke arrays and the original Sift storage key remain readable; editing saves the new format without overwriting those legacy backups. Exports include `version`, `design`, `width`, `height`, `lines`, and `notes`; each note has a stable `id`, `text`, and `[x, y]` anchor. Complete per-mark revision metadata is planned.
 
 New drawings are limited to **1,000 lines per design** and **5,000 points per line**. At the line-count limit, undo or clear lines before drawing more. A line automatically ends and saves when it reaches the point limit; lift your pointer and start a new line to continue. Frame displays a message when either limit is reached. Points less than one design unit apart are not recorded.
 
