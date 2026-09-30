@@ -36,6 +36,7 @@ Frame currently provides a code-painted design canvas using plain HTML, CSS, Jav
 Available today:
 
 - Register and render multiple designs from JavaScript.
+- Choose a styleguide per design; read its rules, palette, tokens, and AI prompt.
 - Scale the board to fit the window and render at device resolution.
 - Draw freehand red marks or straight lines, with undo, redo, and recoverable clear controls.
 - Switch between Pen, Note, and Select tools; place, edit, move, and delete text notes.
@@ -77,6 +78,25 @@ The drawing coordinates use the registered width and height. Frame scales the bo
 `Frame.register` returns `true` for a valid design. Invalid definitions and duplicate IDs return `false` and are recorded in `Frame.errors`; duplicate IDs keep the original design. Frame shows registration errors in the footer and displays an empty state when no valid designs are available. Designs registered after startup are added to the picker automatically.
 
 If a design's paint function fails, Frame shows a render error with details and a **Retry render** action. Choose another design to continue working. Existing feedback remains available for export, and a successful retry restores the canvas and its marks.
+
+## Styleguides
+
+Choose a **Styleguide** in the toolbar, then **View guide** for a quick reference, palette, typography, spacing, geometry, and an AI prompt. **Technical Futurist** is the first entry: restrained, believable near-future instrumentation with compact technical typography, fine structural lines, and selective accents. The full supplied 72-section document is preserved in [styleguides/technical-futurist.md](styleguides/technical-futurist.md), available in the reader and through **Download full guide**. **Copy prompt** copies its compact master specification; if clipboard access fails, select the prompt text or download the guide.
+
+Selection is remembered separately for each design in browser storage, with an in-memory fallback if storage is unavailable. Existing feedback and history remain associated with the design when its guide changes. Guides provide design direction; existing Canvas scripts use their own styling until they opt into the selected tokens:
+
+```js
+paint(ctx, {styleguide}) {
+  ctx.fillStyle = styleguide?.tokens.palette[0].value || "#171c1d";
+  ctx.fillRect(0, 0, 1000, 600);
+}
+```
+
+A guide change repaints the selected design. Agents can inspect `Frame.activeStyleguide` or list `Frame.styleguides` to obtain the full document, compact prompt, rules, and tokens. The first supplied palette color is a surface; the accent families are alternatives, so choose one dominant accent for a design.
+
+To add another guide, load a script after `frame.js` and before `styleguide-picker.js` that calls `Frame.registerStyleguide({id, name, summary, document, prompt, rules, tokens})`. IDs use lowercase letters, numbers, and hyphens. `rules` is an array of strings; `tokens` contains `palette: [{name, value}]` with six-digit hex colors and string values for `typography`, `spacing`, and `geometry`. See [the first entry](styleguides/technical-futurist.js) for the full definition. The registry returns `false` for invalid or duplicate definitions, preserves the original, and reports errors in the footer; valid guides registered after startup appear in the picker.
+
+Guides are embedded in ordinary scripts so the reader also works when opening `index.html` directly. When editing a guide, keep its embedded `document` and Markdown source in sync. Applying a guide does not yet create revision snapshots or separate feedback by style variation.
 
 ## Feedback
 

@@ -407,7 +407,7 @@
       if (!context) throw new Error("Canvas drawing is unavailable in this browser");
       context.setTransform(dpr, 0, 0, dpr, 0, 0);
       context.save();
-      try { design.paint(context); }
+      try { design.paint(context, {styleguide: Frame.activeStyleguide}); }
       finally { context.restore(); }
       designReady = true;
       board.hidden = false;
@@ -448,6 +448,7 @@
     lines = feedback.lines;
     notes = feedback.notes;
     pointLimitReached = false;
+    window.dispatchEvent(new CustomEvent("frame:design-selected", {detail: {design}}));
     paintDesign();
     fitBoard();
     try { localStorage.setItem("frame-last-design", id); } catch { /* optional */ }
@@ -653,6 +654,12 @@
     try { initial = localStorage.getItem("frame-last-design"); } catch { /* optional */ }
     selectDesign(Frame.designs.has(initial) ? initial : Frame.designs.keys().next().value);
   }
+  window.addEventListener("frame:styleguide-selected", () => {
+    finishLine();
+    finishNoteDrag();
+    closeNoteEditor();
+    if (design) { paintDesign(); fitBoard(); }
+  });
   window.addEventListener("frame:designs-changed", refreshDesigns);
   setMode("pen");
   refreshDesigns();
