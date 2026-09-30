@@ -136,7 +136,8 @@
     if (event.shiftKey) {
       active.splice(1, active.length - 1, pointFromEvent(event));
     } else {
-      for (const sample of event.getCoalescedEvents?.() || [event]) {
+      const samples = event.getCoalescedEvents?.();
+      for (const sample of samples?.length ? samples : [event]) {
         const next = pointFromEvent(sample);
         const last = active[active.length - 1];
         if (Math.hypot(next[0] - last[0], next[1] - last[1]) >= 1) active.push(next);
