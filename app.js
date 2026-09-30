@@ -1,5 +1,5 @@
 (() => {
-  const STORAGE_PREFIX = "frame-feedback-v2:";
+  const STORAGE_PREFIX = "frame-feedback-v3:";
   const LEGACY_STORAGE_PREFIX = "frame-feedback-v1:";
   const MAX_LINES = 1000;
   const MAX_LINE_POINTS = 5000;
@@ -40,6 +40,7 @@
   const noteError = document.getElementById("note-error");
   const noteDelete = document.getElementById("note-delete");
   const notePins = new Map();
+  const lineMetadata = new WeakMap();
   const pendingFeedback = new Map();
   const sessions = new Map();
   let feedback = {lines: [], notes: [], unsaved: false, notice: ""};
@@ -60,30 +61,23 @@
   let history = {undo: [], redo: []};
 
   function storageKey() { return `${STORAGE_PREFIX}${design.id}`; }
-  function validLines(value) {
-    if (!Array.isArray(value)) return [];
-    // Drawing limits apply to new strokes, not to feedback saved by older versions.
-    return value.filter(Array.isArray).map((line) =>
-      line.filter((point) => Array.isArray(point) && point.length === 2 && point.every(Number.isFinite))
-    ).filter((line) => line.length > 0);
+  function currentDocument() {
+    return FrameFeedback.document(design, lines.map(line => ({...lineMetadata.get(line), points: line})), notes);
+  }
+  function unpack(data) {
+    const loadedLines = data.lines.map(({points, ...metadata}) => { lineMetadata.set(points, metadata); return points; });
+    return {lines: loadedLines, notes: data.notes, unsaved: false, notice: ""};
   }
   function load() {
-    if (pendingFeedback.has(design.id)) return pendingFeedback.get(design.id);
+    let saved;
     try {
-      const saved = localStorage.getItem(storageKey()) ?? localStorage.getItem(`${LEGACY_STORAGE_PREFIX}${design.id}`) ??
+      saved = localStorage.getItem(storageKey()) ?? localStorage.getItem(`frame-feedback-v2:${design.id}`) ??
+        localStorage.getItem(`${LEGACY_STORAGE_PREFIX}${design.id}`) ??
         (design.id === "sift" ? localStorage.getItem("sift-ui-feedback-v1") : null);
-      const data = JSON.parse(saved || "[]");
-      if (!Array.isArray(data) && data?.version !== 2) throw new Error("Unsupported feedback format");
-      const ids = new Set();
-      const loadedNotes = (Array.isArray(data.notes) ? data.notes : []).filter(note => {
-        if (!note || typeof note.id !== "string" || ids.has(note.id) || typeof note.text !== "string" || !note.text.trim() ||
-            !Array.isArray(note.anchor) || note.anchor.length !== 2 || !note.anchor.every(Number.isFinite)) return false;
-        ids.add(note.id);
-        return true;
-      });
-      return {lines: validLines(Array.isArray(data) ? data : data.lines), notes: loadedNotes, unsaved: false, notice: ""};
+      return unpack(FrameFeedback.read(JSON.parse(saved || "[]"), design));
     } catch {
-      return {lines: [], notes: [], unsaved: false, notice: "Saved feedback could not be loaded. Drawing and download still work."};
+      return {lines: [], notes: [], unsaved: false, blocked: !!saved,
+        notice: "Saved feedback could not be loaded. Drawing and download still work. Existing saved data will not be overwritten."};
     }
   }
   function updateControls() {
@@ -118,13 +112,14 @@
     feedback.lines = lines;
     feedback.notes = notes;
     try {
-      localStorage.setItem(storageKey(), JSON.stringify({version: 2, lines, notes}));
+      if (feedback.blocked) throw new Error("Saved data is protected");
+      localStorage.setItem(storageKey(), JSON.stringify(currentDocument()));
       feedback.unsaved = false;
       feedback.notice = "";
       pendingFeedback.delete(design.id);
     } catch (error) {
       feedback.unsaved = true;
-      const reason = error?.name === "QuotaExceededError" ? "browser storage is full" : "browser storage is unavailable";
+      const reason = feedback.blocked ? "existing unreadable data is protected" : error?.name === "QuotaExceededError" ? "browser storage is full" : "browser storage is unavailable";
       feedback.notice = `Feedback is unsaved: ${reason}. Download feedback before closing or reloading, or retry saving.`;
       pendingFeedback.set(design.id, feedback);
     }
@@ -134,16 +129,21 @@
   // Finished strokes are immutable: retain point arrays rather than copying them.
   // Notes remain live objects for pointer capture/focus, so snapshot their mutable fields.
   function snapshot() {
-    return {lines: [...lines], notes: notes.map(note => ({note, text: note.text, anchor: [...note.anchor]}))};
+    return {lines: [...lines], notes: notes.map(note => ({note, text: note.text, updatedAt: note.updatedAt, anchor: [...note.anchor]}))};
   }
   function record(before, label) {
-    const after = snapshot();
+    let after = snapshot();
     const unchanged = before.lines.length === after.lines.length && before.lines.every((line, i) => line === after.lines[i]) &&
       before.notes.length === after.notes.length && before.notes.every((entry, i) => {
         const next = after.notes[i];
         return entry.note === next.note && entry.text === next.text && entry.anchor.every((value, axis) => value === next.anchor[axis]);
       });
     if (unchanged) return;
+    for (const entry of before.notes) {
+      const note = notes.find(note => note === entry.note);
+      if (note && (note.text !== entry.text || note.anchor.some((value, axis) => value !== entry.anchor[axis]))) note.updatedAt = new Date().toISOString();
+    }
+    after = snapshot();
     history.undo.push({before, after, label});
     if (history.undo.length > MAX_HISTORY) history.undo.shift();
     history.redo = [];
@@ -152,6 +152,7 @@
     lines = [...state.lines];
     notes = state.notes.map(entry => {
       entry.note.text = entry.text;
+      entry.note.updatedAt = entry.updatedAt;
       entry.note.anchor = [...entry.anchor];
       return entry.note;
     });
@@ -457,6 +458,7 @@
     if (!active) return;
     if (active.length === 1) active.push([active[0][0] + 0.1, active[0][1] + 0.1]);
     activePath.setAttribute("d", pathData(active));
+    lineMetadata.get(active).updatedAt = new Date().toISOString();
     record(strokeBefore, "Draw line");
     strokeBefore = null;
     active = null;
@@ -485,6 +487,7 @@
     pointLimitReached = false;
     strokeBefore = snapshot();
     active = [pointFromEvent(event)];
+    lineMetadata.set(active, FrameFeedback.metadata("stroke", design));
     activePointerId = event.pointerId;
     lines.push(active);
     activePath = makePath(active);
@@ -549,7 +552,7 @@
       return;
     }
     const before = snapshot();
-    const note = noteDraft.note || {id: crypto.randomUUID(), anchor: noteDraft.anchor};
+    const note = noteDraft.note || {...FrameFeedback.metadata("note", design), anchor: noteDraft.anchor};
     note.text = text;
     if (!noteDraft.note) notes.push(note);
     record(before, noteDraft.note ? "Edit note" : "Add note");
@@ -579,7 +582,7 @@
   download.addEventListener("click", () => {
     finishLine();
     finishNoteDrag();
-    const data = JSON.stringify({version: 2, design: design.id, width: design.width, height: design.height, lines, notes}, null, 2);
+    const data = JSON.stringify(currentDocument(), null, 2);
     const url = URL.createObjectURL(new Blob([data], {type: "application/json"}));
     const link = document.createElement("a");
     link.href = url;

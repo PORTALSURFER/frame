@@ -53,8 +53,8 @@ async function openPage(t, options = {}) {
 
 async function savedLines(page) {
   return page.evaluate(() => {
-    const data = JSON.parse(localStorage.getItem('frame-feedback-v2:starter') ?? localStorage.getItem('frame-feedback-v1:starter') ?? '[]');
-    return Array.isArray(data) ? data : data.lines;
+    const data = JSON.parse(localStorage.getItem('frame-feedback-v3:starter') ?? localStorage.getItem('frame-feedback-v2:starter') ?? localStorage.getItem('frame-feedback-v1:starter') ?? '[]');
+    return Array.isArray(data) ? data : data.lines.map(line => line.points || line);
   });
 }
 
@@ -216,11 +216,16 @@ async function seedFeedback(page, lines, key = 'frame-feedback-v1:starter') {
   await page.reload();
 }
 
-async function exportFeedback(page) {
+function projectFeedback(data) {
+  if (!data || data.version !== 3) return data;
+  return {...data, lines: data.lines.map(line => line.points), notes: data.notes.map(({id, text, anchor}) => ({id, text, anchor}))};
+}
+async function exportFeedback(page, raw = false) {
   const downloaded = page.waitForEvent('download');
   await page.locator('#download').click();
   const download = await downloaded;
-  return JSON.parse(await fs.readFile(await download.path(), 'utf8'));
+  const data = JSON.parse(await fs.readFile(await download.path(), 'utf8'));
+  return raw ? data : projectFeedback(data);
 }
 
 test('the 1,000-line boundary blocks new strokes without losing feedback and undo/clear restore drawing', async t => {
@@ -736,7 +741,7 @@ test('placed notes retain text and anchor across edit, resize, design switches, 
   await addNote(page, 'Give these controls more space.\nKeep the label visible.');
   assert.equal(await page.locator('#tool-note').getAttribute('aria-pressed'), 'true');
   let feedback = await exportFeedback(page);
-  assert.equal(feedback.version, 2);
+  assert.equal(feedback.version, 3);
   assert.deepEqual(feedback.lines, oldLines);
   assert.equal(feedback.notes.length, 1);
   assert.deepEqual(feedback.notes[0].anchor, [300, 200]);
@@ -830,11 +835,11 @@ test('stroke-only storage migrates on edit without overwriting its legacy backup
   await addNote(page, 'Keep the original line.');
   const stored = await page.evaluate(() => ({
     legacy: JSON.parse(localStorage.getItem('frame-feedback-v1:starter')),
-    current: JSON.parse(localStorage.getItem('frame-feedback-v2:starter'))
+    current: JSON.parse(localStorage.getItem('frame-feedback-v3:starter'))
   }));
   assert.deepEqual(stored.legacy, legacy);
-  assert.equal(stored.current.version, 2);
-  assert.deepEqual(stored.current.lines, legacy);
+  assert.equal(stored.current.version, 3);
+  assert.deepEqual(stored.current.lines.map(line => line.points), legacy);
   assert.equal(stored.current.notes.length, 1);
   await page.locator('#clear').click();
   await page.reload();
@@ -1022,7 +1027,10 @@ test('stroke selection uses screen-pixel tolerance after the design scales down'
 });
 
 async function savedFeedback(page, id = 'starter') {
-  return page.evaluate(id => JSON.parse(localStorage.getItem('frame-feedback-v2:' + id)), id);
+  const data = await page.evaluate(id => JSON.parse(localStorage.getItem('frame-feedback-v3:' + id)), id);
+  if (!data) return null;
+  const projected = projectFeedback(data);
+  return {version: 2, lines: projected.lines, notes: projected.notes};
 }
 
 test('undo/redo restores strokes, individual deletion, and clear with exact exported data', async t => {
@@ -1155,7 +1163,7 @@ test('failed undo/redo saves stay in memory across designs and retry persists th
   await page.evaluate(() => {
     window.originalSetItem = Storage.prototype.setItem;
     Storage.prototype.setItem = function(key, value) {
-      if (key.startsWith('frame-feedback-v2:')) throw new DOMException('Full', 'QuotaExceededError');
+      if (key.startsWith('frame-feedback-v3:')) throw new DOMException('Full', 'QuotaExceededError');
       return window.originalSetItem.call(this, key, value);
     };
   });
@@ -1381,4 +1389,58 @@ test('the embedded guide reader also works when index.html is opened directly', 
   await page.locator('#view-styleguide').click();
   assert.match(await page.locator('#styleguide-document').textContent(), /# 72. Compact Master Specification/);
   assert.equal(await page.locator('#styleguide-palette .guide-color').count(), 9);
+});
+
+test('v3 mark identity and timestamps survive editing, history, switching, reload and export', async t => {
+  const page = await openPage(t);
+  await page.evaluate(() => { Frame.designs.get('starter').revisionId = 'r1'; });
+  await beginMouse(page); await page.mouse.up();
+  await addNote(page, 'Metadata');
+  const initial = await exportFeedback(page, true);
+  assert.equal(initial.version, 3);
+  assert.equal(initial.revisionId, 'r1');
+  assert.equal(initial.lines[0].type, 'stroke');
+  assert.equal(initial.notes[0].type, 'note');
+  assert.notEqual(initial.lines[0].id, initial.notes[0].id);
+  for (const mark of [...initial.lines, ...initial.notes]) {
+    assert.equal(mark.designId, 'starter');
+    assert.equal(mark.revisionId, 'r1');
+    assert.ok(Number.isFinite(Date.parse(mark.createdAt)));
+  }
+  await page.locator('.note-pin').click();
+  await page.locator('#note-text').fill('Changed');
+  await page.locator('#note-save').click();
+  const edited = await exportFeedback(page, true);
+  assert.equal(edited.notes[0].createdAt, initial.notes[0].createdAt);
+  assert.ok(edited.notes[0].updatedAt >= initial.notes[0].updatedAt);
+  await page.locator('#undo').click();
+  assert.deepEqual((await exportFeedback(page, true)).notes, initial.notes);
+  await page.locator('#redo').click();
+  await page.locator('#design-picker').selectOption('sift');
+  await page.locator('#design-picker').selectOption('starter');
+  assert.deepEqual((await exportFeedback(page, true)).notes, edited.notes);
+  await page.reload();
+  const reloaded = await exportFeedback(page, true);
+  assert.deepEqual(reloaded.lines, initial.lines);
+  assert.deepEqual(reloaded.notes, edited.notes);
+});
+
+test('v2 backups remain untouched, migration IDs are stable before save, and corrupt v3 cannot be overwritten', async t => {
+  const page = await openPage(t);
+  const legacy = {version:2,lines:[[[10,10],[20,20]]],notes:[{id:'old-note',text:'Older',anchor:[50,50]}]};
+  await seedFeedback(page, legacy, 'frame-feedback-v2:starter');
+  const exported = await exportFeedback(page, true);
+  await page.reload();
+  assert.deepEqual(await exportFeedback(page, true), exported);
+  await beginMouse(page); await page.mouse.up();
+  assert.deepEqual(await page.evaluate(()=>JSON.parse(localStorage.getItem('frame-feedback-v2:starter'))), legacy);
+  assert.equal((await exportFeedback(page,true)).notes[0].id, 'old-note');
+  const corrupt = '{"version":99,"valuable":"keep this"}';
+  await page.evaluate(raw=>localStorage.setItem('frame-feedback-v3:starter',raw),corrupt);
+  await page.reload();
+  assert.match(await page.locator('#feedback-save-notice').textContent(), /not be overwritten/);
+  await beginMouse(page); await page.mouse.up();
+  assert.equal(await page.evaluate(()=>localStorage.getItem('frame-feedback-v3:starter')), corrupt);
+  assert.equal((await exportFeedback(page,true)).lines.length,1);
+  assert.match(await page.locator('#feedback-save-notice').textContent(), /protected/);
 });
