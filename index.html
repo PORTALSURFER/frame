@@ -18,7 +18,10 @@
       <div class="tools">
         <label class="design-choice">Design <select id="design-picker" aria-label="Design"></select></label>
         <span id="design-size" class="design-size"></span>
-        <span class="brush-status"><span class="red-dot"></span> RED BRUSH</span>
+        <div class="feedback-tools" role="group" aria-label="Feedback tools">
+          <button id="tool-pen" type="button" data-feedback-tool="pen" aria-pressed="true" aria-keyshortcuts="P">Pen</button>
+          <button id="tool-select" type="button" data-feedback-tool="select" aria-pressed="false" aria-keyshortcuts="V">Select</button>
+        </div>
         <button id="undo" type="button" disabled>Undo line</button>
         <button id="clear" type="button" disabled>Clear all lines</button>
         <button id="download" type="button" disabled>Download feedback</button>
@@ -39,7 +42,8 @@
     </div>
     <footer>
       <div>
-        <span>Draw red lines anywhere. Hold Shift for a straight line. Marks save per design in this browser.</span>
+        <span id="feedback-instructions">Draw red lines anywhere. Hold Shift for a straight line. Marks save per design in this browser.</span>
+        <span id="selection-status" role="status" aria-live="polite"></span>
         <span id="feedback-limit-notice" role="status" aria-live="polite" aria-atomic="true"></span>
         <span id="feedback-save-notice" role="status" aria-live="polite" aria-atomic="true"></span>
         <details id="registration-notice" hidden>
