@@ -9,6 +9,8 @@
   <script src="examples/starter.js" defer></script>
   <script src="examples/sift-waveform-data.js" defer></script>
   <script src="examples/sift.js" defer></script>
+  <script src="styleguides/technical-futurist.js" defer></script>
+  <script src="styleguide-picker.js" defer></script>
   <script src="app.js" defer></script>
 </head>
 <body>
@@ -17,6 +19,8 @@
       <div class="brand"><span class="brand-mark">F</span><div><strong>FRAME</strong><small>UI DESIGN CANVAS</small></div></div>
       <div class="tools">
         <label class="design-choice">Design <select id="design-picker" aria-label="Design"></select></label>
+        <label class="design-choice styleguide-choice">Styleguide <select id="styleguide-picker" aria-label="Styleguide"></select></label>
+        <button id="view-styleguide" type="button" disabled>View guide</button>
         <span id="design-size" class="design-size"></span>
         <div class="feedback-tools" role="group" aria-label="Feedback tools">
           <button id="tool-pen" type="button" data-feedback-tool="pen" aria-pressed="true" aria-keyshortcuts="P">Pen</button>
@@ -50,6 +54,7 @@
         <span id="selection-status" role="status" aria-live="polite"></span>
         <span id="feedback-limit-notice" role="status" aria-live="polite" aria-atomic="true"></span>
         <span id="feedback-save-notice" role="status" aria-live="polite" aria-atomic="true"></span>
+        <details id="styleguide-registration-notice" hidden><summary>Styleguide registration errors</summary><pre id="styleguide-registration-errors"></pre></details>
         <details id="registration-notice" hidden>
           <summary id="registration-summary"></summary>
           <pre id="registration-errors"></pre>
@@ -58,6 +63,18 @@
       <span id="mark-count">0 lines</span>
     </footer>
   </main>
+  <dialog id="styleguide-dialog" aria-labelledby="styleguide-title" data-text-editor>
+    <div class="guide-heading"><h2 id="styleguide-title"></h2><button id="close-styleguide" type="button" autofocus>Close</button></div>
+    <p id="styleguide-summary"></p>
+    <p class="guide-hint">A reference for creating and reviewing designs. Designs can use the selected guide's tokens when painting.</p>
+    <section aria-labelledby="guide-palette-title"><h3 id="guide-palette-title">Palette · choose one accent</h3><div id="styleguide-palette" class="guide-palette"></div></section>
+    <dl id="styleguide-tokens"></dl>
+    <h3>Design principles</h3><ul id="styleguide-rules"></ul>
+    <h3>AI design prompt</h3><p id="styleguide-prompt"></p>
+    <div class="guide-actions"><button id="copy-styleguide-prompt" type="button">Copy prompt</button><button id="download-styleguide" type="button">Download full guide</button></div>
+    <p id="styleguide-action-status" role="status" aria-live="polite"></p>
+    <details><summary>Read full guide · original text</summary><pre id="styleguide-document" tabindex="0"></pre></details>
+  </dialog>
   <dialog id="note-dialog" aria-labelledby="note-dialog-title" data-text-editor>
     <form id="note-form">
       <h2 id="note-dialog-title">Feedback note</h2>

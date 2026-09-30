@@ -57,3 +57,22 @@ pre { white-space: pre-wrap; overflow-wrap: anywhere; }
 #selection-status { display: block; color: #ffd37a; }
 @media (max-width: 920px) { .topbar { align-items: flex-start; flex-direction: column; } .tools { justify-content: flex-start; } }
 @media (max-width: 600px) { .topbar { padding: 13px; } .stage { min-height: 320px; padding: 15px; } footer { padding: 8px 13px; } }
+.styleguide-choice select { max-width: 220px; }
+#styleguide-dialog { width: min(780px, calc(100vw - 32px)); max-height: calc(100dvh - 32px); overflow-y: auto; line-height: 1.6; }
+.guide-heading { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; }
+.guide-heading h2 { margin-bottom: 0; }
+#styleguide-dialog h3 { font-size: 14px; margin-top: 24px; }
+#styleguide-dialog button { padding: 8px 12px; border: 1px solid #647371; border-radius: 3px; background: #34443e; color: #e0e7e1; cursor: pointer; }
+.guide-hint { color: #a9bab5; font-size: 13px; }
+.guide-palette { display: grid; grid-template-columns: repeat(auto-fit, minmax(125px, 1fr)); gap: 12px; }
+.guide-palette > div { display: grid; gap: 4px; font-size: 12px; }
+.guide-color { height: 32px; border: 1px solid #647371; }
+.guide-palette strong { font-weight: 500; }
+#styleguide-tokens dt { text-transform: uppercase; font: 12px monospace; letter-spacing: .1em; color: #e86938; margin-top: 16px; }
+#styleguide-tokens dd { margin: 4px 0 0; }
+#styleguide-prompt { white-space: pre-wrap; }
+.guide-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+#styleguide-dialog summary { cursor: pointer; }
+#styleguide-document { font-size: 13px; line-height: 1.6; }
+#styleguide-registration-notice { color: #e39187; }
+@media (max-width: 600px) { .styleguide-choice select { min-width: 0; max-width: 180px; } #styleguide-dialog { padding: 16px; } }

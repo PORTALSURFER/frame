@@ -1234,3 +1234,151 @@ test('undo during a note drag reverses the completed gesture once and redo resto
   await page.locator('#undo').click();
   assert.equal((await savedFeedback(page)).notes.length, 0);
 });
+
+test('Technical Futurist is the first guide and preserves the complete supplied document and prompt', async t => {
+  const page = await openPage(t);
+  assert.equal(await page.locator('#styleguide-picker option').first().textContent(), 'Technical Futurist');
+  assert.equal(await page.locator('#styleguide-picker').inputValue(), 'technical-futurist');
+  const source = await fs.readFile(path.join(root, 'styleguides/technical-futurist.md'), 'utf8');
+  assert.equal(await page.evaluate(() => Frame.activeStyleguide.document), source);
+  await page.locator('#view-styleguide').click();
+  assert.equal(await page.locator('#styleguide-dialog').evaluate(dialog => dialog.open), true);
+  assert.equal(await page.locator('#styleguide-title').textContent(), 'Technical Futurist');
+  assert.equal(await page.locator('#styleguide-palette .guide-color').count(), 9);
+  assert.equal(await page.locator('#styleguide-document').textContent(), source);
+  assert.match(await page.locator('#styleguide-prompt').textContent(), /85–95%/);
+  const downloadPromise = page.waitForEvent('download');
+  await page.locator('#download-styleguide').click();
+  const download = await downloadPromise;
+  assert.equal(download.suggestedFilename(), 'technical-futurist.md');
+  assert.equal(await fs.readFile(await download.path(), 'utf8'), source);
+  await page.keyboard.press('Escape');
+  assert.equal(await page.locator('#styleguide-dialog').evaluate(dialog => dialog.open), false);
+  assert.equal(await page.locator('#view-styleguide').evaluate(button => button === document.activeElement), true);
+});
+
+async function registerTestStyleguide(page) {
+  await page.evaluate(() => {
+    const original = Frame.styleguides.get('technical-futurist');
+    Frame.registerStyleguide({...original, id: 'minimal', name: 'Minimal', summary: '<img src=x onerror=alert(1)>', prompt: 'A minimal guide'});
+  });
+}
+
+test('guide selection repaints opt-in designs and retains feedback and independent per-design choices through reload', async t => {
+  const page = await openPage(t, {setup: page => page.addInitScript(() => {
+    window.addEventListener('DOMContentLoaded', () => {
+      const original = Frame.styleguides.get('technical-futurist');
+      Frame.registerStyleguide({...original, id: 'minimal', name: 'Minimal'});
+      Frame.register({id: 'guided', name: 'Guided', width: 500, height: 400, paint(ctx, {styleguide}) {
+        window.paintedGuide = styleguide?.id || null;
+        ctx.fillStyle = styleguide?.tokens.palette[0].value || '#ffffff';
+        ctx.fillRect(0, 0, 500, 400);
+      }});
+    });
+  })});
+  await beginMouse(page); await page.mouse.up();
+  await addNote(page, 'Keep my feedback');
+  const original = await savedFeedback(page);
+  await page.locator('#styleguide-picker').selectOption('minimal');
+  assert.deepEqual(await savedFeedback(page), original);
+  assert.equal(await page.locator('.note-pin').count(), 1);
+  await page.locator('#design-picker').selectOption('guided');
+  assert.equal(await page.evaluate(() => window.paintedGuide), 'technical-futurist');
+  await page.locator('#tool-pen').click();
+  await beginMouse(page);
+  await page.locator('#styleguide-picker').selectOption('minimal');
+  await page.mouse.up();
+  assert.equal(await page.evaluate(() => window.paintedGuide), 'minimal');
+  assert.equal(await page.locator('#brush path').count(), 1);
+  await page.locator('#undo').click();
+  assert.equal(await page.locator('#brush path').count(), 0);
+  await page.locator('#design-picker').selectOption('sift');
+  assert.equal(await page.locator('#styleguide-picker').inputValue(), 'technical-futurist');
+  await page.locator('#design-picker').selectOption('starter');
+  assert.equal(await page.locator('#styleguide-picker').inputValue(), 'minimal');
+  await page.reload();
+  assert.equal(await page.locator('#styleguide-picker').inputValue(), 'minimal');
+  assert.deepEqual(await savedFeedback(page), original);
+});
+
+test('guide registration rejects invalid and duplicate definitions and renders guide text safely', async t => {
+  const page = await openPage(t);
+  assert.deepEqual(await page.evaluate(() => [
+    Frame.registerStyleguide({id: 'broken'}),
+    Frame.registerStyleguide({...Frame.activeStyleguide, id: 'technical-futurist', name: 'Replacement'})
+  ]), [false, false]);
+  assert.equal(await page.locator('#styleguide-registration-notice').isVisible(), true);
+  assert.equal(await page.locator('#styleguide-picker option').count(), 1);
+  await registerTestStyleguide(page);
+  assert.equal(await page.locator('#styleguide-picker option').count(), 2);
+  await page.locator('#styleguide-picker').selectOption('minimal');
+  await page.locator('#view-styleguide').click();
+  assert.equal(await page.locator('#styleguide-summary').textContent(), '<img src=x onerror=alert(1)>');
+  assert.equal(await page.locator('#styleguide-summary img').count(), 0);
+});
+
+test('guide picker and reader remain usable at 320px without capturing feedback shortcuts', async t => {
+  const page = await openPage(t);
+  await addNote(page, 'Do not undo while reading');
+  await page.setViewportSize({width: 320, height: 740});
+  await page.locator('#view-styleguide').click();
+  await page.keyboard.press('Control+Z');
+  await page.keyboard.press('p');
+  assert.equal(await page.locator('#tool-note').getAttribute('aria-pressed'), 'true');
+  assert.equal((await savedFeedback(page)).notes.length, 1);
+  assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
+  assert.equal(await page.locator('#styleguide-dialog').evaluate(dialog => dialog.scrollWidth <= dialog.clientWidth), true);
+  await page.locator('#close-styleguide').click();
+  await page.locator('#undo').click();
+  assert.equal((await savedFeedback(page)).notes.length, 0);
+});
+
+test('guide selection survives unavailable storage in memory and clipboard errors have a usable fallback', async t => {
+  const page = await openPage(t);
+  await registerTestStyleguide(page);
+  await page.evaluate(() => {
+    Storage.prototype.setItem = () => { throw new DOMException('Denied', 'SecurityError'); };
+    Object.defineProperty(navigator, 'clipboard', {configurable: true, value: {writeText: async () => { throw new Error('Denied'); }}});
+  });
+  await page.locator('#styleguide-picker').selectOption('minimal');
+  await page.locator('#design-picker').selectOption('sift');
+  await page.locator('#design-picker').selectOption('starter');
+  assert.equal(await page.locator('#styleguide-picker').inputValue(), 'minimal');
+  await page.locator('#view-styleguide').click();
+  await page.locator('#copy-styleguide-prompt').click();
+  assert.match(await page.locator('#styleguide-action-status').textContent(), /Clipboard unavailable/);
+  await page.evaluate(() => {
+    Object.defineProperty(navigator, 'clipboard', {configurable: true, value: {writeText: async text => { window.copiedPrompt = text; }}});
+  });
+  await page.locator('#copy-styleguide-prompt').click();
+  assert.equal(await page.evaluate(() => window.copiedPrompt), 'A minimal guide');
+  assert.equal(await page.locator('#styleguide-action-status').textContent(), 'Prompt copied.');
+});
+
+test('missing and stale guide selections recover when a guide becomes available', async t => {
+  const page = await openPage(t, {setup: page => page.route('**/styleguides/technical-futurist.js', route => route.fulfill({contentType: 'application/javascript', body: ''}))});
+  assert.equal(await page.locator('#styleguide-picker').isDisabled(), true);
+  assert.equal(await page.locator('#view-styleguide').isDisabled(), true);
+  await page.evaluate(() => localStorage.setItem('frame-styleguide:starter', 'missing'));
+  await page.addScriptTag({url: baseURL + '/styleguides/technical-futurist.js?late=1'});
+  assert.equal(await page.locator('#styleguide-picker').isDisabled(), false);
+  assert.equal(await page.locator('#styleguide-picker').inputValue(), 'technical-futurist');
+  await page.locator('#view-styleguide').click();
+  assert.equal(await page.locator('#styleguide-title').textContent(), 'Technical Futurist');
+});
+
+test('the embedded guide reader also works when index.html is opened directly', async t => {
+  const page = await openPage(t);
+  try { await page.goto('file://' + path.join(root, 'index.html')); }
+  catch (error) {
+    if (error.message.includes('ERR_BLOCKED_BY_ADMINISTRATOR')) {
+      t.skip('This Chromium installation blocks file URLs by administrator policy');
+      return;
+    }
+    throw error;
+  }
+  assert.equal(await page.locator('#styleguide-picker').inputValue(), 'technical-futurist');
+  await page.locator('#view-styleguide').click();
+  assert.match(await page.locator('#styleguide-document').textContent(), /# 72. Compact Master Specification/);
+  assert.equal(await page.locator('#styleguide-palette .guide-color').count(), 9);
+});

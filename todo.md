@@ -6,7 +6,7 @@ This backlog follows a source review of `README.md`, `frame.js`, `app.js`, `inde
 
 - A small browser app with no build step and two example designs.
 - A `Frame.register` API for fixed-size designs painted with Canvas 2D.
-- A design picker, automatic board scaling, and Pen, Note, and Select tools.
+- Design and styleguide pickers, automatic board scaling, and Pen, Note, and Select tools.
 - Freehand and Shift-constrained lines, placed/editable/movable notes, per-design undo/redo, recoverable clear, per-design browser storage, and JSON feedback export.
 - A README describing the AI-first product vision and current limitations.
 
@@ -37,6 +37,8 @@ The main gap is the feedback-to-revision loop. An agent can edit a drawing scrip
 Milestone: a person can circle a control, attach a written request, export the feedback, and review the agent's revision with the original context intact.
 
 ## 3. Give AI structured design tools
+
+- [x] **Add a styleguide picker.** Preserve the supplied Technical Futurist guide as the first entry, with per-design selection, a reference reader, color and typography/spacing/geometry tokens, an AI prompt, and full-guide download. Expose the registry and active guide to agents and pass it to paint scripts; verify persistence, registration errors, small-screen reading, and feedback preservation.
 
 - [ ] **Define a design document model.** Represent screens and elements with stable IDs, bounds, hierarchy, text, styles, and component references. Keep a path for existing custom Canvas drawings.
 - [ ] **Expose element inspection and hit testing.** List elements and inspect a region or ID; let feedback bind to an element while retaining a positional fallback.
