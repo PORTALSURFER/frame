@@ -205,3 +205,123 @@ for (const mode of ['empty', 'unavailable', 'populated']) {
     }
   });
 }
+
+async function seedFeedback(page, lines, key = 'frame-feedback-v1:starter') {
+  await page.evaluate(({key, lines}) => localStorage.setItem(key, JSON.stringify(lines)), {key, lines});
+  await page.reload();
+}
+
+async function exportFeedback(page) {
+  const downloaded = page.waitForEvent('download');
+  await page.locator('#download').click();
+  const download = await downloaded;
+  return JSON.parse(await fs.readFile(await download.path(), 'utf8'));
+}
+
+test('the 1,000-line boundary blocks new strokes without losing feedback and undo/clear restore drawing', async t => {
+  const page = await openPage(t);
+  const existing = Array.from({length: 999}, () => [[10, 10], [20, 20]]);
+  await seedFeedback(page, existing);
+  assert.equal(await page.locator('#feedback-limit-notice').textContent(), '');
+  await beginMouse(page);
+  await page.mouse.up();
+  const atLimit = await savedLines(page);
+  assert.equal(atLimit.length, 1000);
+  assert.deepEqual(atLimit.slice(0, 999), existing);
+  await beginMouse(page);
+  await page.mouse.up();
+  assert.deepEqual(await savedLines(page), atLimit);
+  assert.equal(await page.locator('#brush path').count(), 1000);
+  assert.match(await page.locator('#feedback-limit-notice').textContent(), /1,000-line limit reached/);
+  assert.deepEqual((await exportFeedback(page)).lines, atLimit);
+  await page.reload();
+  assert.equal(await page.locator('#brush path').count(), 1000);
+  assert.match(await page.locator('#feedback-limit-notice').textContent(), /1,000-line limit reached/);
+  await page.locator('#design-picker').selectOption('sift');
+  assert.equal(await page.locator('#feedback-limit-notice').textContent(), '');
+  await page.locator('#design-picker').selectOption('starter');
+  await page.locator('#undo').click();
+  assert.equal(await page.locator('#feedback-limit-notice').textContent(), '');
+  await beginMouse(page);
+  await page.mouse.up();
+  assert.equal((await savedLines(page)).length, 1000);
+  await page.locator('#clear').click();
+  assert.equal(await page.locator('#feedback-limit-notice').textContent(), '');
+  await beginMouse(page);
+  await page.mouse.up();
+  assert.equal((await savedLines(page)).length, 1);
+});
+
+test('a stroke ends at 5,000 points even within a larger event batch and survives export/reload', async t => {
+  const page = await openPage(t);
+  await page.evaluate(() => {
+    document.getElementById('brush').addEventListener('pointerdown', event => {
+      window.testPointerId = event.pointerId;
+    });
+  });
+  const bounds = await page.locator('#board').boundingBox();
+  await page.mouse.move(bounds.x + 100, bounds.y + 100);
+  await page.mouse.down();
+  async function sendSamples(start, length) {
+    await page.evaluate(({x, y, start, length}) => {
+      const event = new PointerEvent('pointermove', {pointerId: window.testPointerId});
+      event.getCoalescedEvents = () => Array.from({length}, (_, index) => ({
+        clientX: x + 200 + (start + index) % 2, clientY: y + 150
+      }));
+      document.getElementById('brush').dispatchEvent(event);
+    }, {...bounds, start, length});
+  }
+  await sendSamples(0, 4998);
+  assert.deepEqual(await savedLines(page), [], 'a 4,999-point stroke is still active');
+  assert.equal(await page.locator('#feedback-limit-notice').textContent(), '');
+  await sendSamples(4998, 1002);
+  const atLimit = await savedLines(page);
+  assert.equal(atLimit.length, 1);
+  assert.equal(atLimit[0].length, 5000);
+  assert.deepEqual(atLimit[0][0], [100, 100]);
+  assert.deepEqual(atLimit[0].at(-1), [200, 150]);
+  assert.match(await page.locator('#feedback-limit-notice').textContent(), /line ended at the 5,000-point limit/);
+  await page.mouse.move(800, 500);
+  await page.mouse.up();
+  assert.deepEqual(await savedLines(page), atLimit);
+  assert.deepEqual((await exportFeedback(page)).lines, atLimit);
+  await page.reload();
+  assert.deepEqual(await savedLines(page), atLimit);
+  assert.equal(await page.locator('#brush path').count(), 1);
+  await beginMouse(page);
+  await page.mouse.up();
+  const continued = await savedLines(page);
+  assert.equal(continued.length, 2);
+  assert.deepEqual(continued[0], atLimit[0]);
+  assert.equal(await page.locator('#feedback-limit-notice').textContent(), '');
+});
+
+test('older feedback above both limits is preserved through load, export, and later edits', async t => {
+  const page = await openPage(t);
+  const legacy = Array.from({length: 1001}, () => [[10, 10], [20, 20]]);
+  legacy[0] = Array.from({length: 5001}, (_, index) => [100 + index % 2, 150]);
+  await seedFeedback(page, legacy);
+  assert.equal(await page.locator('#brush path').count(), 1001);
+  assert.match(await page.locator('#feedback-limit-notice').textContent(), /Older feedback exceeds/);
+  assert.deepEqual((await exportFeedback(page)).lines, legacy);
+  await beginMouse(page);
+  await page.mouse.up();
+  assert.deepEqual(await savedLines(page), legacy);
+  await page.locator('#undo').click();
+  const afterUndo = legacy.slice(0, -1);
+  assert.deepEqual(await savedLines(page), afterUndo);
+  await page.reload();
+  assert.equal(await page.locator('#brush path').count(), 1000);
+  assert.deepEqual((await exportFeedback(page)).lines, afterUndo);
+});
+
+test('the original Sift storage key also preserves strokes longer than 5,000 points', async t => {
+  const page = await openPage(t);
+  const legacy = [Array.from({length: 5001}, (_, index) => [100 + index % 2, 150])];
+  await seedFeedback(page, legacy, 'sift-ui-feedback-v1');
+  await page.locator('#design-picker').selectOption('sift');
+  assert.match(await page.locator('#feedback-limit-notice').textContent(), /Older feedback exceeds/);
+  assert.deepEqual((await exportFeedback(page)).lines, legacy);
+  await page.reload();
+  assert.deepEqual((await exportFeedback(page)).lines, legacy);
+});
