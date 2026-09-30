@@ -236,8 +236,8 @@
     path.setAttribute("tabindex", mode === "select" ? "0" : "-1");
     path.setAttribute("aria-pressed", points === selectedLine ? "true" : "false");
     path.classList.toggle("selected", points === selectedLine);
-    path.classList.toggle("resolved", lineMetadata.get(points).status === "resolved");
-    path.toggleAttribute("hidden", statusFilter.value !== "all" && lineMetadata.get(points).status !== statusFilter.value);
+    path.classList.toggle("resolved", lineMetadata.get(points)?.status === "resolved");
+    path.toggleAttribute("hidden", statusFilter.value !== "all" && lineMetadata.get(points)?.status !== statusFilter.value);
   }
   function selectLine(line) {
     selectedLine = line;
