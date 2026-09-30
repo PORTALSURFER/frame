@@ -22,6 +22,7 @@
         <button id="undo" type="button" disabled>Undo line</button>
         <button id="clear" type="button" disabled>Clear all lines</button>
         <button id="download" type="button" disabled>Download feedback</button>
+        <button id="retry-save" type="button" hidden>Retry save</button>
       </div>
     </header>
     <div class="stage" id="stage">
@@ -34,6 +35,7 @@
       <div>
         <span>Draw red lines anywhere. Hold Shift for a straight line. Marks save per design in this browser.</span>
         <span id="feedback-limit-notice" role="status" aria-live="polite" aria-atomic="true"></span>
+        <span id="feedback-save-notice" role="status" aria-live="polite" aria-atomic="true"></span>
       </div>
       <span id="mark-count">0 lines</span>
     </footer>
