@@ -24,6 +24,9 @@
   const registrationNotice = document.getElementById("registration-notice");
   const registrationSummary = document.getElementById("registration-summary");
   const registrationErrors = document.getElementById("registration-errors");
+  const toolButtons = [...document.querySelectorAll("[data-feedback-tool]")];
+  const instructions = document.getElementById("feedback-instructions");
+  const selectionStatus = document.getElementById("selection-status");
   const pendingFeedback = new Map();
   let feedback = {lines: [], unsaved: false, notice: ""};
   let design;
@@ -33,6 +36,8 @@
   let activePath = null;
   let activePointerId = null;
   let pointLimitReached = false;
+  let mode = "pen";
+  let selectedLine = null;
 
   function storageKey() { return `${STORAGE_PREFIX}${design.id}`; }
   function validLines(value) {
@@ -53,6 +58,8 @@
     }
   }
   function updateControls() {
+    for (const button of toolButtons) button.disabled = !designReady;
+    selectionStatus.textContent = selectedLine ? `Line ${lines.indexOf(selectedLine) + 1} selected.` : "";
     undo.disabled = clear.disabled = lines.length === 0;
     download.disabled = lines.length === 0 && !feedback.unsaved;
     retrySave.hidden = !feedback.unsaved;
@@ -107,18 +114,65 @@
       `${index ? "L" : "M"}${(view.offsetX + x * view.scaleX).toFixed(1)} ${(view.offsetY + y * view.scaleY).toFixed(1)}`
     ).join(" ");
   }
-  function makePath(points) {
+  function makePath(points, index = lines.length - 1) {
     const path = document.createElementNS(NS, "path");
     path.setAttribute("d", pathData(points));
+    path.dataset.lineIndex = index;
+    path.setAttribute("role", "button");
+    path.setAttribute("aria-label", `Feedback line ${index + 1}`);
+    path.addEventListener("focus", () => {
+      if (mode === "select") selectLine(points);
+    });
     brush.append(path);
+    updatePathSelection(path, points);
     return path;
+  }
+  function updatePathSelection(path, points) {
+    path.setAttribute("tabindex", mode === "select" ? "0" : "-1");
+    path.setAttribute("aria-pressed", points === selectedLine ? "true" : "false");
+    path.classList.toggle("selected", points === selectedLine);
+  }
+  function selectLine(line) {
+    selectedLine = line;
+    for (const path of brush.querySelectorAll("path")) {
+      updatePathSelection(path, lines[Number(path.dataset.lineIndex)]);
+    }
+    updateControls();
+  }
+  function lineAt(event) {
+    const {boardBounds, scaleX, scaleY} = geometry();
+    const x = event.clientX - boardBounds.left;
+    const y = event.clientY - boardBounds.top;
+    for (let index = lines.length - 1; index >= 0; index--) {
+      const line = lines[index];
+      for (let point = 0; point < line.length; point++) {
+        const a = line[Math.max(0, point - 1)];
+        const b = line[point];
+        const ax = a[0] * scaleX, ay = a[1] * scaleY;
+        const dx = (b[0] - a[0]) * scaleX, dy = (b[1] - a[1]) * scaleY;
+        const lengthSquared = dx * dx + dy * dy;
+        const ratio = lengthSquared ? Math.max(0, Math.min(1, ((x - ax) * dx + (y - ay) * dy) / lengthSquared)) : 0;
+        if (Math.hypot(x - ax - ratio * dx, y - ay - ratio * dy) <= 8) return line;
+      }
+    }
+    return null;
+  }
+  function setMode(next) {
+    finishLine();
+    mode = next;
+    brush.dataset.mode = mode;
+    for (const button of toolButtons) button.setAttribute("aria-pressed", button.dataset.feedbackTool === mode ? "true" : "false");
+    instructions.textContent = mode === "pen"
+      ? "Draw red lines anywhere. Hold Shift for a straight line. Marks save per design in this browser."
+      : "Click near a feedback line to select it, or use Tab. Click empty space or press Escape to deselect.";
+    selectLine(null);
   }
   function redrawMarks() {
     const {stageBounds} = geometry();
     brush.setAttribute("viewBox", `0 0 ${stageBounds.width} ${stageBounds.height}`);
     brush.replaceChildren();
-    lines.forEach((line) => {
-      const path = makePath(line);
+    lines.forEach((line, index) => {
+      const path = makePath(line, index);
       if (line === active) activePath = path;
     });
     updateControls();
@@ -166,6 +220,7 @@
   }
   function selectDesign(id) {
     if (active) finishLine();
+    selectedLine = null;
     design = Frame.designs.get(id);
     if (!design) return;
     picker.value = id;
@@ -194,6 +249,10 @@
   brush.addEventListener("pointerdown", (event) => {
     if (!designReady || event.button !== 0 || activePointerId !== null) return;
     event.preventDefault();
+    if (mode === "select") {
+      selectLine(lineAt(event));
+      return;
+    }
     if (lines.length >= MAX_LINES) {
       updateControls();
       return;
@@ -241,6 +300,7 @@
   undo.addEventListener("click", () => {
     finishLine();
     lines.pop();
+    selectedLine = null;
     pointLimitReached = false;
     redrawMarks();
     save();
@@ -248,6 +308,7 @@
   clear.addEventListener("click", () => {
     finishLine();
     lines = [];
+    selectedLine = null;
     pointLimitReached = false;
     redrawMarks();
     save();
@@ -267,7 +328,14 @@
     setTimeout(() => URL.revokeObjectURL(url), 1000);
   });
   picker.addEventListener("change", () => selectDesign(picker.value));
+  for (const button of toolButtons) button.addEventListener("click", () => setMode(button.dataset.feedbackTool));
   document.addEventListener("keydown", (event) => {
+    if (event.defaultPrevented || event.isComposing || event.target?.isContentEditable || event.target?.closest?.("input, textarea, select")) return;
+    if (event.key === "Escape") selectLine(null);
+    if (designReady && !event.metaKey && !event.ctrlKey && !event.altKey) {
+      if (event.key.toLowerCase() === "p") setMode("pen");
+      if (event.key.toLowerCase() === "v") setMode("select");
+    }
     if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "z" && lines.length) {
       event.preventDefault(); undo.click();
     }
@@ -305,6 +373,7 @@
     selectDesign(Frame.designs.has(initial) ? initial : Frame.designs.keys().next().value);
   }
   window.addEventListener("frame:designs-changed", refreshDesigns);
+  setMode("pen");
   refreshDesigns();
   new ResizeObserver(fitBoard).observe(stage);
   window.addEventListener("resize", fitBoard);

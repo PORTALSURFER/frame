@@ -638,3 +638,63 @@ test('leaving prompts for unsaved feedback in another design and stops prompting
   await page.reload();
   assert.deepEqual((await exportFeedback(page)).lines, feedback.lines);
 });
+
+test('pen/select modes show active state, select near a stroke without drawing, and safely end active strokes', async t => {
+  const page = await openPage(t);
+  await beginMouse(page);
+  await page.locator('#tool-select').dispatchEvent('click');
+  await page.mouse.up();
+  const saved = await savedLines(page);
+  assert.equal(saved.length, 1);
+  assert.equal(await page.locator('#tool-select').getAttribute('aria-pressed'), 'true');
+  assert.equal(await page.locator('#tool-pen').getAttribute('aria-pressed'), 'false');
+  const bounds = await page.locator('#board').boundingBox();
+  await page.mouse.click(bounds.x + 125, bounds.y + 130);
+  assert.equal(await page.locator('#brush path.selected').count(), 1);
+  assert.equal(await page.locator('#selection-status').textContent(), 'Line 1 selected.');
+  assert.deepEqual(await savedLines(page), saved);
+  await page.setViewportSize({width: 600, height: 700});
+  assert.equal(await page.locator('#brush path.selected').count(), 1);
+  await page.keyboard.press('Escape');
+  assert.equal(await page.locator('#brush path.selected').count(), 0);
+  await page.locator('#brush path').focus();
+  assert.equal(await page.locator('#brush path.selected').count(), 1);
+  await page.locator('#tool-pen').click();
+  assert.equal(await page.locator('#brush path.selected').count(), 0);
+  await beginMouse(page);
+  await page.mouse.up();
+  assert.equal((await savedLines(page)).length, 2);
+});
+
+test('feedback shortcuts do not capture text editing, editable text, or select controls', async t => {
+  const page = await openPage(t);
+  await beginMouse(page);
+  await page.mouse.up();
+  const saved = await savedLines(page);
+  await page.evaluate(() => {
+    for (const tag of ['input', 'textarea', 'div']) {
+      const element = document.createElement(tag);
+      element.id = `test-${tag}`;
+      if (tag === 'div') element.contentEditable = 'true';
+      document.body.append(element);
+    }
+  });
+  for (const target of ['#test-input', '#test-textarea', '#test-div', '#design-picker']) {
+    const result = await page.locator(target).evaluate(element => {
+      element.focus();
+      return ['p', 'v', 'z'].map(key => {
+        const event = new KeyboardEvent('keydown', {key, ctrlKey: key === 'z', bubbles: true, cancelable: true});
+        element.dispatchEvent(event);
+        return event.defaultPrevented;
+      });
+    });
+    assert.deepEqual(result, [false, false, false]);
+    assert.equal(await page.locator('#tool-pen').getAttribute('aria-pressed'), 'true');
+    assert.deepEqual(await savedLines(page), saved);
+  }
+  await page.locator('#tool-pen').focus();
+  await page.keyboard.press('v');
+  assert.equal(await page.locator('#tool-select').getAttribute('aria-pressed'), 'true');
+  await page.keyboard.press('p');
+  assert.equal(await page.locator('#tool-pen').getAttribute('aria-pressed'), 'true');
+});

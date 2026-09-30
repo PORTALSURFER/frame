@@ -25,7 +25,7 @@ The main gap is the feedback-to-revision loop. An agent can edit a drawing scrip
 
 ## 2. Complete the human feedback loop
 
-- [ ] **Add explicit feedback modes.** Provide pen, note, and select tools with a visible active mode. Keep normal keyboard shortcuts working inside text inputs.
+- [ ] **Add explicit feedback modes.** Pen and Select tools are implemented with active-state indicators, keyboard access, and safe text shortcuts. Add the Note tool alongside placed annotations to complete this item.
 - [ ] **Add placed text annotations.** Click to place a note in design coordinates, then edit, move, or delete it. Keep its anchor aligned when the board resizes.
 - [ ] **Allow individual mark selection and deletion.** Let a person remove a specific stroke or note without clearing all feedback.
 - [ ] **Add redo and recoverable clear.** Keep a per-design history for strokes and notes; make clearing feedback undoable.

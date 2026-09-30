@@ -79,6 +79,8 @@ If a design's paint function fails, Frame shows a render error with details and 
 
 ## Feedback
 
+Choose **Pen** (shortcut **P**) to draw or **Select** (**V**) to inspect an individual feedback line. Select by clicking within eight screen pixels of a line or focusing it with Tab; the selected line is highlighted. Click empty space or press Escape to deselect. Changing tools finishes an active stroke safely. Frame shortcuts leave normal editing and undo behavior intact inside text inputs, textareas, and editable text.
+
 Draw red lines anywhere in the stage, including outside the interface. Hold **Shift** while dragging for a straight line. **Undo line** (or Command/Ctrl+Z) removes the latest stroke; **Clear all lines** removes every stroke for the selected design. Feedback is saved separately for each design in browser `localStorage`. **Download feedback** exports the selected design's dimensions and strokes as JSON. Existing Sift brush marks saved by the earlier canvas are loaded automatically.
 
 New drawings are limited to **1,000 lines per design** and **5,000 points per line**. At the line-count limit, undo or clear lines before drawing more. A line automatically ends and saves when it reaches the point limit; lift your pointer and start a new line to continue. Frame displays a message when either limit is reached. Points less than one design unit apart are not recorded.
