@@ -5,6 +5,7 @@
   const MAX_LINE_POINTS = 5000;
   const MAX_NOTES = 1000;
   const MAX_NOTE_TEXT = 4000;
+  const MAX_HISTORY = 100;
   const NS = "http://www.w3.org/2000/svg";
   const designCanvas = document.getElementById("design");
   const board = document.getElementById("board");
@@ -12,6 +13,7 @@
   const brush = document.getElementById("brush");
   const picker = document.getElementById("design-picker");
   const undo = document.getElementById("undo");
+  const redo = document.getElementById("redo");
   const clear = document.getElementById("clear");
   const deleteSelected = document.getElementById("delete-selected");
   const download = document.getElementById("download");
@@ -39,6 +41,7 @@
   const noteDelete = document.getElementById("note-delete");
   const notePins = new Map();
   const pendingFeedback = new Map();
+  const sessions = new Map();
   let feedback = {lines: [], notes: [], unsaved: false, notice: ""};
   let design;
   let designReady = false;
@@ -53,6 +56,8 @@
   let selectedNote = null;
   let noteDraft = null;
   let noteDrag = null;
+  let strokeBefore = null;
+  let history = {undo: [], redo: []};
 
   function storageKey() { return `${STORAGE_PREFIX}${design.id}`; }
   function validLines(value) {
@@ -84,7 +89,10 @@
   function updateControls() {
     for (const button of toolButtons) button.disabled = !designReady;
     selectionStatus.textContent = selectedNote ? `Note ${notes.indexOf(selectedNote) + 1} selected. Drag it or use arrow keys to move.` : selectedLine ? `Line ${lines.indexOf(selectedLine) + 1} selected.` : "";
-    undo.disabled = lines.length === 0;
+    undo.disabled = !active && !noteDrag?.moved && history.undo.length === 0;
+    redo.disabled = !!active || !!noteDrag?.moved || history.redo.length === 0;
+    undo.title = active ? "Undo drawing line" : noteDrag?.moved ? "Undo moving note" : history.undo.at(-1)?.label || "Undo";
+    redo.title = history.redo.at(-1)?.label ? `Redo: ${history.redo.at(-1).label}` : "Redo";
     clear.disabled = lines.length === 0 && notes.length === 0;
     download.disabled = clear.disabled && !feedback.unsaved;
     deleteSelected.disabled = !designReady || (!selectedLine && !selectedNote);
@@ -98,7 +106,7 @@
       notices.push("Older feedback exceeds the drawing limits. All marks are preserved and can be downloaded.");
     }
     if (lines.length >= MAX_LINES) {
-      notices.push("1,000-line limit reached. Undo or clear lines to keep drawing.");
+      notices.push("1,000-line limit reached. Delete, undo, or clear lines to keep drawing.");
     }
     if (pointLimitReached) {
       notices.push("This line ended at the 5,000-point limit. Start a new line to continue.");
@@ -121,6 +129,46 @@
       pendingFeedback.set(design.id, feedback);
     }
     updateControls();
+  }
+
+  // Finished strokes are immutable: retain point arrays rather than copying them.
+  // Notes remain live objects for pointer capture/focus, so snapshot their mutable fields.
+  function snapshot() {
+    return {lines: [...lines], notes: notes.map(note => ({note, text: note.text, anchor: [...note.anchor]}))};
+  }
+  function record(before, label) {
+    const after = snapshot();
+    const unchanged = before.lines.length === after.lines.length && before.lines.every((line, i) => line === after.lines[i]) &&
+      before.notes.length === after.notes.length && before.notes.every((entry, i) => {
+        const next = after.notes[i];
+        return entry.note === next.note && entry.text === next.text && entry.anchor.every((value, axis) => value === next.anchor[axis]);
+      });
+    if (unchanged) return;
+    history.undo.push({before, after, label});
+    if (history.undo.length > MAX_HISTORY) history.undo.shift();
+    history.redo = [];
+  }
+  function restore(state) {
+    lines = [...state.lines];
+    notes = state.notes.map(entry => {
+      entry.note.text = entry.text;
+      entry.note.anchor = [...entry.anchor];
+      return entry.note;
+    });
+    selectedLine = null;
+    selectedNote = null;
+    pointLimitReached = false;
+    redrawMarks();
+    save();
+  }
+  function travelHistory(direction) {
+    finishLine();
+    finishNoteDrag();
+    closeNoteEditor();
+    const entry = history[direction].pop();
+    if (!entry) return;
+    history[direction === "undo" ? "redo" : "undo"].push(entry);
+    restore(direction === "undo" ? entry.before : entry.after);
   }
 
   function geometry() {
@@ -181,8 +229,10 @@
     finishLine();
     finishNoteDrag();
     closeNoteEditor();
+    const before = snapshot();
     if (selectedLine) lines = lines.filter(line => line !== selectedLine);
     if (selectedNote) notes = notes.filter(note => note !== selectedNote);
+    record(before, "Delete feedback");
     selectLine(null);
     pointLimitReached = false;
     redrawMarks();
@@ -244,7 +294,7 @@
       if (mode === "pen" || event.button !== 0 || noteDrag || active) return;
       didDrag = false;
       selectNote(note);
-      noteDrag = {note, pin, pointerId: event.pointerId, start: pointFromEvent(event), anchor: [...note.anchor], client: [event.clientX, event.clientY], moved: false, markDragged: () => { didDrag = true; }};
+      noteDrag = {before: snapshot(), note, pin, pointerId: event.pointerId, start: pointFromEvent(event), anchor: [...note.anchor], client: [event.clientX, event.clientY], moved: false, markDragged: () => { didDrag = true; }};
       pin.setPointerCapture(event.pointerId);
       updateControls();
     });
@@ -270,6 +320,7 @@
     noteDrag.note.anchor = point.map((value, index) => noteDrag.anchor[index] + value - noteDrag.start[index]);
     positionNote(noteDrag.pin, noteDrag.note);
     event.preventDefault();
+    updateControls();
   }
   function finishNoteDrag(event, cancel = false) {
     if (!noteDrag || (event && event.pointerId !== noteDrag.pointerId)) return;
@@ -277,7 +328,7 @@
     noteDrag = null;
     if (cancel) { drag.note.anchor = drag.anchor; positionNote(drag.pin, drag.note); }
     if (drag.pin.hasPointerCapture(drag.pointerId)) drag.pin.releasePointerCapture(drag.pointerId);
-    if (drag.moved && !cancel) save();
+    if (drag.moved && !cancel) { record(drag.before, "Move note"); save(); }
     else updateControls();
   }
   function closeNoteEditor() {
@@ -392,7 +443,8 @@
     sizeLabel.textContent = `${design.width} × ${design.height}`;
     board.setAttribute("aria-label", `${design.name} interface design`);
     designCanvas.setAttribute("aria-label", `${design.name} painted interface`);
-    feedback = load();
+    if (!sessions.has(id)) sessions.set(id, {feedback: load(), history: {undo: [], redo: []}});
+    ({feedback, history} = sessions.get(id));
     lines = feedback.lines;
     notes = feedback.notes;
     pointLimitReached = false;
@@ -404,6 +456,8 @@
     if (!active) return;
     if (active.length === 1) active.push([active[0][0] + 0.1, active[0][1] + 0.1]);
     activePath.setAttribute("d", pathData(active));
+    record(strokeBefore, "Draw line");
+    strokeBefore = null;
     active = null;
     activePath = null;
     const pointerId = activePointerId;
@@ -428,6 +482,7 @@
       return;
     }
     pointLimitReached = false;
+    strokeBefore = snapshot();
     active = [pointFromEvent(event)];
     activePointerId = event.pointerId;
     lines.push(active);
@@ -467,21 +522,16 @@
   }
   brush.addEventListener("pointercancel", finishPointer);
   brush.addEventListener("lostpointercapture", finishPointer);
-  undo.addEventListener("click", () => {
-    finishLine();
-    finishNoteDrag();
-    lines.pop();
-    selectedLine = null;
-    pointLimitReached = false;
-    redrawMarks();
-    save();
-  });
+  undo.addEventListener("click", () => travelHistory("undo"));
+  redo.addEventListener("click", () => travelHistory("redo"));
   clear.addEventListener("click", () => {
     finishLine();
     finishNoteDrag();
     closeNoteEditor();
+    const before = snapshot();
     lines = [];
     notes = [];
+    record(before, "Clear feedback");
     selectedLine = null;
     selectedNote = null;
     pointLimitReached = false;
@@ -497,9 +547,11 @@
       noteText.focus();
       return;
     }
+    const before = snapshot();
     const note = noteDraft.note || {id: crypto.randomUUID(), anchor: noteDraft.anchor};
     note.text = text;
     if (!noteDraft.note) notes.push(note);
+    record(before, noteDraft.note ? "Edit note" : "Add note");
     closeNoteEditor();
     redrawNotes();
     selectNote(note);
@@ -547,7 +599,9 @@
       event.preventDefault();
       const step = event.shiftKey ? 10 : 1;
       const axis = ["ArrowLeft", "ArrowRight"].includes(event.key) ? 0 : 1;
+      const before = snapshot();
       selectedNote.anchor[axis] += ["ArrowLeft", "ArrowUp"].includes(event.key) ? -step : step;
+      record(before, "Move note");
       redrawNotes();
       save();
       return;
@@ -558,8 +612,13 @@
       if (event.key.toLowerCase() === "v") setMode("select");
       if (event.key.toLowerCase() === "n") setMode("note");
     }
-    if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "z" && lines.length) {
-      event.preventDefault(); undo.click();
+    if ((event.metaKey || event.ctrlKey) && !event.altKey) {
+      const key = event.key.toLowerCase();
+      if (key === "z" || (key === "y" && !event.shiftKey)) {
+        event.preventDefault();
+        if (key === "y" || event.shiftKey) { if (!redo.disabled) travelHistory("redo"); }
+        else travelHistory("undo");
+      }
     }
   });
   window.addEventListener("beforeunload", (event) => {
