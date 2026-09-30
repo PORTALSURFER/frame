@@ -1,5 +1,7 @@
 (() => {
   const STORAGE_PREFIX = "frame-feedback-v1:";
+  const MAX_LINES = 1000;
+  const MAX_LINE_POINTS = 5000;
   const NS = "http://www.w3.org/2000/svg";
   const designCanvas = document.getElementById("design");
   const board = document.getElementById("board");
@@ -11,17 +13,20 @@
   const download = document.getElementById("download");
   const count = document.getElementById("mark-count");
   const sizeLabel = document.getElementById("design-size");
+  const limitNotice = document.getElementById("feedback-limit-notice");
   let design;
   let lines = [];
   let active = null;
   let activePath = null;
   let activePointerId = null;
+  let pointLimitReached = false;
 
   function storageKey() { return `${STORAGE_PREFIX}${design.id}`; }
   function validLines(value) {
     if (!Array.isArray(value)) return [];
-    return value.slice(0, 1000).filter(Array.isArray).map((line) =>
-      line.slice(0, 5000).filter((point) => Array.isArray(point) && point.length === 2 && point.every(Number.isFinite))
+    // Drawing limits apply to new strokes, not to feedback saved by older versions.
+    return value.filter(Array.isArray).map((line) =>
+      line.filter((point) => Array.isArray(point) && point.length === 2 && point.every(Number.isFinite))
     ).filter((line) => line.length > 0);
   }
   function load() {
@@ -34,6 +39,17 @@
   function updateControls() {
     undo.disabled = clear.disabled = download.disabled = lines.length === 0;
     count.textContent = `${lines.length} ${lines.length === 1 ? "line" : "lines"}`;
+    const notices = [];
+    if (lines.length > MAX_LINES || lines.some(line => line.length > MAX_LINE_POINTS)) {
+      notices.push("Older feedback exceeds the drawing limits. All marks are preserved and can be downloaded.");
+    }
+    if (lines.length >= MAX_LINES) {
+      notices.push("1,000-line limit reached. Undo or clear lines to keep drawing.");
+    }
+    if (pointLimitReached) {
+      notices.push("This line ended at the 5,000-point limit. Start a new line to continue.");
+    }
+    limitNotice.textContent = notices.join(" ");
   }
   function save() {
     try { localStorage.setItem(storageKey(), JSON.stringify(lines)); }
@@ -105,6 +121,7 @@
     board.setAttribute("aria-label", `${design.name} interface design`);
     designCanvas.setAttribute("aria-label", `${design.name} painted interface`);
     lines = load();
+    pointLimitReached = false;
     paintDesign();
     fitBoard();
     try { localStorage.setItem("frame-last-design", id); } catch { /* optional */ }
@@ -124,6 +141,11 @@
   brush.addEventListener("pointerdown", (event) => {
     if (event.button !== 0 || activePointerId !== null) return;
     event.preventDefault();
+    if (lines.length >= MAX_LINES) {
+      updateControls();
+      return;
+    }
+    pointLimitReached = false;
     active = [pointFromEvent(event)];
     activePointerId = event.pointerId;
     lines.push(active);
@@ -140,7 +162,14 @@
       for (const sample of samples?.length ? samples : [event]) {
         const next = pointFromEvent(sample);
         const last = active[active.length - 1];
-        if (Math.hypot(next[0] - last[0], next[1] - last[1]) >= 1) active.push(next);
+        if (Math.hypot(next[0] - last[0], next[1] - last[1]) >= 1) {
+          active.push(next);
+          if (active.length >= MAX_LINE_POINTS) {
+            pointLimitReached = true;
+            finishLine();
+            return;
+          }
+        }
       }
     }
     activePath.setAttribute("d", pathData(active));
@@ -159,12 +188,14 @@
   undo.addEventListener("click", () => {
     finishLine();
     lines.pop();
+    pointLimitReached = false;
     redrawMarks();
     save();
   });
   clear.addEventListener("click", () => {
     finishLine();
     lines = [];
+    pointLimitReached = false;
     redrawMarks();
     save();
   });

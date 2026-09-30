@@ -30,7 +30,13 @@
       </div>
       <svg id="brush" class="brush" preserveAspectRatio="none" aria-label="Draw red feedback lines anywhere on the canvas"></svg>
     </div>
-    <footer><span>Draw red lines anywhere. Hold Shift for a straight line. Marks save per design in this browser.</span><span id="mark-count">0 lines</span></footer>
+    <footer>
+      <div>
+        <span>Draw red lines anywhere. Hold Shift for a straight line. Marks save per design in this browser.</span>
+        <span id="feedback-limit-notice" role="status" aria-live="polite" aria-atomic="true"></span>
+      </div>
+      <span id="mark-count">0 lines</span>
+    </footer>
   </main>
 </body>
 </html>
