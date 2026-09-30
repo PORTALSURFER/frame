@@ -41,7 +41,7 @@
       for(let i=0;i<24;i++){const v=.12+.7*Math.exp(-Math.pow((i-9)/3,2));c.fillStyle='#526576';c.fillRect(435+i*5.5,83+35*(1-v),3,35*v);}text(c,'EXT · ILLUSTRATIVE',435,125,6,C.muted);
     }
     for(const dx of [319,478]){c.strokeStyle='#2b2f2f';c.beginPath();c.moveTo(dx,332);c.lineTo(dx,375);c.stroke();}
-    mixRow(c,'LP',22,341,1,C.low,126);mixRow(c,'HP',22,366,1,C.blue,126);knob(c,'MIX','100%',398,354,1);knob(c,'OUTPUT','+0.0 dB',554,354,.65);
+    mixRow(c,'LP',22,341,1,C.low,46);mixRow(c,'HP',22,366,1,C.blue,46);knob(c,'MIX','100%',398,354,1);knob(c,'OUTPUT','+0.0 dB',554,354,.65);
     rect(c,10,383,59,12,1,C.bg,'#303434');alignedText(c,'SYNC',39.5,389,8,C.muted);rect(c,505,383,124,12,1,C.bg,'#303434');alignedText(c,'⏻  ACTIVE',567,389,8,C.muted);
   }
   Frame.register({id:'pump',name:'Pump · Dual band',width:640,height:400,paint(c){shell(c,'dual');}});
