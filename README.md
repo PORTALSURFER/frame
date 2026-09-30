@@ -39,3 +39,5 @@ Run `python3 scripts/build-standalone.py` to regenerate `frame-standalone.html`.
 The main envelope view includes a crossover overlay spanning the full graph with mint low-pass and blue high-pass responses, translucent band fills, a crossover marker, and a separate logarithmic 20 Hz–20 kHz scale. Its frequency axis is independent of the envelope's time axis.
 
 Smooth and Swing use horizontal sliders without handles; Mix and Output retain their rotary knobs.
+
+The composition groups stacked Smooth/Swing sliders beside Mix/Output, with the compact band strip immediately below the curve presets. Dual activation lives with its band controls.
