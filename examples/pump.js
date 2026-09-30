@@ -20,7 +20,7 @@
     }
     const marker=x+w/3;c.strokeStyle='#4a4f4e';c.beginPath();c.moveTo(marker,py);c.lineTo(marker,py+ph);c.stroke();text(c,'LP',x+7,y+25,7,C.low);text(c,'HP',x+w-18,y+25,7,C.blue);text(c,'200 Hz',marker+6,y+h-5,7,C.muted);
   }
-  function shell(c,mode){
+  function shell(c){
     c.fillStyle=C.bg;c.fillRect(0,0,640,400);rect(c,1,1,638,398,5,C.bg,C.line);
     text(c,'PORTALSURFER /',10,20,10,C.muted);text(c,'PUMP',125,20,10,C.accent);c.save();c.textAlign='right';text(c,'0.2.8+preview',629,6,6,'#585c5b');c.restore();
     button(c,'SYNC',269,12,47);button(c,'Sync 1/4 ▾',322,12,96);button(c,'‹',430,12,27);button(c,'›',461,12,27);button(c,'A',500,12,28,true);button(c,'→',532,12,27);button(c,'B',564,12,28);button(c,'?',603,12,26);
@@ -33,17 +33,11 @@
     rect(c,594,48,36,196,0,C.bg,C.line);alignedText(c,'GR dB',612,54,7,C.muted);rect(c,603,63,18,169,0,'#282b2b',null);alignedText(c,'0.0',612,240,7,C.muted);
     shapes.forEach((s,i)=>{const sx=10+i*78;rect(c,sx,250,74,32,2,i===1?'#272523':C.panel,i===1?'#715048':C.line);c.strokeStyle=i===1?C.accent:C.muted;c.lineWidth=1;curve(c,s,sx+7,257,60,18);});
     c.strokeStyle='#2b2f2f';c.lineWidth=1;for(const yy of [288.5,322.5]){c.beginPath();c.moveTo(10,yy);c.lineTo(630,yy);c.stroke();}
-    if(mode==='dual'){
-      button(c,'24 dB/oct',15,294,90);
-      slider(c,'SMOOTH','0%',184,298,270);slider(c,'SWING','0%',184,312,270);button(c,'SPECTRAL',544,294,80);
-    }else{
-      button(c,'SPECTRAL',15,294,66,true);button(c,'12 dB',87,294,55);button(c,'10 ms',148,294,55);button(c,'150 ms',209,294,55);button(c,'DEPTH',270,294,50,true);slider(c,'SMOOTH','0%',329,298,190);slider(c,'SWING','0%',329,312,190);button(c,'BACK',550,294,74);
-      for(let i=0;i<24;i++){const v=.12+.7*Math.exp(-Math.pow((i-9)/3,2));c.fillStyle='#526576';c.fillRect(435+i*5.5,83+35*(1-v),3,35*v);}text(c,'EXT · ILLUSTRATIVE',435,125,6,C.muted);
-    }
+    button(c,'24 dB/oct',15,294,90);
+    slider(c,'SMOOTH','0%',184,298,270);slider(c,'SWING','0%',184,312,270);
     for(const dx of [319,478]){c.strokeStyle='#2b2f2f';c.beginPath();c.moveTo(dx,332);c.lineTo(dx,375);c.stroke();}
     mixRow(c,'LP',22,341,1,C.low,46);mixRow(c,'HP',22,366,1,C.blue,46);knob(c,'MIX','100%',398,354,1);knob(c,'OUTPUT','+0.0 dB',554,354,.65);
     rect(c,10,383,59,12,1,C.bg,'#303434');alignedText(c,'SYNC',39.5,389,8,C.muted);rect(c,505,383,124,12,1,C.bg,'#303434');alignedText(c,'⏻  ACTIVE',567,389,8,C.muted);
   }
-  Frame.register({id:'pump',name:'Pump · Dual band',width:640,height:400,paint(c){shell(c,'dual');}});
-  Frame.register({id:'pump-spectral',name:'Pump · Spectral ducking',width:640,height:400,paint(c){shell(c,'spectral');}});
+  Frame.register({id:'pump',name:'Pump · Dual band',width:640,height:400,paint(c){shell(c);}});
 })();

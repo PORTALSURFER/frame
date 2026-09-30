@@ -32,7 +32,7 @@ The Sift reference screenshot in `assets/` is source material for that example. 
 
 ## Pump study
 
-**Pump · Dual band** is the initial design. **Pump · Spectral ducking** shows the companion spectral panel. Both use Pump's factory curve nodes and tension interpolation, Pump’s original dark gray/red-orange palette, a compact 640 × 400 canvas, thin borders, and flat controls. The dual-band controls occupy a single 29-pixel row beneath the quick slots. The dual view has one crossover, 12/24 dB slopes, a compact stacked group of mint LP and blue HP mix sliders with no thumb handles, plus solos. Both bands share one envelope. The spectral view has 24 illustrative spectrum bars, depth, attack, release and Volume/Depth envelope modes. These remain visual mockups; the spectrum is illustrative and the red brush collects feedback.
+**Pump · Dual band** is the initial design. It uses Pump's factory curve nodes and tension interpolation, the original dark gray/red-orange palette, a compact 640 × 400 canvas, thin borders, and flat controls. The compact strip contains 12/24 dB crossover slope and Smooth/Swing controls. The mint LP and blue HP rectangular mix sliders contain their percentage readouts and sit with Solo buttons beside Mix and Output. Both bands share one envelope. This is a visual mockup; the red brush collects feedback.
 
 Run `python3 scripts/build-standalone.py` to regenerate `frame-standalone.html`. That portable artifact embeds all styles and scripts and works in viewers that cannot load sibling files. Saved design selections still take precedence over the initial Pump view.
 
@@ -40,4 +40,4 @@ The main envelope view includes a crossover overlay spanning the full graph with
 
 Smooth and Swing use horizontal sliders without handles; Mix and Output retain their rotary knobs.
 
-The composition groups stacked LP/HP mix sliders beside Mix/Output, with Smooth/Swing in the compact strip immediately below the curve presets. The strip retains the crossover slope and spectral settings; dual enable and crossover frequency remain host parameters.
+The composition groups stacked LP/HP mix sliders beside Mix/Output, with Smooth/Swing in the compact strip immediately below the curve presets. The strip retains the crossover slope; dual enable and crossover frequency remain host parameters.
