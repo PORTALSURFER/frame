@@ -1,5 +1,6 @@
 :root { font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace; color: #d8dfdc; background: #121717; }
 * { box-sizing: border-box; }
+[hidden] { display: none !important; }
 html, body { margin: 0; min-height: 100%; }
 button, select { font: inherit; }
 .app { min-height: 100vh; display: flex; flex-direction: column; }
@@ -27,6 +28,12 @@ select { min-width: 142px; cursor: pointer; }
 .brush { z-index: 2; cursor: crosshair; touch-action: none; user-select: none; }
 .brush path { fill: none; stroke: #ff3434; stroke-width: 3; stroke-linecap: round; stroke-linejoin: round; }
 footer { min-height: 42px; display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 8px 26px; border-top: 1px solid #343e3a; color: #92a19b; font-size: 10px; line-height: 1.4; }
+.design-status { max-width: 560px; padding: 24px; border: 1px solid #465451; border-radius: 8px; background: #1a2020; font-family: system-ui, sans-serif; }
+.design-status h1 { margin-top: 0; font-size: 22px; }
+.design-status p { line-height: 1.5; }
+.design-status button { margin-top: 16px; padding: 8px 12px; border: 1px solid #465451; border-radius: 5px; background: #293331; color: #e0e7e1; cursor: pointer; }
+pre { white-space: pre-wrap; overflow-wrap: anywhere; }
+#registration-notice { color: #e39187; }
 #mark-count { color: #e39187; white-space: nowrap; }
 #feedback-limit-notice, #feedback-save-notice { display: block; color: #e39187; }
 @media (max-width: 920px) { .topbar { align-items: flex-start; flex-direction: column; } .tools { justify-content: flex-start; } }

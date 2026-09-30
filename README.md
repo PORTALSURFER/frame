@@ -73,6 +73,10 @@ Frame.register({
 
 The drawing coordinates use the registered width and height. Frame scales the board to fit the window and renders at device resolution. Edit the script and reload to see changes. Annotations remain aligned with the design's coordinates, even after resizing.
 
+`Frame.register` returns `true` for a valid design. Invalid definitions and duplicate IDs return `false` and are recorded in `Frame.errors`; duplicate IDs keep the original design. Frame shows registration errors in the footer and displays an empty state when no valid designs are available. Designs registered after startup are added to the picker automatically.
+
+If a design's paint function fails, Frame shows a render error with details and a **Retry render** action. Choose another design to continue working. Existing feedback remains available for export, and a successful retry restores the canvas and its marks.
+
 ## Feedback
 
 Draw red lines anywhere in the stage, including outside the interface. Hold **Shift** while dragging for a straight line. **Undo line** (or Command/Ctrl+Z) removes the latest stroke; **Clear all lines** removes every stroke for the selected design. Feedback is saved separately for each design in browser `localStorage`. **Download feedback** exports the selected design's dimensions and strokes as JSON. Existing Sift brush marks saved by the earlier canvas are loaded automatically.

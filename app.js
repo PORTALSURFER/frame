@@ -16,9 +16,18 @@
   const sizeLabel = document.getElementById("design-size");
   const limitNotice = document.getElementById("feedback-limit-notice");
   const saveNotice = document.getElementById("feedback-save-notice");
+  const designStatus = document.getElementById("design-status");
+  const designStatusTitle = document.getElementById("design-status-title");
+  const designStatusMessage = document.getElementById("design-status-message");
+  const designErrorDetails = document.getElementById("design-error-details");
+  const retryRender = document.getElementById("retry-render");
+  const registrationNotice = document.getElementById("registration-notice");
+  const registrationSummary = document.getElementById("registration-summary");
+  const registrationErrors = document.getElementById("registration-errors");
   const pendingFeedback = new Map();
-  let feedback;
+  let feedback = {lines: [], unsaved: false, notice: ""};
   let design;
+  let designReady = false;
   let lines = [];
   let active = null;
   let activePath = null;
@@ -115,7 +124,7 @@
     updateControls();
   }
   function fitBoard() {
-    if (!design) return;
+    if (!designReady) return;
     const styles = getComputedStyle(stage);
     const usableWidth = stage.clientWidth - parseFloat(styles.paddingLeft) - parseFloat(styles.paddingRight);
     const usableHeight = stage.clientHeight - parseFloat(styles.paddingTop) - parseFloat(styles.paddingBottom);
@@ -125,13 +134,35 @@
     redrawMarks();
   }
   function paintDesign() {
-    const dpr = Math.min(window.devicePixelRatio || 1, 2);
-    designCanvas.width = Math.round(design.width * dpr);
-    designCanvas.height = Math.round(design.height * dpr);
-    const context = designCanvas.getContext("2d");
-    context.setTransform(dpr, 0, 0, dpr, 0, 0);
-    context.clearRect(0, 0, design.width, design.height);
-    design.paint(context);
+    try {
+      const dpr = Math.min(window.devicePixelRatio || 1, 2);
+      designCanvas.width = Math.round(design.width * dpr);
+      designCanvas.height = Math.round(design.height * dpr);
+      const context = designCanvas.getContext("2d");
+      if (!context) throw new Error("Canvas drawing is unavailable in this browser");
+      context.setTransform(dpr, 0, 0, dpr, 0, 0);
+      context.save();
+      try { design.paint(context); }
+      finally { context.restore(); }
+      designReady = true;
+      board.hidden = false;
+      brush.removeAttribute("hidden");
+      designStatus.hidden = true;
+    } catch (error) {
+      showDesignStatus("Design could not be rendered", "Retry rendering or choose another design. Your feedback is still available for download.", error instanceof Error ? error.message : String(error), true);
+    }
+  }
+  function showDesignStatus(title, message, details = "", canRetry = false) {
+    designReady = false;
+    board.hidden = true;
+    brush.setAttribute("hidden", "");
+    designStatus.hidden = false;
+    designStatusTitle.textContent = title;
+    designStatusMessage.textContent = message;
+    designErrorDetails.textContent = details;
+    designErrorDetails.parentElement.hidden = !details;
+    retryRender.hidden = !canRetry;
+    updateControls();
   }
   function selectDesign(id) {
     if (active) finishLine();
@@ -161,7 +192,7 @@
   }
 
   brush.addEventListener("pointerdown", (event) => {
-    if (event.button !== 0 || activePointerId !== null) return;
+    if (!designReady || event.button !== 0 || activePointerId !== null) return;
     event.preventDefault();
     if (lines.length >= MAX_LINES) {
       updateControls();
@@ -222,6 +253,10 @@
     save();
   });
   retrySave.addEventListener("click", save);
+  retryRender.addEventListener("click", () => {
+    paintDesign();
+    fitBoard();
+  });
   download.addEventListener("click", () => {
     const data = JSON.stringify({design: design.id, width: design.width, height: design.height, lines}, null, 2);
     const url = URL.createObjectURL(new Blob([data], {type: "application/json"}));
@@ -244,16 +279,33 @@
     }
   });
 
-  for (const item of Frame.designs.values()) {
-    const option = document.createElement("option");
-    option.value = item.id;
-    option.textContent = item.name;
-    picker.append(option);
+  function refreshDesigns() {
+    picker.replaceChildren();
+    for (const item of Frame.designs.values()) {
+      const option = document.createElement("option");
+      option.value = item.id;
+      option.textContent = item.name;
+      picker.append(option);
+    }
+    registrationNotice.hidden = Frame.errors.length === 0;
+    registrationSummary.textContent = `${Frame.errors.length} design ${Frame.errors.length === 1 ? "registration failed" : "registrations failed"}.`;
+    registrationErrors.textContent = Frame.errors.map(error => error.message).join("\n");
+    picker.disabled = Frame.designs.size === 0;
+    if (!Frame.designs.size) {
+      sizeLabel.textContent = "";
+      showDesignStatus("No designs available", "Add a valid design, then reload Frame.");
+      return;
+    }
+    if (design && Frame.designs.get(design.id) === design) {
+      picker.value = design.id;
+      return;
+    }
+    let initial;
+    try { initial = localStorage.getItem("frame-last-design"); } catch { /* optional */ }
+    selectDesign(Frame.designs.has(initial) ? initial : Frame.designs.keys().next().value);
   }
-  if (!Frame.designs.size) throw new Error("Frame needs at least one registered design");
-  let initial;
-  try { initial = localStorage.getItem("frame-last-design"); } catch { /* optional */ }
-  selectDesign(Frame.designs.has(initial) ? initial : Frame.designs.keys().next().value);
+  window.addEventListener("frame:designs-changed", refreshDesigns);
+  refreshDesigns();
   new ResizeObserver(fitBoard).observe(stage);
   window.addEventListener("resize", fitBoard);
 })();
