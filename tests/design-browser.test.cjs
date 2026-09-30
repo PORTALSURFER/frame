@@ -83,3 +83,87 @@ test('repeatable visual comparison detects changed pixels and prototype scenario
  assert.equal(result.same.passed,true);assert.equal(result.different.passed,false);assert.ok(result.different.changedPixels>0);
  assert.equal(result.scenarios[0].passed,true);assert.equal(result.state,'default');assert.equal(result.viewport.width,1000);
 });
+test('revisions compare and restore exact documents, carry bound feedback and flag removed targets',async t=>{
+ const page=await pageFor(t);
+ await page.evaluate(()=>{
+  Frame.view.setMode('note');
+  const feedback={version:3,design:'instrument',revisionId:'instrument-r1',width:1000,height:700,lines:[],notes:[
+   {...FrameFeedback.metadata('note',Frame.designs.get('instrument')),text:'Move with run',anchor:[300,550],elementAnchor:{elementId:'run',offset:[24,10]}},
+   {...FrameFeedback.metadata('note',Frame.designs.get('instrument')),text:'Position only',anchor:[900,650]}
+  ]};
+  Frame.projectBridge.importFeedback(feedback);
+ });
+ const result=await page.evaluate(()=>{
+  const changed=Frame.agent.applyEdits('instrument',[{op:'update',id:'run',patch:{bounds:{x:316}}}]);
+  const carried=Frame.agent.getFeedback();
+  const comparison=Frame.revisions.compare('instrument','instrument-r1',changed.revisionId);
+  Frame.agent.applyEdits('instrument',[{op:'remove',id:'run'}]);
+  const removed=Frame.agent.getFeedback();
+  Frame.revisions.restore('instrument','instrument-r1');
+  return {carried,comparison,removed,restored:Frame.agent.getDocument('instrument'),count:Frame.revisions.list('instrument').length};
+ });
+ assert.deepEqual(result.carried.notes[0].anchor,[340,550]);
+ assert.equal(result.carried.notes[0].revisionId,'instrument-r1');
+ assert.equal(result.carried.notes[1].needsReview,true);
+ assert.deepEqual(result.comparison.changed.map(n=>n.id),['run']);
+ assert.equal(result.removed.notes[0].needsReview,true);
+ assert.equal(result.restored.revisionId,'instrument-r1');assert.equal(result.count,3);
+ await page.reload();await page.locator('#design-picker').selectOption('instrument');
+ assert.equal(await page.evaluate(()=>Frame.revisions.list('instrument').length),3);
+});
+test('portable projects round trip into a fresh browser with revisions, guide, state and feedback',async t=>{
+ const page=await pageFor(t);
+ const project=await page.evaluate(()=>{
+  Frame.agent.applyEdits('instrument',[{op:'update',id:'status',patch:{text:'PROJECT READY'}}]);
+  Frame.agent.setViewport('instrument',{width:360,height:740});
+  Frame.agent.setValue('instrument','frequency','128');
+  Frame.agent.setState('instrument','error');
+  const design=Frame.designs.get('instrument');
+  Frame.projectBridge.importFeedback(FrameFeedback.document(design,[],[{...FrameFeedback.metadata('note',design),text:'Portable feedback',anchor:[20,30]}]));
+  return Frame.project.export('instrument');
+ });
+ const other=await browser.newContext();t.after(()=>other.close());const next=await other.newPage();
+ await next.goto(url);
+ const result=await next.evaluate(project=>{
+  // Import uses a new ID so existing example projects cannot be overwritten.
+  const renamed=JSON.parse(JSON.stringify(project));renamed.archive.designId='portable';
+  for(const revision of renamed.archive.revisions)revision.document.id='portable';
+  renamed.feedback.design='portable';for(const mark of [...renamed.feedback.lines,...renamed.feedback.notes])mark.designId='portable';
+  Frame.project.import(renamed);
+  return Frame.project.export('portable');
+ },project);
+ assert.equal(result.archive.revisions.length,project.archive.revisions.length);
+ assert.deepEqual(result.feedback.lines,[]);assert.equal(result.feedback.notes[0].text,'Portable feedback');assert.equal(result.state,'error');
+ assert.equal(result.styleguide.document,project.styleguide.document);
+ assert.equal(result.viewport.width,360);assert.equal(result.values.frequency,'128');
+ const protectedId=await page.evaluate(project=>{
+  const before=Frame.agent.getDocument('instrument');
+  try{Frame.project.import(project);}catch{return JSON.stringify(before)===JSON.stringify(Frame.agent.getDocument('instrument'));}
+ },project);
+ assert.equal(protectedId,true);
+});
+test('revision IDs are immutable and invalid portable projects leave registries unchanged',async t=>{
+ const page=await pageFor(t);
+ const result=await page.evaluate(()=>{
+  const original=Frame.agent.getDocument('instrument');
+  Frame.agent.applyEdits('instrument',[{op:'update',id:'status',patch:{text:'Changed'}}]);
+  const current=Frame.agent.getDocument('instrument'),bad={...original,name:'Collision'};
+  let collision=false;try{Frame.agent.updateDocument(bad);}catch{collision=true;}
+  const project=Frame.project.export('instrument');project.feedback.design='wrong';
+  const size=Frame.designs.size;let invalid=false;try{Frame.project.import(project);}catch{invalid=true;}
+  return {collision,unchanged:JSON.stringify(current)===JSON.stringify(Frame.agent.getDocument('instrument')),invalid,size:Frame.designs.size,previous:size};
+ });
+ assert.equal(result.collision,true);assert.equal(result.unchanged,true);assert.equal(result.invalid,true);assert.equal(result.size,result.previous);
+});
+test('comparison UI presents snapshots and overlay without changing the selected revision',async t=>{
+ const page=await pageFor(t);
+ await page.evaluate(()=>Frame.agent.applyEdits('instrument',[{op:'update',id:'run',patch:{text:'COMPARE ME'}}]));
+ const current=await page.evaluate(()=>Frame.agent.getDocument('instrument').revisionId);
+ await page.locator('#revision-picker').selectOption('instrument-r1');
+ await page.locator('#compare-revisions').click();
+ assert.match(await page.locator('#compare-summary').textContent(),/1 changed/);
+ await page.locator('#compare-overlay').check();
+ assert.equal(await page.locator('#revision-canvases').evaluate(el=>el.classList.contains('overlay')),true);
+ await page.locator('#close-compare').click();
+ assert.equal(await page.evaluate(()=>Frame.agent.getDocument('instrument').revisionId),current);
+});

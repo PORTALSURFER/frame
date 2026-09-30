@@ -27,7 +27,7 @@ Giving feedback should require very little setup or knowledge of design software
 
 For example, a human could circle a toolbar and add “Give these controls more space.” The AI could then adjust the layout, review the result, and present the revised design for another pass.
 
-The red pen and placed text annotations are available in the current prototype. Revision-aware feedback is a planned capability.
+The red pen and placed annotations are available. Structured designs also preserve revision snapshots and element-bound feedback.
 
 ## Current prototype
 
@@ -131,6 +131,18 @@ Older feedback above these limits is preserved in full when loaded, saved, and e
 If saving fails because browser storage is full or unavailable, Frame shows an **unsaved feedback** notice and a **Retry save** button. Drawing and JSON export remain available, and unsaved feedback stays in memory when switching designs. Download a backup before closing or reloading; the browser may also prompt before leaving with unsaved changes. The notice clears after a successful save. A failed clear is also an unsaved change: it can be exported as an empty feedback file or retried.
 
 The Sift reference screenshot in `assets/` is source material for that example. The app paints its visible interface live from code and does not display the screenshot.
+
+## Revisions and portable handoff
+
+Structured design edits preserve snapshots with immutable revision IDs. The Revision picker restores a snapshot; Compare shows changes by element ID and side-by-side or overlay views. Snapshots persist in browser storage and are included in project downloads. A saved browser draft resumes when its source revision has not changed; changing the source revision starts a new source snapshot. Storage failures show a project notice, retry, and a download path instead of discarding the in-memory project.
+
+Feedback retains the revision and viewport originally reviewed. Bound marks follow surviving element IDs when layouts move; removed or hidden targets and position-only marks are flagged for review. Moving a bound note updates its offset. These rules preserve human context instead of silently assigning a different element.
+
+Download project bundles the document, embedded assets, all stored revisions, complete feedback, the selected guide, viewport, state, and prototype input values into a versioned JSON file. Import project validates every dependency and adds a new design; existing design IDs and conflicting guides are protected. Use a fresh browser or rename design IDs consistently before importing an existing example. Portable imports are limited to 32 MB and image assets to embedded PNG/JPEG/WebP data. Custom Canvas callbacks stay in source files and cannot be serialized.
+
+## Complete example
+
+Run FRAME_BROWSER_PATH=/path/to/chromium npm run example (or npm run example with Playwright Chromium installed). The example opens Instrument workstation, places a human note through the UI, reads its element anchor, applies a targeted spacing edit, compares revisions and pixels, tests desktop and phone states, resolves the feedback, and exports before/after PNGs plus a portable project and review report into artifacts/. FRAME_OUTPUT_DIR can choose another output folder.
 
 ## Browser tests
 

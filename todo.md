@@ -62,11 +62,11 @@ Milestone: an agent can inspect a marked element, change it through a documented
 
 ## 5. Preserve revision context and streamline handoff
 
-- [ ] **Add identifiable design revisions.** Keep snapshots with revision IDs and associate each feedback item with the version a person reviewed.
-- [ ] **Compare revisions.** Provide side-by-side or overlay views and a summary of changed elements.
-- [ ] **Handle feedback after layout changes.** Carry element-bound notes forward when their target survives; flag removed targets or position-only notes for review instead of silently attaching them to a different control.
-- [ ] **Export a portable project.** Bundle design data, assets, revisions, and feedback so work can move between browsers and agent sessions.
-- [ ] **Add an end-to-end example and update documentation.** Demonstrate create → render → human annotation → agent edit → checks → review, and keep README feature claims aligned with shipped behavior.
+- [x] **Add identifiable design revisions.** Keep snapshots with revision IDs and associate each feedback item with the version a person reviewed.
+- [x] **Compare revisions.** Provide side-by-side or overlay views and a summary of changed elements.
+- [x] **Handle feedback after layout changes.** Carry element-bound notes forward when their target survives; flag removed targets or position-only notes for review instead of silently attaching them to a different control.
+- [x] **Export a portable project.** Bundle design data, assets, revisions, and feedback so work can move between browsers and agent sessions.
+- [x] **Add an end-to-end example and update documentation.** Demonstrate create → render → human annotation → agent edit → checks → review, and keep README feature claims aligned with shipped behavior.
 
 ## Recommended implementation order
 

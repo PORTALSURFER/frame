@@ -18,6 +18,7 @@
   function updateDocument(input) {
     const doc=copy(FrameDocument.validate(input)), current=requireDocument(doc.id);
     if(doc.revisionId===current.revisionId&&JSON.stringify(doc)!==JSON.stringify(current)) throw new Error("Changed documents need a new revisionId");
+    Frame.validateRevision?.(doc);
     documents.set(doc.id,doc);
     Object.assign(Frame.designs.get(doc.id),{name:doc.name,width:viewports.get(doc.id)?.width||doc.width,height:viewports.get(doc.id)?.height||doc.height,revisionId:doc.revisionId});
     if(!Object.hasOwn(doc.states||{default:{}},states.get(doc.id)||"default")) states.set(doc.id,"default");
