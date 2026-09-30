@@ -29,3 +29,11 @@ The drawing coordinates use the registered width and height. Frame scales the bo
 Draw red lines anywhere in the stage, including outside the interface. Hold **Shift** while dragging for a straight line. **Undo line** (or Command/Ctrl+Z) removes the latest stroke; **Clear all lines** removes every stroke for the selected design. Feedback is saved separately for each design in browser `localStorage`. **Download feedback** exports the selected design's dimensions and strokes as JSON. Existing Sift brush marks saved by the earlier canvas are loaded automatically.
 
 The Sift reference screenshot in `assets/` is source material for that example. The app paints its visible interface live from code and does not display the screenshot.
+
+## Pump study
+
+**Pump · Dual band** is the initial design. **Pump · Spectral ducking** shows the companion spectral panel. Both use Pump's factory curve nodes and tension interpolation, a dark gray/coral palette, a larger 760 × 620 canvas, and grouped controls. The dual view has one crossover, 12/24 dB slopes, separate low/high mix and solos. Both bands share one envelope. The spectral view has 24 illustrative spectrum bars, depth, attack, release and Volume/Depth envelope modes. These remain visual mockups; the spectrum is illustrative and the red brush collects feedback.
+
+Run `python3 scripts/build-standalone.py` to regenerate `frame-standalone.html`. That portable artifact embeds all styles and scripts and works in viewers that cannot load sibling files. Saved design selections still take precedence over the initial Pump view.
+
+The main envelope view includes a crossover overlay spanning the full graph with coral low-pass and blue high-pass responses, translucent band fills, a crossover marker, and a separate logarithmic 20 Hz–20 kHz scale. Its frequency axis is independent of the envelope's time axis.

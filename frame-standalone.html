@@ -1,0 +1,754 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Frame — UI design canvas</title>
+  <style>:root { font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace; color: #d8dfdc; background: #151517; }
+* { box-sizing: border-box; }
+html, body { margin: 0; min-height: 100%; }
+button, select { font: inherit; }
+.app { min-height: 100vh; display: flex; flex-direction: column; }
+.topbar { min-height: 72px; display: flex; align-items: center; justify-content: space-between; gap: 20px; padding: 12px 26px; border-bottom: 1px solid #37373c; background: #1d1d20; }
+.brand, .tools { display: flex; align-items: center; }
+.brand { gap: 12px; white-space: nowrap; letter-spacing: .1em; }
+.brand-mark { display: grid; place-items: center; width: 34px; height: 34px; border-radius: 5px; background: #ef897a; color: #241918; font-size: 21px; font-weight: 700; }
+.brand strong { display: block; font-size: 15px; }
+.brand small { display: block; margin-top: 4px; color: #93939b; font-size: 9px; letter-spacing: .16em; }
+.tools { gap: 10px; flex-wrap: wrap; justify-content: flex-end; }
+.design-choice, .design-size { color: #aaaab2; font-size: 10px; white-space: nowrap; }
+.design-choice { display: flex; align-items: center; gap: 8px; }
+.design-size { min-width: 78px; text-align: center; }
+select, .tools button { min-height: 34px; padding: 7px 10px; border: 1px solid #45454c; border-radius: 5px; background: #29292e; color: #eeeae6; font-size: 11px; }
+select { min-width: 142px; cursor: pointer; }
+.tools button { cursor: pointer; }
+.tools button:hover:not(:disabled), select:hover { background: #35353b; border-color: #ef897a; }
+.tools button:disabled { opacity: .4; cursor: default; }
+.brush-status { display: flex; align-items: center; gap: 8px; margin: 0 7px; color: #e39187; font-size: 10px; white-space: nowrap; letter-spacing: .08em; }
+.red-dot { width: 7px; height: 7px; border-radius: 50%; background: #ff3434; box-shadow: 0 0 0 3px #ff343425; }
+.stage { position: relative; display: flex; align-items: center; justify-content: center; flex: 1; min-height: 400px; padding: 30px; background: radial-gradient(circle at 50% 40%, #29292e, #18181b 75%); overflow: hidden; }
+.board { position: relative; flex: none; background: #202024; box-shadow: 0 0 0 1px #45454c, 0 18px 70px #0009; overflow: hidden; }
+.design, .brush { position: absolute; display: block; inset: 0; width: 100%; height: 100%; }
+.design { pointer-events: none; user-select: none; }
+.brush { z-index: 2; cursor: crosshair; touch-action: none; user-select: none; }
+.brush path { fill: none; stroke: #ff3434; stroke-width: 3; stroke-linecap: round; stroke-linejoin: round; }
+footer { min-height: 42px; display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 8px 26px; border-top: 1px solid #37373c; color: #aaaab2; font-size: 10px; line-height: 1.4; }
+#mark-count { color: #e39187; white-space: nowrap; }
+@media (max-width: 920px) { .topbar { align-items: flex-start; flex-direction: column; } .tools { justify-content: flex-start; } }
+@media (max-width: 600px) { .topbar { padding: 13px; } .stage { min-height: 320px; padding: 15px; } footer { padding: 8px 13px; } }
+
+.board { border-radius: 10px; }
+button:focus-visible, select:focus-visible { outline: 2px solid #ef897a; outline-offset: 3px; }
+</style>
+  
+  
+  
+  
+  
+  
+</head>
+<body>
+  <main class="app">
+    <header class="topbar">
+      <div class="brand"><span class="brand-mark">F</span><div><strong>FRAME</strong><small>UI DESIGN CANVAS</small></div></div>
+      <div class="tools">
+        <label class="design-choice">Design <select id="design-picker" aria-label="Design"></select></label>
+        <span id="design-size" class="design-size"></span>
+        <span class="brush-status"><span class="red-dot"></span> RED BRUSH</span>
+        <button id="undo" type="button" disabled>Undo line</button>
+        <button id="clear" type="button" disabled>Clear all lines</button>
+        <button id="download" type="button" disabled>Download feedback</button>
+      </div>
+    </header>
+    <div class="stage" id="stage">
+      <div class="board" id="board" aria-label="Interface design">
+        <canvas id="design" class="design" role="img" aria-label="Painted interface"></canvas>
+      </div>
+      <svg id="brush" class="brush" preserveAspectRatio="none" aria-label="Draw red feedback lines anywhere on the canvas"></svg>
+    </div>
+    <footer><span>Draw red lines anywhere. Hold Shift for a straight line. Marks save per design in this browser.</span><span id="mark-count">0 lines</span></footer>
+  </main>
+<script>// Frame designs are registered by ordinary scripts; no build step is needed.
+(() => {
+  const designs = new Map();
+
+  function register(design) {
+    if (!design || !/^[a-z0-9-]+$/.test(design.id || "") ||
+        !design.name || !Number.isInteger(design.width) || !Number.isInteger(design.height) ||
+        design.width < 1 || design.height < 1 || typeof design.paint !== "function") {
+      throw new Error("Frame.register expects an id, name, positive integer size, and paint function");
+    }
+    if (designs.has(design.id)) throw new Error(`Duplicate Frame design: ${design.id}`);
+    designs.set(design.id, design);
+  }
+
+  window.Frame = {register, designs};
+})();
+</script>
+<script>// Pump composition study. Canvas controls are review artwork; use Frame's brush for feedback.
+(() => {
+  const C = {bg:'#171719',panel:'#212124',line:'#39393d',muted:'#96969f',text:'#f1efec',accent:'#ef897a',blue:'#8cb7c9'};
+  function rect(c,x,y,w,h,r=8,fill=C.panel,stroke=C.line){c.beginPath();c.roundRect(x,y,w,h,r);c.fillStyle=fill;c.fill();if(stroke){c.strokeStyle=stroke;c.lineWidth=1;c.stroke();}}
+  function text(c,t,x,y,size=12,color=C.text,weight=400){c.fillStyle=color;c.font=`${weight} ${size}px system-ui`;c.textBaseline='middle';c.fillText(t,x,y);}
+  function pill(c,t,x,y,w,active=false){rect(c,x,y,w,26,5,active?'#47312f':C.panel,active?C.accent:C.line);text(c,t,x+10,y+13,10,active?C.accent:C.muted,600);}
+  function knob(c,label,value,x,y,a=.7){text(c,label,x-25,y-39,10,C.muted,600);c.strokeStyle=C.line;c.lineWidth=4;c.beginPath();c.arc(x,y,20,.75*Math.PI,2.25*Math.PI);c.stroke();c.strokeStyle=C.accent;c.beginPath();c.arc(x,y,20,.75*Math.PI,(.75+1.5*a)*Math.PI);c.stroke();c.fillStyle='#29292e';c.beginPath();c.arc(x,y,15,0,Math.PI*2);c.fill();c.strokeStyle=C.text;c.lineWidth=2;c.beginPath();c.moveTo(x,y);c.lineTo(x+12*Math.cos((.75+1.5*a)*Math.PI),y+12*Math.sin((.75+1.5*a)*Math.PI));c.stroke();text(c,value,x-24,y+36,12,C.text,600);}
+  const shapes=[["Sine", [[0.0, 1.0], [0.16, 0.82], [0.34, 0.36], [0.5, 0.0], [0.66, 0.36], [0.84, 0.82], [1.0, 1.0]], [-0.55, -0.1, 0.25, -0.25, 0.1, 0.55]], ["Soft", [[0.0, 1.0], [0.08, 0.12], [0.34, 0.58], [1.0, 1.0]], [-0.35, 0.42, -0.08]], ["Tight", [[0.0, 1.0], [0.035, 0.02], [0.15, 0.8], [1.0, 1.0]], [-0.58, 0.72, -0.04]], ["Long", [[0.0, 1.0], [0.05, 0.04], [0.46, 0.22], [1.0, 1.0]], [-0.48, 0.58, -0.02]], ["Snap", [[0.0, 1.0], [0.012, 0.22], [0.03, 0.0], [0.075, 0.94], [1.0, 1.0]], [-0.08, 0.02, 0.12, 0.0]], ["Punch", [[0.0, 1.0], [0.02, 0.06], [0.12, 0.44], [0.28, 0.18], [0.58, 0.9], [1.0, 1.0]], [-0.52, 0.3, -0.24, 0.22, -0.04]], ["Thump", [[0.0, 1.0], [0.03, 0.08], [0.18, 0.12], [0.42, 0.48], [0.72, 0.9], [1.0, 1.0]], [-0.35, 0.05, 0.12, 0.08, -0.02]], ["Double", [[0.0, 1.0], [0.04, 0.05], [0.18, 0.82], [0.34, 0.2], [0.56, 0.9], [1.0, 1.0]], [-0.48, 0.18, -0.28, 0.2, -0.05]]];
+  function sample(shape,x){const nodes=shape[1], ts=shape[2];let i=0;while(i<nodes.length-2&&x>nodes[i+1][0])i++;const l=nodes[i],r=nodes[i+1];let t=Math.max(0,Math.min(1,(x-l[0])/(r[0]-l[0])));const tension=ts[i]||0; const power=1+Math.abs(tension)*3; t=tension>=0?Math.pow(t,power):1-Math.pow(1-t,power);return l[1]+(r[1]-l[1])*t;}
+  function curve(c,shape,x,y,w,h){c.beginPath();for(let i=0;i<=w;i++){const yy=y+(1-sample(shape,i/w))*h;i?c.lineTo(x+i,yy):c.moveTo(x,yy);}c.stroke();}
+  function crossover(c,x,y,w,h,hz=200,slope=24){
+    const low=C.accent,high='#8caaeb';
+    const px=x,py=y+12,pw=w,ph=h-24;
+    const cutoff=Math.tan(Math.PI*hz/48000);
+    const magnitude=(t,band)=>{const f=20*Math.pow(1000,t),r=Math.tan(Math.PI*f/48000)/cutoff,p=Math.pow(r,slope===12?2:4);return band?p/(1+p):1/(1+p);};
+    for(let band=0;band<2;band++){
+      c.beginPath();c.moveTo(px,py+ph);
+      for(let i=0;i<=pw;i++)c.lineTo(px+i,py+(1-magnitude(i/pw,band))*ph);
+      c.lineTo(px+pw,py+ph);c.closePath();c.fillStyle=band?'rgba(140,170,235,.08)':'rgba(239,137,122,.08)';c.fill();
+      c.beginPath();for(let i=0;i<=pw;i++){const yy=py+(1-magnitude(i/pw,band))*ph;i?c.lineTo(px+i,yy):c.moveTo(px+i,yy);}c.strokeStyle=band?high:low;c.lineWidth=1.5;c.stroke();
+    }
+    const marker=px+Math.log(hz/20)/Math.log(1000)*pw;
+    c.strokeStyle='#777780';c.lineWidth=1;c.beginPath();c.moveTo(marker,py);c.lineTo(marker,py+ph);c.stroke();
+    text(c,'LP',x+10,y+30,9,low,650);text(c,'HP',x+w-25,y+30,9,high,650);text(c,'20 Hz',x+8,y+h-6,8,C.muted);text(c,hz+' Hz',Math.max(x+48,Math.min(x+w-90,marker+7)),y+h-6,9,C.text,600);text(c,'20 kHz',x+w-44,y+h-6,8,C.muted);
+  }
+  function shell(c,mode){c.fillStyle=C.bg;c.fillRect(0,0,760,620);text(c,'PUMP',24,30,25,C.text,750);text(c,'ENVELOPE SHAPER',120,33,10,C.muted,600);pill(c,'Init  ▾',393,18,140);pill(c,'A',547,18,35,true);pill(c,'B',586,18,35);pill(c,'A → B',629,18,68);pill(c,'●',705,18,31,true);text(c,'01  /  ENVELOPE',24,76,10,C.muted,600);pill(c,'SYNC',494,63,63,true);pill(c,'1/4  ▾',564,63,70);pill(c,'0 beats',642,63,94);
+    rect(c,24,104,712,214,8,'#1b1b1e');const x=46,y=124,w=668,h=168;c.strokeStyle='#303035';c.lineWidth=1;for(let i=0;i<=8;i++){c.beginPath();c.moveTo(x+w*i/8,y);c.lineTo(x+w*i/8,y+h);c.stroke();}for(let i=0;i<=4;i++){c.beginPath();c.moveTo(x,y+h*i/4);c.lineTo(x+w,y+h*i/4);c.stroke();}crossover(c,x,y,w,h);c.strokeStyle=C.text;c.lineWidth=2.5;curve(c,shapes[1],x,y,w,h);for(const n of shapes[1][1]){c.fillStyle=C.bg;c.beginPath();c.arc(x+n[0]*w,y+(1-n[1])*h,4,0,Math.PI*2);c.fill();c.stroke();}text(c,'0',x,307,9,C.muted);text(c,'¼',x+w/4,307,9,C.muted);text(c,'½',x+w/2,307,9,C.muted);text(c,'¾',x+w*3/4,307,9,C.muted);text(c,'1',x+w-4,307,9,C.muted);
+    shapes.forEach((s,i)=>{const sx=24+i*90;rect(c,sx,332,82,54,5,i===1?'#332625':C.panel,i===1?C.accent:C.line);c.strokeStyle=i===1?C.accent:C.muted;c.lineWidth=1.5;curve(c,s,sx+10,340,62,23);text(c,s[0],sx+10,375,9,i===1?C.accent:C.muted);});
+    text(c,mode==='dual'?'02  /  DUAL BAND':'02  /  SPECTRAL DUCKING',24,412,10,C.muted,600);pill(c,'DUAL BAND',502,398,110,mode==='dual');pill(c,'SPECTRAL',621,398,115,mode==='spectral');
+    text(c,'SHARED ENVELOPE',24,590,9,C.muted,600);text(c,'Depth 120 dB    •    Floor −∞    •    Mix 100%    •    Output 0 dB',195,590,10,C.muted);text(c,'UI COMPOSITION STUDY',24,610,8,C.muted);text(c,'Visual controls • annotate with the red brush',482,610,9,C.muted);
+  }
+  Frame.register({id:'pump',name:'Pump · Dual band',width:760,height:620,paint(c){shell(c,'dual');rect(c,24,434,712,133);text(c,'LOW',43,456,10,C.accent,700);text(c,'HIGH',633,456,10,'#8caaeb',700);text(c,'One crossover · minimum phase · zero latency',43,544,10,C.muted);pill(c,'SOLO',41,476,54);knob(c,'LOW MIX','100%',149,498,1);knob(c,'CROSSOVER','200 Hz',296,498,.34);pill(c,'12',356,474,38);pill(c,'24 dB/oct',400,474,78,true);knob(c,'HIGH MIX','100%',550,498,1);pill(c,'SOLO',633,476,54);}});
+  Frame.register({id:'pump-spectral',name:'Pump · Spectral ducking',width:760,height:620,paint(c){shell(c,'spectral');rect(c,24,434,712,133);text(c,'EXTERNAL SIDECHAIN  •  24 BANDS',42,453,10,C.blue,650);const x=42,y=470,w=277,h=60;for(let i=0;i<24;i++){const v=.18+.78*Math.exp(-Math.pow((i-9)/3,2))+.3*Math.exp(-Math.pow((i-18)/2,2));rect(c,x+i*w/24,y+h-v*h,7,v*h,1,'#436574',null);c.fillStyle=C.accent;c.fillRect(x+i*w/24,y+h+3,7,Math.min(13,v*13));}text(c,'Illustrative spectrum',42,552,9,C.muted);knob(c,'DEPTH','12 dB',378,498,.4);knob(c,'ATTACK','10 ms',469,498,.25);knob(c,'RELEASE','150 ms',566,498,.4);pill(c,'VOLUME',631,466,83);pill(c,'DEPTH',631,501,83,true);}});
+})();
+</script>
+<script>// A neutral starting point for a new application interface.
+(() => {
+  function box(ctx, x, y, w, h, radius, fill, stroke) {
+    ctx.beginPath();
+    ctx.roundRect(x, y, w, h, radius);
+    ctx.fillStyle = fill;
+    ctx.fill();
+    if (stroke) { ctx.strokeStyle = stroke; ctx.lineWidth = 1; ctx.stroke(); }
+  }
+
+  function text(ctx, value, x, y, size = 13, color = "#c9d3d1", weight = 400) {
+    ctx.fillStyle = color;
+    ctx.font = `${weight} ${size}px system-ui, sans-serif`;
+    ctx.textBaseline = "middle";
+    ctx.fillText(value, x, y);
+  }
+
+  Frame.register({
+    id: "starter",
+    name: "Starter UI",
+    width: 960,
+    height: 600,
+    paint(ctx) {
+      ctx.fillStyle = "#171c1d";
+      ctx.fillRect(0, 0, 960, 600);
+      box(ctx, 18, 18, 924, 564, 16, "#22292a", "#364142");
+      box(ctx, 19, 19, 184, 562, [15, 0, 0, 15], "#1d2425");
+      ctx.fillStyle = "#364142";
+      ctx.fillRect(203, 19, 1, 562);
+      text(ctx, "FRAME", 44, 54, 19, "#f2eee5", 700);
+      text(ctx, "DESIGN STUDY", 44, 80, 10, "#829391", 600);
+      box(ctx, 32, 122, 158, 38, 8, "#34403e");
+      text(ctx, "Overview", 48, 141, 13, "#e2eae5", 600);
+      for (const [label, y] of [["Components", 190], ["Typography", 230], ["Colors", 270]]) {
+        text(ctx, label, 48, y, 13, "#9caaa7");
+      }
+      text(ctx, "Workspace", 238, 60, 25, "#edf1ed", 650);
+      text(ctx, "A code-painted interface ready for a new project.", 238, 90, 12, "#9aa9a6");
+      box(ctx, 238, 122, 670, 196, 12, "#293334", "#465352");
+      text(ctx, "Main view", 262, 150, 14, "#e2e9e4", 600);
+      ctx.strokeStyle = "#53605e";
+      ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.moveTo(262, 176); ctx.lineTo(884, 176); ctx.stroke();
+      ctx.strokeStyle = "#77b9aa";
+      ctx.lineWidth = 3;
+      ctx.lineCap = "round";
+      ctx.beginPath();
+      for (let x = 262; x <= 884; x += 6) {
+        const y = 250 - Math.sin((x - 262) / 42) * 18 - Math.sin((x - 262) / 13) * 6;
+        if (x === 262) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+      }
+      ctx.stroke();
+      box(ctx, 238, 338, 322, 156, 12, "#293334", "#465352");
+      box(ctx, 578, 338, 330, 156, 12, "#293334", "#465352");
+      text(ctx, "Details", 262, 366, 14, "#e2e9e4", 600);
+      text(ctx, "Actions", 602, 366, 14, "#e2e9e4", 600);
+      text(ctx, "Use shapes, lines, and type to paint a UI.", 262, 406, 12, "#9caaa7");
+      box(ctx, 602, 394, 124, 38, 8, "#78b7a8");
+      text(ctx, "Primary", 627, 413, 12, "#14211f", 650);
+      box(ctx, 738, 394, 124, 38, 8, "#364443", "#647371");
+      text(ctx, "Secondary", 756, 413, 12, "#dce7e1", 600);
+      text(ctx, "Edit examples/starter.js to change this design.", 238, 535, 11, "#8fa19d");
+    }
+  });
+})();
+</script>
+<script>// Waveform silhouettes traced once from the supplied reference; the UI is painted from code.
+const SIFT_WAVE_TRACES = {
+  upper: {
+    outerTop: "AAAAAAAAAAAAAgIBAAEBAQACAQIBAgECAgECAgICAgICAgECAgICAQIBAgICAgICAQIBAwICAQMCAgICAgICAgICAgICAgMCAgICAQEBAQEBAQEBAQAAAAAAAAABAAEAAAEAAQABAAEBAQEAAQEAAQABAAEBAQEBAQABAAEBAQABAQEBAQEBAQEBAQEAAQEDBxccHREQGhMaFhEbEhIiExgjFiAhGQ8XGxAZHRMZGxwVDiIiGREaISEaERIkHB4VExQZFxQaFxUUGBUSFhITEBARERAOEhEOERIUERMSDRAQDw4MDA4NDQ0NDQ0OFA8MEA0MCA0ICAsMCAUGCAkGCAoJCAUFCAgIBgYFBwYFBgYGBgcFBQYFBgQEBAQEBAQFBAQEBAUFBQQFBQMDAwMDBAQDAwQDBAUEAwUEAwMEAwMDAwMCAgMDAgIDAwMCAgMDAwICAgMCAgMCAgIDAgICAgICAQICAQIBAgICAgICAgICAgICAQEBAQIBAgIBAQICAQECAgEBAgEBAgECAQECAQEBAQIBAQECAgEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAAABAAEAAAEBAQEBAQAAAQEAAAEBAAABAQAAAQAAAAABAAAAAAEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACCQ4QHRMLCAAQCgYFCQcFBAAGBAIDAgMAAQACAQAAAAAAAAAAAA==",
+    outerBottom: "AAAAAAAAAAAAAQEBAAEBAQABAQEBAgEBAQECAQIBAQIBAgECAQECAQIBAgECAQIBAQEBAgECAQIBAgECAQIBAgICAgEBAgIBAQEBAAEBAQAAAQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACBhYcHREQGRMaFREbEREhExgiFR8gGA8XGxAYHRIZGxsVDiEiGREZICAaEBEjHB4UEhMZFxMZFxQTFxQSFhESDxAREA8OERENERITERMRDBAQDg0MCw4MDQwNDAwOFA8LEAwLCAwHCAoLBwUFCAgGBwkIBwQFCAcHBgUEBgYEBgYGBQYFBQUEBQQDBAQEBAMEBAQDBAQFBQMFBAMDAgMDAwMDAwMDAwQEAwQDAwIEAgIDAwMBAgICAgIDAwIBAQMCAgIBAQICAgICAgICAgICAQIBAQEBAQEBAQEBAQEBAgIBAgEBAQEBAQEBAQEBAQEBAQEBAgEBAgEBAQEBAAEBAQEAAQEBAAABAQEAAAABAAEBAQEBAQEBAQABAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABCA4PHBIKBwAPCQUFCQcEAwAFBAICAgIAAQACAQAAAAAAAAAAAA==",
+    innerTop: "AAAAAAAAAAAAAQEBAQAAAQEBAQEBAQEBAQEBAQEAAQEAAAAAAAAAAAAAAAAAAAAAAAAAAQAAAAAAAAAAAQAAAAAAAAAAAAAAAAEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABBAYSDw0LDwwMDAkQDQoNCwkMCgoODQoIDQoIDgsJCwoJBwgLCggHDAsJBwcLCgkHBQYHBwYGBgUEBQYGBgYFBQQDAwMDAwQEBAQFBAUGBQYGBQUFBAUEAwYEBgUEBgUEBQQDAwQDBAMEAwICAwICAgMDAgIBAwMCAgEBAgICAgEBAQEBAgEBAQEBAQEBAQEBAQEBAQEBAQECAgECAgEBAQECAQIBAQECAQECAQEBAQEBAQEBAQEBAQEBAQEBAAEBAQEAAAEBAAEBAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAEBAAAAAQAAAQAAAQAAAQAAAQEBAQEAAAAAAAEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAgcICwoIBgkIBgUEBQQDAgICAgEBAgEBAQEBAQAAAAAAAAAAAA==",
+    innerBottom: "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAwYRDw0LDgsLCwgQDQkNCggLCgkODAkIDQoIDQoJCgoJBggLCQcHCwoJBgcLCggGBQUGBgYGBgUEBQUFBgUEBQMDAwMDAwQEAwMEBAQGBAYFBAUEAwQDAwUEBQQEBgUEBAQDAgMCAwIDAgICAgIBAQMCAgEBAgICAQEBAQEBAQEBAQEBAQEBAQEAAAAAAAAAAAEBAAAAAQEBAQEBAQEBAQABAQEBAQEBAQEBAQAAAAEAAQAAAAAAAAABAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAgcHCwoHBQgIBgQEBAQDAgICAQEBAQEAAAAAAAAAAAAAAAAAAA==",
+  },
+  lower: {
+    outerTop: "AAAAAAAAAAAABAMDAgIDAgICAgIAAQIAAQEBAQEBAQIBAQEBAQEBAQIBAgECAQEBAAEBAwICAgIBAgECAgIAAgICAgECAgICAgACAgECAgEBAQIAAQIBAQAAAgICAAMCAgMCAwICAgIDAgICAwICAgIDAgICAwICAgICAgMCAwIDAgICAwIDAwMCAgMCAgIDCBcdHhEQGxUaGBAcExIjFBkiFiEgGBAYGxAaHhMbHBsVDx8iGREaICIaERIjHR0YFxIbFxEZGBYVGhYSFRETEA8PEA8OEREPDxESEBQUDg4QEAwMCwwKDAwODAwOEg0LDwsKBwkHBwgIBwUEBQUEBQUFBAMDBQQEBAMDBAMDBAMDAwQDAwMDBAMCAwIDAgICAgMDBQUHBgQHBQYFBAUGBQcFBQcFBAYGBAYIBQcJBgYHBwcEBQgHBgUICAcFBQgHBwYEBQcGBgYGBgYHBQUGBAYEBAQEBAQEBAQFBAQEBAQEBAQEAwQDAwMDAwMDAwMDAwIDAgICAgICAgICAQABAQEAAQEBAAABAQEAAAABAAABAAEAAQEAAAABAAAAAAAAAAAAAAABAQIBAQIBAQEBAgABAQIBAQIBAQIBAQICAgICAgICAgECAgICAQICAgEBAgICAQEBAgECAQECAQICAgIBAQEBAQEBAQEBAQEBAAEBAQEAAQAAAQAAAAAAAAAAAAAAAAADCQ4QHxQMCQoQCgcGCQcGBAMFBQMDAwMCAgADAgAAAAAAAAAAAA==",
+    outerBottom: "AAAAAAAAAAAAAgICAQEBAQEBAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAQAAAAEAAQABAAAAAAAAAQAAAQEAAAAAAAAAAAAAAAAAAAAAAAAAAAABAAEAAAEAAQEBAQEBAAEAAQEAAQABAAEBAQEBAQABAAEAAQABAAEBAQEBAQEBAQEBAQEBBxYbHBAPGRMZFw8bEREhEhcgFCAfFw4XGQ8ZHBEaGhoTDh4hFw8YHyAZDxEhGxwWFREZFhAXFxQUGRURFA8RDw0ODg0MDw8ODQ8QDxMSDA0PDwoLCQoJCwsMCgoNEQwJDgoIBQcFBgYGBQMDAwQCAwQDAwEBAwMDAgEBAgIBAgICAQICAgIBAgEAAQEBAQEBAQECAwQFBAMGBAQEAwQEBAUDAwUEAwUFAwUHBAUHBAQGBQYDBAYFBAQHBgYDBAYFBQQDAwUEBAUEBQQFBAQEAwQDAgMDAgMCAwMDAgICAwMCAgICAgICAQEBAQECAQICAQECAQEAAQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAEAAAEAAAAAAAAAAQAAAAABAAAAAQEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABCA0PHRMKBwgPCQUFCAYEAwIEAwECAQIBAAABAAAAAAAAAAAAAA==",
+    innerTop: "AAAAAAAAAAAAAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBBAcSEA4MEAwMDQoRDgsOCwkLCgsODAoIDgsJDwsJCwoJBwgLCQgIDAsJBwcLCgkHBgYIBwYHBwUGBwYGBwYFBQQEBAQEBAUFBAUFBAUGBQQFBAUEBAQDAwUEBQQEBQUEBAQDAgICAwICAgICAgEBAQICAgEBAgIBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQIDAwIDAwIEAwMDAgQDAwQEAwIDAwIEAwMEAwMDAwMCAgMCAgIDAwICAgMDAgICAgICAgICAQICAgICAgEBAQEBAQEBAQEBAQEBAQIBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQABAQEBAQAAAQEBAAAAAAAAAAAAAAAAAAABAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQABAAEAAQEBAQEBAQEAAQAAAAAAAAAAAQABAAABAwgIDAsIBwkIBwUFBQQEAwMDAgICAgIBAQEBAQAAAAAAAAAAAA==",
+    innerBottom: "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAwURDwwKDgsLCwgPDAkNCggKCAkMCwgHDAkHDQoICgkHBQYJCAYGCwoIBgYKCQgGBQUGBgUFBQQEBQUEBQQDAwICAgICAgMEAwMDAgMEAwIEAwMCAgMCAgMCAwMDBAMDAwICAQEAAQEBAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAQECAgECAgEBAQICAQMCAQECAQECAgECAQEBAQEBAQEBAQECAQEBAAEBAQAAAAEAAQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAQYHCwkHBQgHBQQDBAMCAQEBAQAAAAAAAAAAAAAAAAAAAAAAAA==",
+  },
+};
+</script>
+<script>// Example design painted from code. The reference image is never displayed on the canvas.
+(() => {
+let paint;
+const mono = '"SFMono-Regular", Consolas, "Liberation Mono", monospace';
+
+function roundedBox(x, y, width, height, radius, fill, stroke) {
+  paint.beginPath();
+  paint.roundRect(x, y, width, height, radius);
+  if (fill) { paint.fillStyle = fill; paint.fill(); }
+  if (stroke) { paint.strokeStyle = stroke; paint.lineWidth = 1; paint.stroke(); }
+}
+
+function label(value, x, y, size = 11, color = "#a2aaa6", align = "left") {
+  paint.font = `${size}px ${mono}`;
+  paint.textAlign = align;
+  paint.textBaseline = "middle";
+  paint.fillStyle = color;
+  paint.fillText(value, x, y);
+}
+
+function line(x1, y1, x2, y2, color, width = 1) {
+  paint.beginPath();
+  paint.moveTo(x1, y1);
+  paint.lineTo(x2, y2);
+  paint.strokeStyle = color;
+  paint.lineWidth = width;
+  paint.stroke();
+}
+
+function fillButtonWithShadow(shape, color) {
+  paint.save();
+  paint.fillStyle = color;
+  paint.shadowColor = "rgba(0, 0, 0, .24)";
+  paint.shadowBlur = 4;
+  paint.shadowOffsetY = 2;
+  paint.fill(shape);
+  paint.restore();
+}
+
+const traces = Object.fromEntries(Object.entries(SIFT_WAVE_TRACES).map(([name, bands]) => [
+  name,
+  Object.fromEntries(Object.entries(bands).map(([key, encoded]) => [key, Uint8Array.from(atob(encoded), character => character.charCodeAt(0))]))
+]));
+const audioSelection = {start: 220, end: 950, viewStart: 165, viewEnd: 1010, duration: "1.52 s"};
+const selectionColors = {
+  body: "rgba(113, 65, 77, .16)",
+  bar: "rgba(198, 126, 112, .74)",
+  edge: "rgba(204, 135, 119, .58)"
+};
+
+function paintWave(center, channel, overview = false) {
+  const left = 18;
+  const right = 1122;
+  const bands = channel === 0 ? traces.upper : traces.lower;
+  const scale = overview ? .22 : 1;
+  line(left, center, right, center, overview ? "rgba(133, 102, 153, .28)" : "rgba(140, 102, 153, .36)");
+  for (const inner of [false, true]) {
+    const top = bands[inner ? "innerTop" : "outerTop"];
+    const bottom = bands[inner ? "innerBottom" : "outerBottom"];
+    const waveform = new Path2D();
+    waveform.moveTo(left, center - top[left / 2] * scale);
+    for (let x = left + 2; x <= right; x += 2) {
+      waveform.lineTo(x, center - top[x / 2] * scale);
+    }
+    for (let x = right; x >= left; x -= 2) {
+      waveform.lineTo(x, center + bottom[x / 2] * scale);
+    }
+    waveform.closePath();
+    paint.fillStyle = inner ? "#e6715d" : "#735cac";
+    paint.globalAlpha = .94;
+    paint.fill(waveform);
+  }
+  paint.globalAlpha = 1;
+}
+
+function paintInset(path, edge, y0, y1, upper) {
+  const metal = paint.createLinearGradient(0, y0, 0, y1);
+  if (upper) {
+    metal.addColorStop(0, "#343a37");
+    metal.addColorStop(.6, "#383f3b");
+    metal.addColorStop(1, "#3b423e");
+  } else {
+    metal.addColorStop(0, "#3b423e");
+    metal.addColorStop(.4, "#383f3b");
+    metal.addColorStop(1, "#343a37");
+  }
+  paint.fillStyle = metal;
+  paint.fill(path);
+
+  // Let the inner lip recede into the metal while the outer edge catches light.
+  paint.save();
+  paint.clip(path);
+  paint.strokeStyle = "rgba(6, 10, 9, .14)";
+  paint.lineWidth = 5;
+  paint.shadowColor = "rgba(0, 0, 0, .13)";
+  paint.shadowBlur = 5;
+  paint.stroke(edge);
+  paint.strokeStyle = "rgba(8, 13, 11, .08)";
+  paint.lineWidth = 7;
+  paint.shadowColor = "rgba(0, 0, 0, .09)";
+  paint.shadowBlur = 5;
+  paint.stroke(edge);
+  paint.restore();
+  paint.save();
+  paint.strokeStyle = "rgba(173, 188, 179, .22)";
+  paint.lineWidth = .8;
+  paint.shadowColor = "rgba(184, 197, 189, .15)";
+  paint.shadowBlur = 3;
+  paint.stroke(edge);
+  paint.restore();
+
+  const cornerGlints = upper
+    ? [
+        {edge: "M162 14 L168 17 Q173 20 179 20 H186", x0: 162, x1: 186},
+        {edge: "M814 20 H821 Q827 20 831 18 L838 14", x0: 814, x1: 838}
+      ]
+    : [
+        {edge: "M148 486 L153 482 Q158 480 164 480 H171", x0: 148, x1: 171},
+        {edge: "M749 480 H756 Q762 480 768 482 L773 486", x0: 749, x1: 773}
+      ];
+  for (const corner of cornerGlints) {
+    const edgeLight = paint.createLinearGradient(corner.x0, 0, corner.x1, 0);
+    edgeLight.addColorStop(0, "rgba(201, 215, 205, 0)");
+    edgeLight.addColorStop(.5, "rgba(201, 215, 205, .23)");
+    edgeLight.addColorStop(1, "rgba(201, 215, 205, 0)");
+    paint.strokeStyle = edgeLight;
+    paint.lineWidth = 1.1;
+    paint.stroke(new Path2D(corner.edge));
+  }
+}
+
+function paintButton(x, y, width, height, caption, textSize = 11, cutCorner = false) {
+  if (cutCorner) {
+    const cut = 9;
+    const button = new Path2D();
+    button.moveTo(x + 4, y);
+    button.lineTo(x + width - 4, y);
+    button.quadraticCurveTo(x + width, y, x + width, y + 4);
+    button.lineTo(x + width, y + height - cut);
+    button.lineTo(x + width - cut, y + height);
+    button.lineTo(x + 4, y + height);
+    button.quadraticCurveTo(x, y + height, x, y + height - 4);
+    button.lineTo(x, y + 4);
+    button.quadraticCurveTo(x, y, x + 4, y);
+    button.closePath();
+    fillButtonWithShadow(button, "#272c2a");
+    paint.strokeStyle = "#48534d";
+    paint.lineWidth = 1;
+    paint.stroke(button);
+  } else {
+    const button = new Path2D();
+    button.roundRect(x, y, width, height, 4);
+    fillButtonWithShadow(button, "#272c2a");
+    paint.strokeStyle = "#363d39";
+    paint.lineWidth = 1;
+    paint.stroke(button);
+  }
+  if (caption) label(caption, x + width / 2, y + height / 2 + .5, textSize, "#a2aba5", "center");
+}
+
+function paintMainSelection() {
+  const {start, end, duration} = audioSelection;
+  const selectionBar = new Path2D();
+  selectionBar.rect(start, 71, end - start, 15);
+  selectionBar.moveTo(start, 71);
+  selectionBar.lineTo(start + 24, 71);
+  selectionBar.lineTo(start, 95);
+  selectionBar.closePath();
+  paint.fillStyle = selectionColors.bar;
+  paint.fill(selectionBar);
+  label(duration, start + 11, 79, 11, "#f0ddd4");
+  line(start + .5, 95, start + .5, 376, selectionColors.edge, 1.4);
+
+  const handleEnd = end - 1;
+  const handleLeft = handleEnd - 53;
+  const handle = new Path2D();
+  handle.moveTo(handleLeft, 71);
+  handle.lineTo(handleEnd, 71);
+  handle.lineTo(handleEnd, 86);
+  handle.lineTo(handleEnd - 38, 86);
+  handle.closePath();
+  paint.save();
+  paint.fillStyle = "#3d4641";
+  paint.shadowColor = "rgba(0, 0, 0, .2)";
+  paint.shadowBlur = 5;
+  paint.shadowOffsetX = -3;
+  paint.fill(handle);
+  paint.restore();
+  paint.save();
+  paint.clip(handle);
+  paint.strokeStyle = "rgba(170, 187, 175, .42)";
+  paint.lineWidth = 3;
+  paint.stroke(handle);
+  paint.restore();
+  paint.strokeStyle = "#1d2621";
+  paint.lineWidth = 1.5;
+  paint.stroke(handle);
+  const inset = new Path2D();
+  inset.moveTo(handleEnd - 35, 76);
+  inset.lineTo(handleEnd - 10, 76);
+  inset.lineTo(handleEnd - 10, 81);
+  inset.lineTo(handleEnd - 30, 81);
+  inset.closePath();
+  const insetShade = paint.createLinearGradient(0, 76, 0, 81);
+  insetShade.addColorStop(0, "#272e2a");
+  insetShade.addColorStop(1, "#2e3631");
+  paint.fillStyle = insetShade;
+  paint.fill(inset);
+  paint.strokeStyle = "#151b18";
+  paint.lineWidth = 1;
+  paint.stroke(inset);
+  line(end + .5, 71, end + .5, 376, selectionColors.edge, 1.4);
+
+  const guide = paint.createLinearGradient(0, 112, 0, 338);
+  guide.addColorStop(0, "rgba(205, 174, 162, 0)");
+  guide.addColorStop(.35, "rgba(205, 174, 162, .26)");
+  guide.addColorStop(.65, "rgba(205, 174, 162, .26)");
+  guide.addColorStop(1, "rgba(205, 174, 162, 0)");
+  for (let quarter = 1; quarter <= 3; quarter++) {
+    const x = start + (end - start) * quarter / 4;
+    line(x, 112, x, 338, guide);
+  }
+}
+
+function paintNavigatorSelection() {
+  const {start, end, viewStart, viewEnd} = audioSelection;
+  paint.fillStyle = selectionColors.bar;
+  paint.fillRect(start, 391, end - start, 7);
+  line(start + .5, 391, start + .5, 408, selectionColors.edge, 1.2);
+  line(end + .5, 391, end + .5, 408, selectionColors.edge, 1.2);
+
+  const navigationMetal = paint.createLinearGradient(0, 418, 0, 426);
+  navigationMetal.addColorStop(0, "rgba(118, 108, 145, .72)");
+  navigationMetal.addColorStop(1, "rgba(88, 80, 116, .72)");
+  paint.fillStyle = navigationMetal;
+  paint.fillRect(viewStart, 418, viewEnd - viewStart, 8);
+  paint.fillStyle = "rgba(178, 168, 201, .58)";
+  paint.fillRect(viewStart, 418, viewEnd - viewStart, 1.5);
+  line(viewStart + .5, 413, viewStart + .5, 426, "rgba(183, 174, 205, .82)", 1.6);
+  line(viewEnd + .5, 413, viewEnd + .5, 426, "rgba(183, 174, 205, .82)", 1.6);
+}
+
+function paintViewVignette(x, y, width, height, radius, opacity) {
+  paint.save();
+  paint.beginPath();
+  paint.roundRect(x, y, width, height, 3);
+  paint.clip();
+  for (const cornerX of [x, x + width]) {
+    for (const cornerY of [y, y + height]) {
+      const shadow = paint.createRadialGradient(cornerX, cornerY, 0, cornerX, cornerY, radius);
+      shadow.addColorStop(0, `rgba(0, 0, 0, ${opacity})`);
+      shadow.addColorStop(.48, `rgba(0, 0, 0, ${opacity * .36})`);
+      shadow.addColorStop(1, "rgba(0, 0, 0, 0)");
+      paint.fillStyle = shadow;
+      paint.fillRect(x, y, width, height);
+    }
+  }
+  paint.restore();
+}
+
+function paintSift(context) {
+  paint = context;
+  paint.fillStyle = "#272a29";
+  paint.fillRect(0, 0, 1140, 500);
+
+  const upperEdge = new Path2D("M130 0 L168 17 Q173 20 179 20 H821 Q827 20 831 18 L869 0");
+  const lowerEdge = new Path2D("M135 500 L153 482 Q158 480 164 480 H756 Q762 480 768 482 L786 500");
+  paintInset(new Path2D("M130 0 L168 17 Q173 20 179 20 H821 Q827 20 831 18 L869 0 Z"), upperEdge, 0, 20, true);
+  paintInset(new Path2D("M135 500 L153 482 Q158 480 164 480 H756 Q762 480 768 482 L786 500 Z"), lowerEdge, 480, 500, false);
+
+  label("PORTALSURFER", 30, 51, 15, "#d5d5d0");
+  label("/", 163, 51, 16, "#aeb6b1");
+  label("SIFT", 190, 51, 15, "#eb6754");
+  label("v0.1.45", 1102, 12, 10, "#737c77", "right");
+  paintButton(925, 27, 72, 30, "TAKES", 11, true);
+  label("⌄", 984, 42, 15, "#8b9490", "center");
+  paintButton(1004, 27, 29, 30, "↗", 19, true);
+  paintButton(1040, 27, 29, 30, "⚙", 15, true);
+  paintButton(1076, 27, 27, 30, "?", 16, true);
+
+  roundedBox(16.5, 70.5, 1107, 306, 3, "#202323", "#4b514e");
+  paint.fillStyle = selectionColors.body;
+  paint.fillRect(audioSelection.start, 71, audioSelection.end - audioSelection.start, 304);
+  line(17, 223, 1123, 223, "rgba(130, 137, 132, .07)");
+  line(17, 147, 1123, 147, "rgba(132, 139, 136, .12)");
+  line(17, 300, 1123, 300, "rgba(132, 139, 136, .12)");
+
+  paint.save();
+  paint.beginPath();
+  paint.rect(18, 84, 1104, 276);
+  paint.clip();
+  paintWave(147, 0);
+  paintWave(300, 1);
+  paint.restore();
+
+  line(377, 71, 377, 376, "rgba(177, 185, 181, .62)", 1);
+  for (const marker of [278, 295, 1068]) {
+    paint.beginPath();
+    paint.moveTo(marker - 3.5, 73);
+    paint.lineTo(marker + 3.5, 73);
+    paint.lineTo(marker, 78);
+    paint.closePath();
+    paint.fillStyle = "#bd886b";
+    paint.fill();
+    const stem = paint.createLinearGradient(0, 78, 0, 111);
+    stem.addColorStop(0, "rgba(189, 136, 107, .28)");
+    stem.addColorStop(.4, "rgba(189, 136, 107, .2)");
+    stem.addColorStop(1, "rgba(189, 136, 107, 0)");
+    line(marker, 78, marker, 111, stem);
+  }
+  label("0.00s", 27, 364, 10.5, "#9da5a1");
+  label("2.38s", 1112, 364, 10.5, "#9da5a1", "right");
+  paintMainSelection();
+  paintViewVignette(17, 71, 1106, 305, 155, .13);
+
+  roundedBox(16.5, 389.5, 1107, 37, 0, "#202323", "#484e4b");
+  paint.fillStyle = selectionColors.body;
+  paint.fillRect(audioSelection.start, 391, audioSelection.end - audioSelection.start, 34);
+  line(17, 408, 1123, 408, "rgba(134, 142, 137, .17)");
+  paint.save();
+  paint.beginPath();
+  paint.rect(18, 391, 1104, 34);
+  paint.clip();
+  paintWave(408, 0, true);
+  paint.restore();
+  paintNavigatorSelection();
+  line(377, 390, 377, 426, "rgba(182, 192, 186, .73)");
+  paintViewVignette(17, 390, 1106, 36, 91, .09);
+
+  const arm = new Path2D("M32 446 H106 Q111 446 111 451 V472 L100 483 H32 Q27 483 27 478 V451 Q27 446 32 446 Z");
+  fillButtonWithShadow(arm, "#313a38");
+  paint.strokeStyle = "#7c8984";
+  paint.lineWidth = 1;
+  paint.stroke(arm);
+  paint.beginPath();
+  paint.arc(51, 464.5, 4.6, 0, Math.PI * 2);
+  paint.strokeStyle = "#dcb3a9";
+  paint.lineWidth = 1.3;
+  paint.stroke();
+  label("ARM", 68, 465, 12, "#dcb3a9");
+
+  paintButton(842, 451, 31, 30, "", 11, true);
+  paint.save();
+  paint.strokeStyle = "#aeb9b4";
+  paint.lineWidth = 2.8;
+  paint.lineCap = "round";
+  for (const [x, height] of [[850, 9], [857, 20], [864, 13]]) {
+    line(x, 466 - height / 2, x, 466 + height / 2, "#aeb9b4", 2.8);
+  }
+  paint.restore();
+  paintButton(880, 451, 31, 30, "", 11, true);
+  paint.beginPath();
+  paint.moveTo(892, 458); paint.lineTo(892, 474); paint.lineTo(904, 466); paint.closePath();
+  paint.fillStyle = "#d8ded9"; paint.fill();
+  paintButton(918, 451, 31, 30, "↻", 20, true);
+  paintButton(956, 451, 48, 30, "SYNC", 10, true);
+  line(1012, 453, 1012, 479, "#505955");
+  paintButton(1020, 451, 50, 30, "SNAP", 10, true);
+  paintButton(1077, 451, 42, 30, "", 11, true);
+  label("1/4", 1083, 466, 10.5, "#a2aba5");
+  line(1106, 464, 1110, 468, "#8b9490", 1.2);
+  line(1110, 468, 1114, 464, "#8b9490", 1.2);
+}
+
+Frame.register({
+  id: "sift",
+  name: "Sift example",
+  width: 1140,
+  height: 500,
+  paint: paintSift
+});
+})();
+</script>
+<script>(() => {
+  const STORAGE_PREFIX = "frame-feedback-v1:";
+  const NS = "http://www.w3.org/2000/svg";
+  const designCanvas = document.getElementById("design");
+  const board = document.getElementById("board");
+  const stage = document.getElementById("stage");
+  const brush = document.getElementById("brush");
+  const picker = document.getElementById("design-picker");
+  const undo = document.getElementById("undo");
+  const clear = document.getElementById("clear");
+  const download = document.getElementById("download");
+  const count = document.getElementById("mark-count");
+  const sizeLabel = document.getElementById("design-size");
+  let design;
+  let lines = [];
+  let active = null;
+  let activePath = null;
+
+  function storageKey() { return `${STORAGE_PREFIX}${design.id}`; }
+  function validLines(value) {
+    if (!Array.isArray(value)) return [];
+    return value.slice(0, 1000).filter(Array.isArray).map((line) =>
+      line.slice(0, 5000).filter((point) => Array.isArray(point) && point.length === 2 && point.every(Number.isFinite))
+    ).filter((line) => line.length > 0);
+  }
+  function load() {
+    try {
+      const saved = localStorage.getItem(storageKey()) ??
+        (design.id === "sift" ? localStorage.getItem("sift-ui-feedback-v1") : null);
+      return validLines(JSON.parse(saved || "[]"));
+    } catch { return []; }
+  }
+  function updateControls() {
+    undo.disabled = clear.disabled = download.disabled = lines.length === 0;
+    count.textContent = `${lines.length} ${lines.length === 1 ? "line" : "lines"}`;
+  }
+  function save() {
+    try { localStorage.setItem(storageKey(), JSON.stringify(lines)); }
+    catch { /* The brush still works if storage is unavailable. */ }
+    updateControls();
+  }
+
+  function geometry() {
+    const boardBounds = board.getBoundingClientRect();
+    const stageBounds = stage.getBoundingClientRect();
+    return {
+      boardBounds, stageBounds,
+      scaleX: boardBounds.width / design.width,
+      scaleY: boardBounds.height / design.height,
+      offsetX: boardBounds.left - stageBounds.left,
+      offsetY: boardBounds.top - stageBounds.top
+    };
+  }
+  function pointFromEvent(event) {
+    const {boardBounds, scaleX, scaleY} = geometry();
+    return [(event.clientX - boardBounds.left) / scaleX, (event.clientY - boardBounds.top) / scaleY];
+  }
+  function pathData(points, view = geometry()) {
+    return points.map(([x, y], index) =>
+      `${index ? "L" : "M"}${(view.offsetX + x * view.scaleX).toFixed(1)} ${(view.offsetY + y * view.scaleY).toFixed(1)}`
+    ).join(" ");
+  }
+  function makePath(points) {
+    const path = document.createElementNS(NS, "path");
+    path.setAttribute("d", pathData(points));
+    brush.append(path);
+    return path;
+  }
+  function redrawMarks() {
+    const {stageBounds} = geometry();
+    brush.setAttribute("viewBox", `0 0 ${stageBounds.width} ${stageBounds.height}`);
+    brush.replaceChildren();
+    lines.forEach((line) => {
+      const path = makePath(line);
+      if (line === active) activePath = path;
+    });
+    updateControls();
+  }
+  function fitBoard() {
+    if (!design) return;
+    const styles = getComputedStyle(stage);
+    const usableWidth = stage.clientWidth - parseFloat(styles.paddingLeft) - parseFloat(styles.paddingRight);
+    const usableHeight = stage.clientHeight - parseFloat(styles.paddingTop) - parseFloat(styles.paddingBottom);
+    const scale = Math.min(1, usableWidth / design.width, usableHeight / design.height);
+    board.style.width = `${design.width * Math.max(scale, 0.01)}px`;
+    board.style.height = `${design.height * Math.max(scale, 0.01)}px`;
+    redrawMarks();
+  }
+  function paintDesign() {
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    designCanvas.width = Math.round(design.width * dpr);
+    designCanvas.height = Math.round(design.height * dpr);
+    const context = designCanvas.getContext("2d");
+    context.setTransform(dpr, 0, 0, dpr, 0, 0);
+    context.clearRect(0, 0, design.width, design.height);
+    design.paint(context);
+  }
+  function selectDesign(id) {
+    if (active) finishLine();
+    design = Frame.designs.get(id);
+    if (!design) return;
+    picker.value = id;
+    sizeLabel.textContent = `${design.width} × ${design.height}`;
+    board.setAttribute("aria-label", `${design.name} interface design`);
+    designCanvas.setAttribute("aria-label", `${design.name} painted interface`);
+    lines = load();
+    paintDesign();
+    fitBoard();
+    try { localStorage.setItem("frame-last-design", id); } catch { /* optional */ }
+  }
+  function finishLine() {
+    if (!active) return;
+    if (active.length === 1) active.push([active[0][0] + 0.1, active[0][1] + 0.1]);
+    activePath.setAttribute("d", pathData(active));
+    active = null;
+    activePath = null;
+    save();
+  }
+
+  brush.addEventListener("pointerdown", (event) => {
+    if (event.button !== 0) return;
+    event.preventDefault();
+    active = [pointFromEvent(event)];
+    lines.push(active);
+    activePath = makePath(active);
+    brush.setPointerCapture(event.pointerId);
+  });
+  function updateActive(event) {
+    if (!active) return;
+    if (event.shiftKey) {
+      active.splice(1, active.length - 1, pointFromEvent(event));
+    } else {
+      for (const sample of event.getCoalescedEvents?.() || [event]) {
+        const next = pointFromEvent(sample);
+        const last = active[active.length - 1];
+        if (Math.hypot(next[0] - last[0], next[1] - last[1]) >= 1) active.push(next);
+      }
+    }
+    activePath.setAttribute("d", pathData(active));
+  }
+  brush.addEventListener("pointermove", updateActive);
+  brush.addEventListener("pointerup", (event) => { updateActive(event); finishLine(); });
+  brush.addEventListener("pointercancel", finishLine);
+  undo.addEventListener("click", () => { lines.pop(); redrawMarks(); save(); });
+  clear.addEventListener("click", () => { lines = []; redrawMarks(); save(); });
+  download.addEventListener("click", () => {
+    const data = JSON.stringify({design: design.id, width: design.width, height: design.height, lines}, null, 2);
+    const url = URL.createObjectURL(new Blob([data], {type: "application/json"}));
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `${design.id}-feedback.json`;
+    link.click();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  });
+  picker.addEventListener("change", () => selectDesign(picker.value));
+  document.addEventListener("keydown", (event) => {
+    if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "z" && lines.length) {
+      event.preventDefault(); undo.click();
+    }
+  });
+
+  for (const item of Frame.designs.values()) {
+    const option = document.createElement("option");
+    option.value = item.id;
+    option.textContent = item.name;
+    picker.append(option);
+  }
+  if (!Frame.designs.size) throw new Error("Frame needs at least one registered design");
+  let initial;
+  try { initial = localStorage.getItem("frame-last-design"); } catch { /* optional */ }
+  selectDesign(Frame.designs.has(initial) ? initial : Frame.designs.keys().next().value);
+  new ResizeObserver(fitBoard).observe(stage);
+  window.addEventListener("resize", fitBoard);
+})();
+</script>
+</body>
+</html>
