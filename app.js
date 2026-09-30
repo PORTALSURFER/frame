@@ -67,6 +67,14 @@
   let strokeBefore = null;
   let history = {undo: [], redo: []};
 
+  function markMetadata(type, anchor) {
+    const metadata = FrameFeedback.metadata(type, design);
+    if (Frame.documents.has(design.id)) {
+      const element = Frame.agent.hitTest(design.id, anchor[0], anchor[1])[0];
+      if (element) metadata.elementAnchor = {elementId: element.id, offset: [anchor[0] - element.bounds.x, anchor[1] - element.bounds.y]};
+    }
+    return metadata;
+  }
   function storageKey() { return `${STORAGE_PREFIX}${design.id}`; }
   function currentDocument() {
     return FrameFeedback.document(design, lines.map(line => ({...lineMetadata.get(line), points: line})), notes);
@@ -423,6 +431,7 @@
       brush.removeAttribute("hidden");
       notesLayer.hidden = false;
       designStatus.hidden = true;
+      Frame.markRendering(new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
     } catch (error) {
       showDesignStatus("Design could not be rendered", "Retry rendering or choose another design. Your feedback is still available for download.", error instanceof Error ? error.message : String(error), true);
     }
@@ -497,7 +506,7 @@
     pointLimitReached = false;
     strokeBefore = snapshot();
     active = [pointFromEvent(event)];
-    lineMetadata.set(active, FrameFeedback.metadata("stroke", design));
+    lineMetadata.set(active, markMetadata("stroke", active[0]));
     activePointerId = event.pointerId;
     lines.push(active);
     activePath = makePath(active);
@@ -562,7 +571,7 @@
       return;
     }
     const before = snapshot();
-    const note = noteDraft.note || {...FrameFeedback.metadata("note", design), anchor: noteDraft.anchor};
+    const note = noteDraft.note || {...markMetadata("note", noteDraft.anchor), anchor: noteDraft.anchor};
     note.text = text;
     if (!noteDraft.note) notes.push(note);
     record(before, noteDraft.note ? "Edit note" : "Add note");
@@ -704,6 +713,17 @@
     try { initial = localStorage.getItem("frame-last-design"); } catch { /* optional */ }
     selectDesign(Frame.designs.has(initial) ? initial : Frame.designs.keys().next().value);
   }
+  Frame.connectUI({
+    selectedId: () => design?.id,
+    selectDesign,
+    feedback: () => { finishLine(); finishNoteDrag(); return currentDocument(); }
+  });
+  window.addEventListener("frame:design-updated", event => {
+    if (design?.id !== event.detail.id) return;
+    finishLine(); finishNoteDrag(); closeNoteEditor();
+    sizeLabel.textContent = design.width + " × " + design.height;
+    paintDesign(); fitBoard(); refreshDesigns();
+  });
   window.addEventListener("frame:styleguide-selected", () => {
     finishLine();
     finishNoteDrag();

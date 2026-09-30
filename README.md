@@ -98,6 +98,10 @@ To add another guide, load a script after `frame.js` and before `styleguide-pick
 
 Guides are embedded in ordinary scripts so the reader also works when opening `index.html` directly. When editing a guide, keep its embedded `document` and Markdown source in sync. Applying a guide does not yet create revision snapshots or separate feedback by style variation.
 
+## Structured designs and agent operations
+
+The **Instrument workstation** example uses a serializable design document with stable element IDs, hierarchy, bounds, styles, reusable primitives, shared tokens, and viewport/state data. Register documents with Frame.registerDocument and edit them through Frame.agent. Agents can inspect elements, hit-test positions, apply atomic editing batches, refresh designs without reloading, and export PNGs with or without feedback. Marks on structured elements retain an element anchor and their original revision context. See [the browser API](docs/agent-api.md) for operations and limits.
+
 ## Feedback
 
 Choose **Pen** (shortcut **P**) to draw, **Note** (**N**) to place or edit text annotations, or **Select** (**V**) to inspect a line or note. Select a line by clicking within eight screen pixels of it or focusing it with Tab; the selected mark is highlighted. Click empty space or press Escape to deselect. Changing tools finishes an active stroke safely. Frame shortcuts leave normal editing and undo behavior intact inside text inputs, textareas, and editable text.
