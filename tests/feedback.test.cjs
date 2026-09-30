@@ -165,3 +165,43 @@ for (const action of ['undo', 'clear']) {
     assert.equal((await savedLines(page)).length, expected.length + 1);
   });
 }
+
+for (const mode of ['empty', 'unavailable', 'populated']) {
+  test(`records movement and the release endpoint with ${mode} coalesced events`, async t => {
+    const page = await openPage(t);
+    await page.evaluate(mode => {
+      Object.defineProperty(PointerEvent.prototype, 'getCoalescedEvents', {
+        configurable: true,
+        value: mode === 'unavailable' ? undefined : function () {
+          return mode === 'empty' ? [] : [
+            {clientX: this.clientX - 20, clientY: this.clientY},
+            {clientX: this.clientX, clientY: this.clientY}
+          ];
+        }
+      });
+      document.getElementById('brush').addEventListener('pointerdown', event => {
+        window.testPointerId = event.pointerId;
+      });
+    }, mode);
+    const bounds = await page.locator('#board').boundingBox();
+    await page.mouse.move(bounds.x + 100, bounds.y + 100);
+    await page.mouse.down();
+    await page.evaluate(({x, y}) => {
+      const brush = document.getElementById('brush');
+      for (const [type, offsetX, offsetY] of [['pointermove', 250, 200], ['pointerup', 280, 220]]) {
+        brush.dispatchEvent(new PointerEvent(type, {
+          pointerId: window.testPointerId, clientX: x + offsetX, clientY: y + offsetY
+        }));
+      }
+    }, bounds);
+    await page.mouse.up();
+    const lines = await savedLines(page);
+    assert.equal(lines.length, 1);
+    assert.deepEqual(lines[0][0], [100, 100]);
+    assert.ok(lines[0].some(([x, y]) => x === 250 && y === 200));
+    assert.deepEqual(lines[0].at(-1), [280, 220]);
+    if (mode === 'populated') {
+      assert.ok(lines[0].some(([x, y]) => x === 230 && y === 200), 'preserves intermediate samples');
+    }
+  });
+}
