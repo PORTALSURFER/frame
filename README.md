@@ -81,6 +81,8 @@ New drawings are limited to **1,000 lines per design** and **5,000 points per li
 
 Older feedback above these limits is preserved in full when loaded, saved, and exported. Frame displays a notice for it and blocks new lines if the design already has 1,000 or more. These drawing limits do not guarantee that the browser has enough storage available.
 
+If saving fails because browser storage is full or unavailable, Frame shows an **unsaved feedback** notice and a **Retry save** button. Drawing and JSON export remain available, and unsaved feedback stays in memory when switching designs. Download a backup before closing or reloading; the browser may also prompt before leaving with unsaved changes. The notice clears after a successful save. A failed clear is also an unsaved change: it can be exported as an empty feedback file or retried.
+
 The Sift reference screenshot in `assets/` is source material for that example. The app paints its visible interface live from code and does not display the screenshot.
 
 ## Browser tests

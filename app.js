@@ -11,9 +11,13 @@
   const undo = document.getElementById("undo");
   const clear = document.getElementById("clear");
   const download = document.getElementById("download");
+  const retrySave = document.getElementById("retry-save");
   const count = document.getElementById("mark-count");
   const sizeLabel = document.getElementById("design-size");
   const limitNotice = document.getElementById("feedback-limit-notice");
+  const saveNotice = document.getElementById("feedback-save-notice");
+  const pendingFeedback = new Map();
+  let feedback;
   let design;
   let lines = [];
   let active = null;
@@ -30,14 +34,21 @@
     ).filter((line) => line.length > 0);
   }
   function load() {
+    if (pendingFeedback.has(design.id)) return pendingFeedback.get(design.id);
     try {
       const saved = localStorage.getItem(storageKey()) ??
         (design.id === "sift" ? localStorage.getItem("sift-ui-feedback-v1") : null);
-      return validLines(JSON.parse(saved || "[]"));
-    } catch { return []; }
+      return {lines: validLines(JSON.parse(saved || "[]")), unsaved: false, notice: ""};
+    } catch {
+      return {lines: [], unsaved: false, notice: "Saved feedback could not be loaded. Drawing and download still work."};
+    }
   }
   function updateControls() {
-    undo.disabled = clear.disabled = download.disabled = lines.length === 0;
+    undo.disabled = clear.disabled = lines.length === 0;
+    download.disabled = lines.length === 0 && !feedback.unsaved;
+    retrySave.hidden = !feedback.unsaved;
+    retrySave.disabled = active !== null;
+    saveNotice.textContent = feedback.notice;
     count.textContent = `${lines.length} ${lines.length === 1 ? "line" : "lines"}`;
     const notices = [];
     if (lines.length > MAX_LINES || lines.some(line => line.length > MAX_LINE_POINTS)) {
@@ -52,8 +63,18 @@
     limitNotice.textContent = notices.join(" ");
   }
   function save() {
-    try { localStorage.setItem(storageKey(), JSON.stringify(lines)); }
-    catch { /* The brush still works if storage is unavailable. */ }
+    feedback.lines = lines;
+    try {
+      localStorage.setItem(storageKey(), JSON.stringify(lines));
+      feedback.unsaved = false;
+      feedback.notice = "";
+      pendingFeedback.delete(design.id);
+    } catch (error) {
+      feedback.unsaved = true;
+      const reason = error?.name === "QuotaExceededError" ? "browser storage is full" : "browser storage is unavailable";
+      feedback.notice = `Feedback is unsaved: ${reason}. Download feedback before closing or reloading, or retry saving.`;
+      pendingFeedback.set(design.id, feedback);
+    }
     updateControls();
   }
 
@@ -120,7 +141,8 @@
     sizeLabel.textContent = `${design.width} × ${design.height}`;
     board.setAttribute("aria-label", `${design.name} interface design`);
     designCanvas.setAttribute("aria-label", `${design.name} painted interface`);
-    lines = load();
+    feedback = load();
+    lines = feedback.lines;
     pointLimitReached = false;
     paintDesign();
     fitBoard();
@@ -199,6 +221,7 @@
     redrawMarks();
     save();
   });
+  retrySave.addEventListener("click", save);
   download.addEventListener("click", () => {
     const data = JSON.stringify({design: design.id, width: design.width, height: design.height, lines}, null, 2);
     const url = URL.createObjectURL(new Blob([data], {type: "application/json"}));
@@ -212,6 +235,12 @@
   document.addEventListener("keydown", (event) => {
     if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "z" && lines.length) {
       event.preventDefault(); undo.click();
+    }
+  });
+  window.addEventListener("beforeunload", (event) => {
+    if (active || pendingFeedback.size) {
+      event.preventDefault();
+      event.returnValue = "";
     }
   });
 

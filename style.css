@@ -28,6 +28,6 @@ select { min-width: 142px; cursor: pointer; }
 .brush path { fill: none; stroke: #ff3434; stroke-width: 3; stroke-linecap: round; stroke-linejoin: round; }
 footer { min-height: 42px; display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 8px 26px; border-top: 1px solid #343e3a; color: #92a19b; font-size: 10px; line-height: 1.4; }
 #mark-count { color: #e39187; white-space: nowrap; }
-#feedback-limit-notice { display: block; color: #e39187; }
+#feedback-limit-notice, #feedback-save-notice { display: block; color: #e39187; }
 @media (max-width: 920px) { .topbar { align-items: flex-start; flex-direction: column; } .tools { justify-content: flex-start; } }
 @media (max-width: 600px) { .topbar { padding: 13px; } .stage { min-height: 320px; padding: 15px; } footer { padding: 8px 13px; } }

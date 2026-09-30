@@ -38,12 +38,14 @@ after(async () => {
 });
 
 async function openPage(t, options = {}) {
-  const context = await browser.newContext({viewport: {width: 1280, height: 900}, ...options});
+  const {setup, ...contextOptions} = options;
+  const context = await browser.newContext({viewport: {width: 1280, height: 900}, ...contextOptions});
   t.after(() => context.close());
   const page = await context.newPage();
   const errors = [];
   page.on('pageerror', error => errors.push(error.message));
   t.after(() => assert.deepEqual(errors, [], 'no uncaught browser errors'));
+  if (setup) await setup(page);
   await page.goto(baseURL);
   await page.locator('#design-picker').selectOption('starter');
   return page;
@@ -324,4 +326,85 @@ test('the original Sift storage key also preserves strokes longer than 5,000 poi
   assert.deepEqual((await exportFeedback(page)).lines, legacy);
   await page.reload();
   assert.deepEqual((await exportFeedback(page)).lines, legacy);
+});
+
+for (const failure of ['QuotaExceededError', 'SecurityError']) {
+  test(`${failure} keeps feedback exportable across design switches and retry saves it`, async t => {
+    const page = await openPage(t, {setup: page => page.addInitScript(failure => {
+      const original = Storage.prototype.setItem;
+      window.failFeedbackSave = true;
+      Storage.prototype.setItem = function (key, value) {
+        if (window.failFeedbackSave && key.startsWith('frame-feedback-')) {
+          throw new DOMException('Simulated storage failure', failure);
+        }
+        return original.call(this, key, value);
+      };
+    }, failure)});
+    await beginMouse(page);
+    await page.mouse.up();
+    assert.match(await page.locator('#feedback-save-notice').textContent(), /Feedback is unsaved/);
+    assert.match(await page.locator('#feedback-save-notice').textContent(), failure === 'QuotaExceededError' ? /storage is full/ : /storage is unavailable/);
+    const exported = await exportFeedback(page);
+    assert.equal(exported.lines.length, 1);
+    assert.deepEqual(await savedLines(page), []);
+    await page.locator('#design-picker').selectOption('sift');
+    assert.equal(await page.locator('#feedback-save-notice').textContent(), '');
+    await beginMouse(page);
+    await page.mouse.up();
+    const sift = await exportFeedback(page);
+    await page.locator('#design-picker').selectOption('starter');
+    assert.deepEqual((await exportFeedback(page)).lines, exported.lines);
+    assert.match(await page.locator('#feedback-save-notice').textContent(), /Feedback is unsaved/);
+    await page.locator('#retry-save').click();
+    assert.match(await page.locator('#feedback-save-notice').textContent(), /Feedback is unsaved/);
+    await page.evaluate(() => { window.failFeedbackSave = false; });
+    await page.locator('#retry-save').click();
+    assert.equal(await page.locator('#feedback-save-notice').textContent(), '');
+    assert.equal(await page.locator('#retry-save').isVisible(), false);
+    assert.deepEqual(await savedLines(page), exported.lines);
+    await page.locator('#design-picker').selectOption('sift');
+    assert.deepEqual((await exportFeedback(page)).lines, sift.lines);
+    await page.locator('#retry-save').click();
+    await page.reload();
+    assert.deepEqual((await exportFeedback(page)).lines, sift.lines);
+  });
+}
+
+test('a failed clear remains exportable and retry persists the empty feedback', async t => {
+  const page = await openPage(t);
+  await beginMouse(page);
+  await page.mouse.up();
+  const saved = await savedLines(page);
+  await page.evaluate(() => {
+    const original = Storage.prototype.setItem;
+    window.restoreStorage = () => { Storage.prototype.setItem = original; };
+    Storage.prototype.setItem = () => { throw new DOMException('Full', 'QuotaExceededError'); };
+  });
+  await page.locator('#clear').click();
+  assert.deepEqual(await savedLines(page), saved);
+  assert.deepEqual((await exportFeedback(page)).lines, []);
+  assert.match(await page.locator('#feedback-save-notice').textContent(), /Feedback is unsaved/);
+  await page.locator('#design-picker').selectOption('sift');
+  await page.locator('#design-picker').selectOption('starter');
+  assert.equal(await page.locator('#brush path').count(), 0);
+  await page.evaluate(() => window.restoreStorage());
+  await page.locator('#retry-save').click();
+  assert.deepEqual(await savedLines(page), []);
+  assert.equal(await page.locator('#feedback-save-notice').textContent(), '');
+  await page.reload();
+  assert.equal(await page.locator('#brush path').count(), 0);
+});
+
+test('unavailable localStorage at startup reports a load failure while drawing/export remain usable', async t => {
+  const page = await openPage(t, {setup: page => page.addInitScript(() => {
+    Object.defineProperty(window, 'localStorage', {get() { throw new DOMException('Blocked', 'SecurityError'); }});
+  })});
+  assert.match(await page.locator('#feedback-save-notice').textContent(), /could not be loaded/);
+  await beginMouse(page);
+  await page.mouse.up();
+  assert.match(await page.locator('#feedback-save-notice').textContent(), /Feedback is unsaved/);
+  const exported = await exportFeedback(page);
+  await page.locator('#design-picker').selectOption('sift');
+  await page.locator('#design-picker').selectOption('starter');
+  assert.deepEqual((await exportFeedback(page)).lines, exported.lines);
 });
