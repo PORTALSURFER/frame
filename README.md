@@ -32,7 +32,7 @@ The Sift reference screenshot in `assets/` is source material for that example. 
 
 ## Pump study
 
-**Pump · Dual band** is the initial design. **Pump · Spectral ducking** shows the companion spectral panel. Both use Pump's factory curve nodes and tension interpolation, a dark gray/coral palette, a larger 760 × 620 canvas, and grouped controls. The dual view has one crossover, 12/24 dB slopes, separate low/high mix and solos. Both bands share one envelope. The spectral view has 24 illustrative spectrum bars, depth, attack, release and Volume/Depth envelope modes. These remain visual mockups; the spectrum is illustrative and the red brush collects feedback.
+**Pump · Dual band** is the initial design. **Pump · Spectral ducking** shows the companion spectral panel. Both use Pump's factory curve nodes and tension interpolation, a dark gray/coral palette, a larger 760 × 620 canvas, and grouped controls. The dual view has one crossover, 12/24 dB slopes, separate coral LP and blue HP mix sliders and solos. Both bands share one envelope. The spectral view has 24 illustrative spectrum bars, depth, attack, release and Volume/Depth envelope modes. These remain visual mockups; the spectrum is illustrative and the red brush collects feedback.
 
 Run `python3 scripts/build-standalone.py` to regenerate `frame-standalone.html`. That portable artifact embeds all styles and scripts and works in viewers that cannot load sibling files. Saved design selections still take precedence over the initial Pump view.
 
