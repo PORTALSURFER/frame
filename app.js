@@ -1,7 +1,10 @@
 (() => {
-  const STORAGE_PREFIX = "frame-feedback-v1:";
+  const STORAGE_PREFIX = "frame-feedback-v2:";
+  const LEGACY_STORAGE_PREFIX = "frame-feedback-v1:";
   const MAX_LINES = 1000;
   const MAX_LINE_POINTS = 5000;
+  const MAX_NOTES = 1000;
+  const MAX_NOTE_TEXT = 4000;
   const NS = "http://www.w3.org/2000/svg";
   const designCanvas = document.getElementById("design");
   const board = document.getElementById("board");
@@ -27,8 +30,15 @@
   const toolButtons = [...document.querySelectorAll("[data-feedback-tool]")];
   const instructions = document.getElementById("feedback-instructions");
   const selectionStatus = document.getElementById("selection-status");
+  const notesLayer = document.getElementById("notes-layer");
+  const noteDialog = document.getElementById("note-dialog");
+  const noteForm = document.getElementById("note-form");
+  const noteText = document.getElementById("note-text");
+  const noteError = document.getElementById("note-error");
+  const noteDelete = document.getElementById("note-delete");
+  const notePins = new Map();
   const pendingFeedback = new Map();
-  let feedback = {lines: [], unsaved: false, notice: ""};
+  let feedback = {lines: [], notes: [], unsaved: false, notice: ""};
   let design;
   let designReady = false;
   let lines = [];
@@ -38,6 +48,10 @@
   let pointLimitReached = false;
   let mode = "pen";
   let selectedLine = null;
+  let notes = [];
+  let selectedNote = null;
+  let noteDraft = null;
+  let noteDrag = null;
 
   function storageKey() { return `${STORAGE_PREFIX}${design.id}`; }
   function validLines(value) {
@@ -50,22 +64,33 @@
   function load() {
     if (pendingFeedback.has(design.id)) return pendingFeedback.get(design.id);
     try {
-      const saved = localStorage.getItem(storageKey()) ??
+      const saved = localStorage.getItem(storageKey()) ?? localStorage.getItem(`${LEGACY_STORAGE_PREFIX}${design.id}`) ??
         (design.id === "sift" ? localStorage.getItem("sift-ui-feedback-v1") : null);
-      return {lines: validLines(JSON.parse(saved || "[]")), unsaved: false, notice: ""};
+      const data = JSON.parse(saved || "[]");
+      if (!Array.isArray(data) && data?.version !== 2) throw new Error("Unsupported feedback format");
+      const ids = new Set();
+      const loadedNotes = (Array.isArray(data.notes) ? data.notes : []).filter(note => {
+        if (!note || typeof note.id !== "string" || ids.has(note.id) || typeof note.text !== "string" || !note.text.trim() ||
+            !Array.isArray(note.anchor) || note.anchor.length !== 2 || !note.anchor.every(Number.isFinite)) return false;
+        ids.add(note.id);
+        return true;
+      });
+      return {lines: validLines(Array.isArray(data) ? data : data.lines), notes: loadedNotes, unsaved: false, notice: ""};
     } catch {
-      return {lines: [], unsaved: false, notice: "Saved feedback could not be loaded. Drawing and download still work."};
+      return {lines: [], notes: [], unsaved: false, notice: "Saved feedback could not be loaded. Drawing and download still work."};
     }
   }
   function updateControls() {
     for (const button of toolButtons) button.disabled = !designReady;
-    selectionStatus.textContent = selectedLine ? `Line ${lines.indexOf(selectedLine) + 1} selected.` : "";
-    undo.disabled = clear.disabled = lines.length === 0;
-    download.disabled = lines.length === 0 && !feedback.unsaved;
+    selectionStatus.textContent = selectedNote ? `Note ${notes.indexOf(selectedNote) + 1} selected. Drag it or use arrow keys to move.` : selectedLine ? `Line ${lines.indexOf(selectedLine) + 1} selected.` : "";
+    undo.disabled = lines.length === 0;
+    clear.disabled = lines.length === 0 && notes.length === 0;
+    download.disabled = clear.disabled && !feedback.unsaved;
     retrySave.hidden = !feedback.unsaved;
-    retrySave.disabled = active !== null;
+    retrySave.disabled = active !== null || noteDrag !== null;
     saveNotice.textContent = feedback.notice;
     count.textContent = `${lines.length} ${lines.length === 1 ? "line" : "lines"}`;
+    if (notes.length) count.textContent += ` · ${notes.length} ${notes.length === 1 ? "note" : "notes"}`;
     const notices = [];
     if (lines.length > MAX_LINES || lines.some(line => line.length > MAX_LINE_POINTS)) {
       notices.push("Older feedback exceeds the drawing limits. All marks are preserved and can be downloaded.");
@@ -76,12 +101,14 @@
     if (pointLimitReached) {
       notices.push("This line ended at the 5,000-point limit. Start a new line to continue.");
     }
+    if (notes.length >= MAX_NOTES) notices.push("1,000-note limit reached. Delete a note to add another.");
     limitNotice.textContent = notices.join(" ");
   }
   function save() {
     feedback.lines = lines;
+    feedback.notes = notes;
     try {
-      localStorage.setItem(storageKey(), JSON.stringify(lines));
+      localStorage.setItem(storageKey(), JSON.stringify({version: 2, lines, notes}));
       feedback.unsaved = false;
       feedback.notice = "";
       pendingFeedback.delete(design.id);
@@ -134,10 +161,122 @@
   }
   function selectLine(line) {
     selectedLine = line;
+    selectedNote = null;
     for (const path of brush.querySelectorAll("path")) {
       updatePathSelection(path, lines[Number(path.dataset.lineIndex)]);
     }
+    updateNoteSelection();
     updateControls();
+  }
+  function selectNote(note) {
+    selectLine(null);
+    selectedNote = note;
+    updateNoteSelection();
+    updateControls();
+  }
+  function updateNoteSelection() {
+    for (const [note, pin] of notePins) {
+      pin.classList.toggle("selected", note === selectedNote);
+      pin.setAttribute("aria-pressed", note === selectedNote ? "true" : "false");
+      pin.tabIndex = mode === "pen" ? -1 : 0;
+    }
+  }
+  function positionNote(pin, note) {
+    const view = geometry();
+    const x = view.offsetX + note.anchor[0] * view.scaleX;
+    const y = view.offsetY + note.anchor[1] * view.scaleY;
+    pin.style.left = `${x}px`;
+    pin.style.top = `${y}px`;
+    const rightSpace = view.stageBounds.width - x - 26;
+    const leftSpace = x - 26;
+    const useLeft = rightSpace < 190 && leftSpace > rightSpace;
+    pin.dataset.side = useLeft ? "left" : "right";
+    pin.querySelector(".note-preview").style.width = `${Math.max(40, Math.min(190, useLeft ? leftSpace : rightSpace))}px`;
+    pin.dataset.above = y + 90 > view.stageBounds.height ? "true" : "false";
+  }
+  function redrawNotes() {
+    const remaining = new Set(notes);
+    for (const [note, pin] of notePins) {
+      if (!remaining.has(note)) { pin.remove(); notePins.delete(note); }
+    }
+    notes.forEach((note, index) => {
+      let pin = notePins.get(note);
+      if (!pin) {
+        pin = makeNotePin(note);
+        notePins.set(note, pin);
+        notesLayer.append(pin);
+      }
+      pin.querySelector(".note-number").textContent = index + 1;
+      pin.querySelector(".note-preview").textContent = note.text;
+      pin.setAttribute("aria-label", `Note ${index + 1}: ${note.text}`);
+      positionNote(pin, note);
+    });
+    updateNoteSelection();
+  }
+  function makeNotePin(note) {
+    const pin = document.createElement("button");
+    pin.type = "button";
+    pin.className = "note-pin";
+    pin.dataset.noteId = note.id;
+    for (const name of ["note-number", "note-preview"]) {
+      const span = document.createElement("span");
+      span.className = name;
+      pin.append(span);
+    }
+    let didDrag = false;
+    pin.addEventListener("focus", () => { if (mode !== "pen") selectNote(note); });
+    pin.addEventListener("pointerdown", event => {
+      if (mode === "pen" || event.button !== 0 || noteDrag || active) return;
+      didDrag = false;
+      selectNote(note);
+      noteDrag = {note, pin, pointerId: event.pointerId, start: pointFromEvent(event), anchor: [...note.anchor], client: [event.clientX, event.clientY], moved: false, markDragged: () => { didDrag = true; }};
+      pin.setPointerCapture(event.pointerId);
+      updateControls();
+    });
+    pin.addEventListener("pointermove", moveNoteDrag);
+    pin.addEventListener("pointerup", event => { moveNoteDrag(event); finishNoteDrag(event); });
+    pin.addEventListener("pointercancel", event => finishNoteDrag(event, true));
+    pin.addEventListener("lostpointercapture", event => finishNoteDrag(event));
+    pin.addEventListener("click", event => {
+      if (mode === "pen") return;
+      if (didDrag && event.detail !== 0) return;
+      selectNote(note);
+      if (mode === "note" || event.detail === 0) openNoteEditor(note);
+    });
+    pin.addEventListener("dblclick", () => { if (mode === "select") openNoteEditor(note); });
+    return pin;
+  }
+  function moveNoteDrag(event) {
+    if (!noteDrag || event.currentTarget !== noteDrag.pin || event.pointerId !== noteDrag.pointerId) return;
+    if (!noteDrag.moved && Math.hypot(event.clientX - noteDrag.client[0], event.clientY - noteDrag.client[1]) < 4) return;
+    noteDrag.moved = true;
+    noteDrag.markDragged();
+    const point = pointFromEvent(event);
+    noteDrag.note.anchor = point.map((value, index) => noteDrag.anchor[index] + value - noteDrag.start[index]);
+    positionNote(noteDrag.pin, noteDrag.note);
+    event.preventDefault();
+  }
+  function finishNoteDrag(event, cancel = false) {
+    if (!noteDrag || (event && event.pointerId !== noteDrag.pointerId)) return;
+    const drag = noteDrag;
+    noteDrag = null;
+    if (cancel) { drag.note.anchor = drag.anchor; positionNote(drag.pin, drag.note); }
+    if (drag.pin.hasPointerCapture(drag.pointerId)) drag.pin.releasePointerCapture(drag.pointerId);
+    if (drag.moved && !cancel) save();
+    else updateControls();
+  }
+  function closeNoteEditor() {
+    noteDraft = null;
+    if (noteDialog.open) noteDialog.close();
+  }
+  function openNoteEditor(note, anchor = note?.anchor) {
+    if (!note && notes.length >= MAX_NOTES) { updateControls(); return; }
+    noteDraft = {note, anchor: [...anchor]};
+    noteText.value = note?.text || "";
+    noteError.textContent = "";
+    noteDelete.hidden = !note;
+    noteDialog.showModal();
+    noteText.focus();
   }
   function lineAt(event) {
     const {boardBounds, scaleX, scaleY} = geometry();
@@ -159,12 +298,17 @@
   }
   function setMode(next) {
     finishLine();
+    finishNoteDrag();
+    closeNoteEditor();
     mode = next;
     brush.dataset.mode = mode;
+    brush.setAttribute("aria-label", mode === "note" ? "Place feedback notes on the canvas" : mode === "select" ? "Select feedback marks on the canvas" : "Draw red feedback lines anywhere on the canvas");
+    stage.dataset.feedbackMode = mode;
     for (const button of toolButtons) button.setAttribute("aria-pressed", button.dataset.feedbackTool === mode ? "true" : "false");
     instructions.textContent = mode === "pen"
       ? "Draw red lines anywhere. Hold Shift for a straight line. Marks save per design in this browser."
-      : "Click near a feedback line to select it, or use Tab. Click empty space or press Escape to deselect.";
+      : mode === "note" ? "Click to place a note. Click an existing note to edit, or drag it to move."
+      : "Click a line or note to select it, or use Tab. Double-click a note to edit. Escape deselects.";
     selectLine(null);
   }
   function redrawMarks() {
@@ -175,6 +319,7 @@
       const path = makePath(line, index);
       if (line === active) activePath = path;
     });
+    redrawNotes();
     updateControls();
   }
   function fitBoard() {
@@ -201,6 +346,7 @@
       designReady = true;
       board.hidden = false;
       brush.removeAttribute("hidden");
+      notesLayer.hidden = false;
       designStatus.hidden = true;
     } catch (error) {
       showDesignStatus("Design could not be rendered", "Retry rendering or choose another design. Your feedback is still available for download.", error instanceof Error ? error.message : String(error), true);
@@ -210,6 +356,7 @@
     designReady = false;
     board.hidden = true;
     brush.setAttribute("hidden", "");
+    notesLayer.hidden = true;
     designStatus.hidden = false;
     designStatusTitle.textContent = title;
     designStatusMessage.textContent = message;
@@ -220,7 +367,10 @@
   }
   function selectDesign(id) {
     if (active) finishLine();
+    finishNoteDrag();
+    closeNoteEditor();
     selectedLine = null;
+    selectedNote = null;
     design = Frame.designs.get(id);
     if (!design) return;
     picker.value = id;
@@ -229,6 +379,7 @@
     designCanvas.setAttribute("aria-label", `${design.name} painted interface`);
     feedback = load();
     lines = feedback.lines;
+    notes = feedback.notes;
     pointLimitReached = false;
     paintDesign();
     fitBoard();
@@ -247,8 +398,12 @@
   }
 
   brush.addEventListener("pointerdown", (event) => {
-    if (!designReady || event.button !== 0 || activePointerId !== null) return;
+    if (!designReady || event.button !== 0 || activePointerId !== null || noteDrag !== null) return;
     event.preventDefault();
+    if (mode === "note") {
+      openNoteEditor(null, pointFromEvent(event));
+      return;
+    }
     if (mode === "select") {
       selectLine(lineAt(event));
       return;
@@ -299,6 +454,7 @@
   brush.addEventListener("lostpointercapture", finishPointer);
   undo.addEventListener("click", () => {
     finishLine();
+    finishNoteDrag();
     lines.pop();
     selectedLine = null;
     pointLimitReached = false;
@@ -307,11 +463,48 @@
   });
   clear.addEventListener("click", () => {
     finishLine();
+    finishNoteDrag();
+    closeNoteEditor();
     lines = [];
+    notes = [];
     selectedLine = null;
+    selectedNote = null;
     pointLimitReached = false;
     redrawMarks();
     save();
+  });
+  noteForm.addEventListener("submit", event => {
+    event.preventDefault();
+    if (!noteDraft) return;
+    const text = noteText.value.trim();
+    if (!text || text.length > MAX_NOTE_TEXT) {
+      noteError.textContent = `Write a note between 1 and ${MAX_NOTE_TEXT.toLocaleString("en-US")} characters.`;
+      noteText.focus();
+      return;
+    }
+    const note = noteDraft.note || {id: crypto.randomUUID(), anchor: noteDraft.anchor};
+    note.text = text;
+    if (!noteDraft.note) notes.push(note);
+    closeNoteEditor();
+    redrawNotes();
+    selectNote(note);
+    save();
+    notePins.get(note).focus();
+  });
+  document.getElementById("note-cancel").addEventListener("click", closeNoteEditor);
+  noteDialog.addEventListener("cancel", () => { noteDraft = null; });
+  noteDialog.addEventListener("close", () => { if (!noteDialog.open) noteDraft = null; });
+  noteDialog.addEventListener("keydown", event => {
+    if ((event.ctrlKey || event.metaKey) && event.key === "Enter") { event.preventDefault(); noteForm.requestSubmit(); }
+  });
+  noteDelete.addEventListener("click", () => {
+    if (!noteDraft?.note) return;
+    notes = notes.filter(note => note !== noteDraft.note);
+    closeNoteEditor();
+    selectLine(null);
+    redrawNotes();
+    save();
+    document.getElementById("tool-note").focus();
   });
   retrySave.addEventListener("click", save);
   retryRender.addEventListener("click", () => {
@@ -319,7 +512,9 @@
     fitBoard();
   });
   download.addEventListener("click", () => {
-    const data = JSON.stringify({design: design.id, width: design.width, height: design.height, lines}, null, 2);
+    finishLine();
+    finishNoteDrag();
+    const data = JSON.stringify({version: 2, design: design.id, width: design.width, height: design.height, lines, notes}, null, 2);
     const url = URL.createObjectURL(new Blob([data], {type: "application/json"}));
     const link = document.createElement("a");
     link.href = url;
@@ -330,18 +525,28 @@
   picker.addEventListener("change", () => selectDesign(picker.value));
   for (const button of toolButtons) button.addEventListener("click", () => setMode(button.dataset.feedbackTool));
   document.addEventListener("keydown", (event) => {
-    if (event.defaultPrevented || event.isComposing || event.target?.isContentEditable || event.target?.closest?.("input, textarea, select")) return;
+    if (event.defaultPrevented || event.isComposing || event.target?.isContentEditable || event.target?.closest?.("input, textarea, select, [data-text-editor]")) return;
+    if (selectedNote && notePins.get(selectedNote) === event.target && ["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"].includes(event.key)) {
+      event.preventDefault();
+      const step = event.shiftKey ? 10 : 1;
+      const axis = ["ArrowLeft", "ArrowRight"].includes(event.key) ? 0 : 1;
+      selectedNote.anchor[axis] += ["ArrowLeft", "ArrowUp"].includes(event.key) ? -step : step;
+      redrawNotes();
+      save();
+      return;
+    }
     if (event.key === "Escape") selectLine(null);
     if (designReady && !event.metaKey && !event.ctrlKey && !event.altKey) {
       if (event.key.toLowerCase() === "p") setMode("pen");
       if (event.key.toLowerCase() === "v") setMode("select");
+      if (event.key.toLowerCase() === "n") setMode("note");
     }
     if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "z" && lines.length) {
       event.preventDefault(); undo.click();
     }
   });
   window.addEventListener("beforeunload", (event) => {
-    if (active || pendingFeedback.size) {
+    if (active || noteDrag?.moved || (noteDraft && noteText.value !== (noteDraft.note?.text || "")) || pendingFeedback.size) {
       event.preventDefault();
       event.returnValue = "";
     }

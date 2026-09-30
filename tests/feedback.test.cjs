@@ -52,7 +52,10 @@ async function openPage(t, options = {}) {
 }
 
 async function savedLines(page) {
-  return page.evaluate(() => JSON.parse(localStorage.getItem('frame-feedback-v1:starter') || '[]'));
+  return page.evaluate(() => {
+    const data = JSON.parse(localStorage.getItem('frame-feedback-v2:starter') ?? localStorage.getItem('frame-feedback-v1:starter') ?? '[]');
+    return Array.isArray(data) ? data : data.lines;
+  });
 }
 
 async function beginMouse(page) {
@@ -682,13 +685,13 @@ test('feedback shortcuts do not capture text editing, editable text, or select c
   for (const target of ['#test-input', '#test-textarea', '#test-div', '#design-picker']) {
     const result = await page.locator(target).evaluate(element => {
       element.focus();
-      return ['p', 'v', 'z'].map(key => {
+      return ['p', 'n', 'v', 'z'].map(key => {
         const event = new KeyboardEvent('keydown', {key, ctrlKey: key === 'z', bubbles: true, cancelable: true});
         element.dispatchEvent(event);
         return event.defaultPrevented;
       });
     });
-    assert.deepEqual(result, [false, false, false]);
+    assert.deepEqual(result, [false, false, false, false]);
     assert.equal(await page.locator('#tool-pen').getAttribute('aria-pressed'), 'true');
     assert.deepEqual(await savedLines(page), saved);
   }
@@ -697,4 +700,213 @@ test('feedback shortcuts do not capture text editing, editable text, or select c
   assert.equal(await page.locator('#tool-select').getAttribute('aria-pressed'), 'true');
   await page.keyboard.press('p');
   assert.equal(await page.locator('#tool-pen').getAttribute('aria-pressed'), 'true');
+});
+
+async function addNote(page, text, anchor = [300, 200]) {
+  await page.locator('#tool-note').click();
+  const bounds = await page.locator('#board').boundingBox();
+  const size = await page.evaluate(() => Frame.designs.get(document.getElementById('design-picker').value));
+  await page.mouse.click(bounds.x + anchor[0] * bounds.width / size.width, bounds.y + anchor[1] * bounds.height / size.height);
+  await page.locator('#note-text').fill(text);
+  await page.locator('#note-save').click();
+}
+
+async function assertNoteAligned(page, note, width = 960, height = 600) {
+  await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+  const distance = await page.locator(`[data-note-id="${note.id}"]`).evaluate((pin, {note, width, height}) => {
+    const board = document.getElementById('board').getBoundingClientRect();
+    const bounds = pin.getBoundingClientRect();
+    return Math.hypot(bounds.x + bounds.width / 2 - (board.x + note.anchor[0] * board.width / width),
+      bounds.y + bounds.height / 2 - (board.y + note.anchor[1] * board.height / height));
+  }, {note, width, height});
+  assert.ok(distance < 0.2, `note anchor is aligned within 0.2 CSS pixels: ${distance}`);
+}
+
+test('placed notes retain text and anchor across edit, resize, design switches, reload, and export', async t => {
+  const page = await openPage(t);
+  await beginMouse(page);
+  await page.mouse.up();
+  const oldLines = await savedLines(page);
+  await addNote(page, 'Give these controls more space.\nKeep the label visible.');
+  assert.equal(await page.locator('#tool-note').getAttribute('aria-pressed'), 'true');
+  let feedback = await exportFeedback(page);
+  assert.equal(feedback.version, 2);
+  assert.deepEqual(feedback.lines, oldLines);
+  assert.equal(feedback.notes.length, 1);
+  assert.deepEqual(feedback.notes[0].anchor, [300, 200]);
+  assert.equal(feedback.notes[0].text, 'Give these controls more space.\nKeep the label visible.');
+  await assertNoteAligned(page, feedback.notes[0]);
+  await page.locator('.note-pin').click();
+  await page.locator('#note-text').fill('More space, please.');
+  await page.keyboard.press('Control+Enter');
+  const edited = await exportFeedback(page);
+  assert.equal(edited.notes[0].id, feedback.notes[0].id);
+  assert.equal(edited.notes[0].text, 'More space, please.');
+  await page.setViewportSize({width: 600, height: 700});
+  await assertNoteAligned(page, edited.notes[0]);
+  await page.locator('#design-picker').selectOption('sift');
+  assert.equal(await page.locator('.note-pin').count(), 0);
+  await page.locator('#design-picker').selectOption('starter');
+  assert.deepEqual(await exportFeedback(page), edited);
+  await page.reload();
+  assert.deepEqual(await exportFeedback(page), edited);
+  await assertNoteAligned(page, edited.notes[0]);
+  await page.setViewportSize({width: 320, height: 760});
+  await assertNoteAligned(page, edited.notes[0]);
+  const preview = await page.locator('.note-preview').boundingBox();
+  assert.ok(preview.x >= 0 && preview.x + preview.width <= 320, 'note preview fits a small viewport');
+});
+
+test('notes move by drag and keyboard and cancelled drags restore the saved position', async t => {
+  const page = await openPage(t);
+  await addNote(page, 'Move this control.');
+  await page.locator('#tool-select').click();
+  const pin = page.locator('.note-pin');
+  let bounds = await pin.boundingBox();
+  await page.mouse.move(bounds.x + bounds.width / 2, bounds.y + bounds.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(bounds.x + bounds.width / 2 + 60, bounds.y + bounds.height / 2 + 30, {steps: 5});
+  await page.mouse.up();
+  assert.equal(await page.locator('#note-dialog').isVisible(), false, 'dragging does not open the editor');
+  let note = (await exportFeedback(page)).notes[0];
+  assert.deepEqual(note.anchor, [360, 230]);
+  await pin.focus();
+  await page.keyboard.press('ArrowRight');
+  await page.keyboard.press('Shift+ArrowDown');
+  note = (await exportFeedback(page)).notes[0];
+  assert.deepEqual(note.anchor, [361, 240]);
+  await page.evaluate(() => {
+    document.querySelector('.note-pin').addEventListener('pointerdown', event => { window.notePointer = event.pointerId; });
+  });
+  bounds = await pin.boundingBox();
+  await page.mouse.move(bounds.x + 14, bounds.y + 14);
+  await page.mouse.down();
+  await page.mouse.move(bounds.x + 54, bounds.y + 54);
+  await pin.evaluate(pin => pin.dispatchEvent(new PointerEvent('pointercancel', {pointerId: window.notePointer})));
+  await page.mouse.up();
+  assert.deepEqual((await exportFeedback(page)).notes[0].anchor, [361, 240]);
+  await page.setViewportSize({width: 600, height: 700});
+  await assertNoteAligned(page, note);
+  await page.reload();
+  assert.deepEqual((await exportFeedback(page)).notes[0].anchor, [361, 240]);
+});
+
+test('cancelled and blank note edits do not mutate feedback; text is rendered literally', async t => {
+  const page = await openPage(t);
+  await addNote(page, '<img src=x onerror=alert(1)>');
+  const original = await exportFeedback(page);
+  assert.equal(await page.locator('#notes-layer img').count(), 0);
+  assert.equal(await page.locator('.note-preview').textContent(), '<img src=x onerror=alert(1)>');
+  await page.locator('.note-pin').click();
+  await page.locator('#note-text').fill('   ');
+  await page.locator('#note-save').click();
+  assert.match(await page.locator('#note-error').textContent(), /Write a note/);
+  await page.locator('#note-text').fill('Unsaved draft');
+  assert.equal(await page.evaluate(() => {
+    const event = new Event('beforeunload', {cancelable: true});
+    window.dispatchEvent(event);
+    return event.defaultPrevented;
+  }), true);
+  await page.keyboard.press('Escape');
+  assert.deepEqual(await exportFeedback(page), original);
+  await page.locator('.note-pin').click();
+  await page.locator('#note-delete').click();
+  assert.equal(await page.locator('.note-pin').count(), 0);
+  assert.equal(await page.locator('#download').isDisabled(), true);
+  await page.reload();
+  assert.equal(await page.locator('.note-pin').count(), 0);
+});
+
+test('stroke-only storage migrates on edit without overwriting its legacy backup', async t => {
+  const page = await openPage(t);
+  const legacy = [[[10, 10], [20, 20]]];
+  await seedFeedback(page, legacy);
+  await addNote(page, 'Keep the original line.');
+  const stored = await page.evaluate(() => ({
+    legacy: JSON.parse(localStorage.getItem('frame-feedback-v1:starter')),
+    current: JSON.parse(localStorage.getItem('frame-feedback-v2:starter'))
+  }));
+  assert.deepEqual(stored.legacy, legacy);
+  assert.equal(stored.current.version, 2);
+  assert.deepEqual(stored.current.lines, legacy);
+  assert.equal(stored.current.notes.length, 1);
+  await page.locator('#clear').click();
+  await page.reload();
+  assert.equal(await page.locator('#brush path').count(), 0);
+  assert.equal(await page.locator('.note-pin').count(), 0, 'empty v2 feedback takes precedence over legacy marks');
+});
+
+test('notes remain exportable after a failed save and failed clear, then retry saves the whole document', async t => {
+  const page = await openPage(t);
+  await page.evaluate(() => {
+    const original = Storage.prototype.setItem;
+    window.restoreStorage = () => { Storage.prototype.setItem = original; };
+    Storage.prototype.setItem = function (key, value) {
+      if (key.startsWith('frame-feedback-')) throw new DOMException('Full', 'QuotaExceededError');
+      return original.call(this, key, value);
+    };
+  });
+  await addNote(page, 'Preserve this feedback.');
+  const pending = await exportFeedback(page);
+  assert.equal(pending.notes.length, 1);
+  assert.match(await page.locator('#feedback-save-notice').textContent(), /Feedback is unsaved/);
+  await page.locator('#design-picker').selectOption('sift');
+  await page.locator('#design-picker').selectOption('starter');
+  assert.deepEqual(await exportFeedback(page), pending);
+  await page.evaluate(() => window.restoreStorage());
+  await page.locator('#retry-save').click();
+  await page.reload();
+  assert.deepEqual(await exportFeedback(page), pending);
+  await page.evaluate(() => {
+    const original = Storage.prototype.setItem;
+    window.restoreStorage = () => { Storage.prototype.setItem = original; };
+    Storage.prototype.setItem = () => { throw new DOMException('Full', 'QuotaExceededError'); };
+  });
+  await page.locator('#clear').click();
+  assert.deepEqual((await exportFeedback(page)).notes, []);
+  await page.locator('#design-picker').selectOption('sift');
+  await page.locator('#design-picker').selectOption('starter');
+  assert.equal(await page.locator('.note-pin').count(), 0);
+  await page.evaluate(() => window.restoreStorage());
+  await page.locator('#retry-save').click();
+  await page.reload();
+  assert.equal(await page.locator('.note-pin').count(), 0);
+});
+
+test('note limits reject new additions and oversized edits without losing existing notes', async t => {
+  const page = await openPage(t);
+  const notes = Array.from({length: 1000}, (_, index) => ({id: `note-${index}`, text: `Note ${index}`, anchor: [10, 10]}));
+  await seedFeedback(page, {version: 2, lines: [], notes}, 'frame-feedback-v2:starter');
+  await page.locator('#tool-note').click();
+  await page.locator('#brush').dispatchEvent('pointerdown', {button: 0, pointerId: 1, clientX: 500, clientY: 300});
+  assert.equal(await page.locator('#note-dialog').isVisible(), false);
+  assert.match(await page.locator('#feedback-limit-notice').textContent(), /1,000-note limit/);
+  assert.deepEqual((await exportFeedback(page)).notes, notes);
+  await page.locator('.note-pin').last().focus();
+  await page.keyboard.press('Enter');
+  await page.locator('#note-text').evaluate(textarea => { textarea.value = 'a'.repeat(4001); });
+  await page.locator('#note-save').click();
+  assert.match(await page.locator('#note-error').textContent(), /4,000 characters/);
+  await page.locator('#note-cancel').click();
+  assert.deepEqual((await exportFeedback(page)).notes, notes);
+});
+
+test('a note drag records the release position even without a preceding move event', async t => {
+  const page = await openPage(t);
+  await addNote(page, 'Keep the drag endpoint.');
+  await page.locator('#tool-select').click();
+  const note = (await exportFeedback(page)).notes[0];
+  await assertNoteAligned(page, note);
+  const board = await page.locator('#board').boundingBox();
+  await page.evaluate(() => {
+    document.querySelector('.note-pin').addEventListener('pointerdown', event => { window.notePointer = event.pointerId; });
+  });
+  await page.mouse.move(board.x + 300, board.y + 200);
+  await page.mouse.down();
+  await page.locator('.note-pin').evaluate((pin, board) => pin.dispatchEvent(new PointerEvent('pointerup', {
+    pointerId: window.notePointer, clientX: board.x + 360, clientY: board.y + 240
+  })), board);
+  await page.mouse.up();
+  assert.deepEqual((await exportFeedback(page)).notes[0].anchor, [360, 240]);
+  assert.equal(await page.locator('#note-dialog').isVisible(), false);
 });

@@ -20,10 +20,11 @@
         <span id="design-size" class="design-size"></span>
         <div class="feedback-tools" role="group" aria-label="Feedback tools">
           <button id="tool-pen" type="button" data-feedback-tool="pen" aria-pressed="true" aria-keyshortcuts="P">Pen</button>
+          <button id="tool-note" type="button" data-feedback-tool="note" aria-pressed="false" aria-keyshortcuts="N">Note</button>
           <button id="tool-select" type="button" data-feedback-tool="select" aria-pressed="false" aria-keyshortcuts="V">Select</button>
         </div>
         <button id="undo" type="button" disabled>Undo line</button>
-        <button id="clear" type="button" disabled>Clear all lines</button>
+        <button id="clear" type="button" disabled>Clear feedback</button>
         <button id="download" type="button" disabled>Download feedback</button>
         <button id="retry-save" type="button" hidden>Retry save</button>
       </div>
@@ -39,6 +40,7 @@
         <canvas id="design" class="design" role="img" aria-label="Painted interface"></canvas>
       </div>
       <svg id="brush" class="brush" preserveAspectRatio="none" aria-label="Draw red feedback lines anywhere on the canvas"></svg>
+      <div id="notes-layer" class="notes-layer" aria-label="Placed feedback notes"></div>
     </div>
     <footer>
       <div>
@@ -54,5 +56,18 @@
       <span id="mark-count">0 lines</span>
     </footer>
   </main>
+  <dialog id="note-dialog" aria-labelledby="note-dialog-title" data-text-editor>
+    <form id="note-form">
+      <h2 id="note-dialog-title">Feedback note</h2>
+      <label for="note-text">What should change here?</label>
+      <textarea id="note-text" rows="5" maxlength="4000" required></textarea>
+      <p id="note-error" role="alert"></p>
+      <div class="note-actions">
+        <button id="note-save" type="submit">Save note</button>
+        <button id="note-cancel" type="button">Cancel</button>
+        <button id="note-delete" type="button" hidden>Delete note</button>
+      </div>
+    </form>
+  </dialog>
 </body>
 </html>
