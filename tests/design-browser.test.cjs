@@ -46,3 +46,40 @@ test('responsive viewport reflows elements rather than just shrinking a fixed dr
  assert.match(result.nodes.find(n=>n.id==='status').text,/SIGNAL LOSS/);
  assert.equal(result.size.width,360);
 });
+test('actual prototype inputs and buttons support keyboard interaction without drawing feedback',async t=>{
+ const page=await pageFor(t);await page.locator('#tool-interact').click();
+ await page.locator('[data-element-id="frequency"]').fill('128');
+ await page.locator('[data-element-id="reset"]').focus();await page.keyboard.press('Enter');
+ assert.equal(await page.locator('[data-element-id="frequency"]').inputValue(),'128');
+ await page.locator('[data-element-id="run"]').focus();await page.keyboard.press('Enter');
+ assert.equal(await page.locator('#state-picker').inputValue(),'loading');
+ assert.equal(await page.locator('[data-element-id="run"]').isDisabled(),true);
+ assert.equal(await page.locator('#brush path').count(),0);
+ const result=await page.evaluate(()=>Frame.review.checkAccessibility());
+ assert.equal(result.verified,true);assert.equal(result.issues.length,0);assert.deepEqual(result.focusOrder,['frequency','reset']);
+});
+test('zoom and pan change only view geometry and fit restores the original view',async t=>{
+ const page=await pageFor(t);
+ const original=await page.locator('#board').boundingBox();
+ await page.locator('#zoom-in').click();const zoomed=await page.locator('#board').boundingBox();
+ assert.ok(Math.abs(zoomed.width/original.width-1.25)<0.01);
+ await page.locator('#tool-pan').click();
+ await page.mouse.move(500,400);await page.mouse.down();await page.mouse.move(550,430);await page.mouse.up();
+ const view=await page.evaluate(()=>Frame.view.get());assert.equal(view.panX,50);assert.equal(view.panY,30);
+ assert.equal(await page.locator('#brush path').count(),0);
+ await page.locator('#fit-view').click();
+ assert.deepEqual(await page.evaluate(()=>Frame.view.get()),{zoom:1,panX:0,panY:0});
+});
+test('repeatable visual comparison detects changed pixels and prototype scenarios restore the initial state',async t=>{
+ const page=await pageFor(t);
+ const result=await page.evaluate(async()=>{
+  await Frame.review.approve('instrument');
+  const same=await Frame.review.compare('instrument');
+  Frame.agent.applyEdits('instrument',[{op:'update',id:'run',patch:{style:{fill:'#45CDD5'}}}]);
+  const different=await Frame.review.compare('instrument',{maxChangedRatio:0});
+  const scenarios=await Frame.review.run('instrument',[{name:'Run',viewport:{width:360,height:740},state:'default',actions:[{type:'click',elementId:'run'}],expectedState:'loading'}]);
+  return {same,different,scenarios,state:Frame.currentState('instrument'),viewport:Frame.currentViewport('instrument')};
+ });
+ assert.equal(result.same.passed,true);assert.equal(result.different.passed,false);assert.ok(result.different.changedPixels>0);
+ assert.equal(result.scenarios[0].passed,true);assert.equal(result.state,'default');assert.equal(result.viewport.width,1000);
+});

@@ -53,6 +53,7 @@
   let activePath = null;
   let activePointerId = null;
   let pointLimitReached = false;
+  let zoom = 1, panX = 0, panY = 0, panDrag = null;
   let mode = "pen";
   let selectedLine = null;
   let notes = [];
@@ -101,7 +102,7 @@
   }
   function updateControls() {
     document.getElementById("import-feedback").disabled = !design;
-    for (const button of toolButtons) button.disabled = !designReady;
+    for (const button of toolButtons) button.disabled = !designReady || (button.dataset.feedbackTool === "interact" && !Frame.documents.has(design?.id));
     selectionStatus.textContent = selectedNote ? `Note ${notes.indexOf(selectedNote) + 1} selected. Drag it or use arrow keys to move.` : selectedLine ? `Line ${lines.indexOf(selectedLine) + 1} selected.` : "";
     undo.disabled = !active && !noteDrag?.moved && history.undo.length === 0;
     redo.disabled = !!active || !!noteDrag?.moved || history.redo.length === 0;
@@ -401,7 +402,9 @@
     finishLine();
     finishNoteDrag();
     closeNoteEditor();
+    if (panDrag) {const pointerId=panDrag.pointerId;panDrag=null;if(brush.hasPointerCapture(pointerId))brush.releasePointerCapture(pointerId);}
     mode = next;
+    window.dispatchEvent(new CustomEvent("frame:feedback-mode", {detail: {mode}}));
     brush.dataset.mode = mode;
     brush.setAttribute("aria-label", mode === "note" ? "Place feedback notes on the canvas" : mode === "select" ? "Select feedback marks on the canvas" : "Draw red feedback lines anywhere on the canvas");
     stage.dataset.feedbackMode = mode;
@@ -410,6 +413,8 @@
       ? "Draw red lines anywhere. Hold Shift for a straight line. Marks save per design in this browser."
       : mode === "note" ? "Click to place a note. Or Tab to the canvas, use arrows to position, and Enter to place. Click a note to edit or drag to move."
       : "Click a line or note to select it, or use Tab. Double-click a note to edit. Escape deselects.";
+    if (mode === "interact") instructions.textContent = "Use prototype controls and Tab to test interaction. Feedback tools resume annotation.";
+    if (mode === "pan") instructions.textContent = "Drag to pan. Use +/− to zoom and Fit to restore the board.";
     selectLine(null);
     updateKeyboardCursor();
   }
@@ -455,7 +460,9 @@
     const styles = getComputedStyle(stage);
     const usableWidth = stage.clientWidth - parseFloat(styles.paddingLeft) - parseFloat(styles.paddingRight);
     const usableHeight = stage.clientHeight - parseFloat(styles.paddingTop) - parseFloat(styles.paddingBottom);
-    const scale = Math.min(1, usableWidth / design.width, usableHeight / design.height);
+    const scale = Math.min(1, usableWidth / design.width, usableHeight / design.height) * zoom;
+    board.style.transform = "translate(" + panX + "px, " + panY + "px)";
+    document.getElementById("zoom-value").textContent = Math.round(zoom * 100) + "%";
     board.style.width = `${design.width * Math.max(scale, 0.01)}px`;
     board.style.height = `${design.height * Math.max(scale, 0.01)}px`;
     redrawMarks();
@@ -506,6 +513,7 @@
     if (!design) return;
     picker.value = id;
     keyboardAnchor = null;
+    zoom = 1; panX = 0; panY = 0; panDrag = null;
     sizeLabel.textContent = `${design.width} × ${design.height}`;
     board.setAttribute("aria-label", `${design.name} interface design`);
     designCanvas.setAttribute("aria-label", `${design.name} painted interface`);
@@ -535,8 +543,13 @@
   }
 
   brush.addEventListener("pointerdown", (event) => {
-    if (!designReady || event.button !== 0 || activePointerId !== null || noteDrag !== null) return;
+    if (!designReady || event.button !== 0 || activePointerId !== null || noteDrag !== null || panDrag !== null) return;
     event.preventDefault();
+    if (mode === "interact") return;
+    if (mode === "pan") {
+      panDrag = {pointerId: event.pointerId, start: [event.clientX,event.clientY], original: [panX,panY]};
+      brush.setPointerCapture(event.pointerId); return;
+    }
     if (mode === "note") {
       openNoteEditor(null, pointFromEvent(event));
       return;
@@ -580,13 +593,22 @@
     }
     activePath.setAttribute("d", pathData(active));
   }
-  brush.addEventListener("pointermove", updateActive);
+  brush.addEventListener("pointermove", event => {
+    if (panDrag && panDrag.pointerId === event.pointerId) {
+      panX = panDrag.original[0] + event.clientX - panDrag.start[0]; panY = panDrag.original[1] + event.clientY - panDrag.start[1]; fitBoard();
+    } else updateActive(event);
+  });
   brush.addEventListener("pointerup", (event) => {
+    if (panDrag && panDrag.pointerId === event.pointerId) { const pointerId=panDrag.pointerId; panDrag=null; if(brush.hasPointerCapture(pointerId))brush.releasePointerCapture(pointerId); return; }
     if (event.pointerId !== activePointerId) return;
     updateActive(event);
     finishLine();
   });
   function finishPointer(event) {
+    if (panDrag?.pointerId === event.pointerId) {
+      if (event.type === "pointercancel") [panX,panY] = panDrag.original;
+      panDrag = null; fitBoard();
+    }
     if (event.pointerId === activePointerId) finishLine();
   }
   brush.addEventListener("pointercancel", finishPointer);
@@ -717,7 +739,7 @@
   picker.addEventListener("change", () => selectDesign(picker.value));
   for (const button of toolButtons) button.addEventListener("click", () => setMode(button.dataset.feedbackTool));
   document.addEventListener("keydown", (event) => {
-    if (event.defaultPrevented || event.isComposing || event.target?.isContentEditable || event.target?.closest?.("input, textarea, select, [data-text-editor]")) return;
+    if (event.defaultPrevented || event.isComposing || event.target?.isContentEditable || event.target?.closest?.("input, textarea, select, [data-text-editor], .prototype-control")) return;
     if ((selectedLine || selectedNote) && ["Delete", "Backspace"].includes(event.key) && !event.metaKey && !event.ctrlKey && !event.altKey) {
       event.preventDefault();
       deleteSelection();
@@ -738,6 +760,8 @@
     if (designReady && !event.metaKey && !event.ctrlKey && !event.altKey) {
       if (event.key.toLowerCase() === "p") setMode("pen");
       if (event.key.toLowerCase() === "v") setMode("select");
+      if (event.key.toLowerCase() === "h") setMode("pan");
+      if (event.key.toLowerCase() === "i" && Frame.documents.has(design?.id)) setMode("interact");
       if (event.key.toLowerCase() === "n") setMode("note");
     }
     if ((event.metaKey || event.ctrlKey) && !event.altKey) {
@@ -781,6 +805,18 @@
     try { initial = localStorage.getItem("frame-last-design"); } catch { /* optional */ }
     selectDesign(Frame.designs.has(initial) ? initial : Frame.designs.keys().next().value);
   }
+  Frame.view = {
+    get: () => ({zoom, panX, panY}),
+    set: value => {
+      if (!value || !Number.isFinite(value.zoom) || value.zoom < 0.25 || value.zoom > 8 || !Number.isFinite(value.panX) || !Number.isFinite(value.panY)) throw new Error("Invalid view");
+      finishLine(); finishNoteDrag(); ({zoom,panX,panY}=value); fitBoard(); return Frame.view.get();
+    },
+    fit: () => { finishLine(); finishNoteDrag(); zoom=1;panX=panY=0;fitBoard(); },
+    setMode
+  };
+  document.getElementById("zoom-in").addEventListener("click", () => Frame.view.set({zoom:Math.min(8,zoom*1.25),panX,panY}));
+  document.getElementById("zoom-out").addEventListener("click", () => Frame.view.set({zoom:Math.max(0.25,zoom/1.25),panX,panY}));
+  document.getElementById("fit-view").addEventListener("click", Frame.view.fit);
   Frame.connectUI({
     selectedId: () => design?.id,
     selectDesign,

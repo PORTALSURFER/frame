@@ -86,3 +86,17 @@ pre { white-space: pre-wrap; overflow-wrap: anywhere; }
 .keyboard-cursor::before, .keyboard-cursor::after { content:"";position:absolute;background:#ffd37a; }
 .keyboard-cursor::before {height:1px;width:32px;top:11px;left:-5px;}
 .keyboard-cursor::after {width:1px;height:32px;left:11px;top:-5px;}
+.review-toolbar { display:flex; align-items:center; flex-wrap:wrap; gap:10px; padding:8px 26px; background:#171e1c; border-bottom:1px solid #465451; font-size:11px; }
+.review-toolbar label { display:flex; align-items:center; gap:6px; }
+.review-toolbar button { padding:7px 10px; background:#293331; color:#e0e7e1; border:1px solid #465451; border-radius:3px; cursor:pointer; font:inherit; }
+.review-toolbar button:disabled { opacity:.4; }
+#zoom-value { min-width:45px; text-align:center; }
+.prototype-controls { position:absolute; inset:0; z-index:1; pointer-events:none; }
+.prototype-control { position:absolute; padding:8px; border:1px solid; border-radius:0; font:inherit; pointer-events:auto; }
+.prototype-control:disabled { cursor:default; }
+.stage[data-feedback-mode="interact"] .brush, .stage[data-feedback-mode="interact"] .notes-layer { pointer-events:none; }
+.brush[data-mode="pan"] { cursor:grab; }
+@media(max-width:600px) { .review-toolbar {padding:8px 13px;} .review-toolbar select {max-width:200px;min-width:0;} }
+/* Keep zoomed boards inside a stable viewport instead of growing the flex stage. */
+.app { height:100dvh; }
+.stage { flex:1 1 0; }

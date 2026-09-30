@@ -52,13 +52,13 @@ Milestone: an agent can inspect a marked element, change it through a documented
 
 ## 4. Add review and testing tools
 
-- [ ] **Add zoom, pan, and fit controls.** Allow close inspection of large designs without changing their dimensions or annotation coordinates.
-- [ ] **Support actual viewport-dependent layout.** Pass viewport dimensions into the layout/render process and add common size presets. Verify reflow rather than merely shrinking a fixed-size drawing.
-- [ ] **Represent interface states.** Add named states such as default, loading, empty, error, hover, focus, and disabled where relevant to a design.
-- [ ] **Separate interaction from annotation mode.** Let people and automated tools exercise prototype controls without drawing marks over them.
-- [ ] **Add structural design checks.** Report text overflow, clipping, unintended overlaps, spacing inconsistencies, and contrast issues with element IDs and locations. Allow intentional exceptions.
-- [ ] **Define accessibility testing limits.** Check actual semantics, focus order, and keyboard behavior in an interactive renderer; label Canvas-only results as visual checks rather than full accessibility validation.
-- [ ] **Add repeatable visual and interaction tests.** Render selected viewports and states, compare against approved snapshots with tolerances, and report differences. Test prototype actions against expected state changes.
+- [x] **Add zoom, pan, and fit controls.** Allow close inspection of large designs without changing their dimensions or annotation coordinates.
+- [x] **Support actual viewport-dependent layout.** Pass viewport dimensions into the layout/render process and add common size presets. Verify reflow rather than merely shrinking a fixed-size drawing.
+- [x] **Represent interface states.** Add named states such as default, loading, empty, error, hover, focus, and disabled where relevant to a design.
+- [x] **Separate interaction from annotation mode.** Let people and automated tools exercise prototype controls without drawing marks over them.
+- [x] **Add structural design checks.** Report text overflow, clipping, unintended overlaps, spacing inconsistencies, and contrast issues with element IDs and locations. Allow intentional exceptions.
+- [x] **Define accessibility testing limits.** Check actual semantics, focus order, and keyboard behavior in an interactive renderer; label Canvas-only results as visual checks rather than full accessibility validation.
+- [x] **Add repeatable visual and interaction tests.** Render selected viewports and states, compare against approved snapshots with tolerances, and report differences. Test prototype actions against expected state changes.
 
 ## 5. Preserve revision context and streamline handoff
 
