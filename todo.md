@@ -40,13 +40,13 @@ Milestone: a person can circle a control, attach a written request, export the f
 
 - [x] **Add a styleguide picker.** Preserve the supplied Technical Futurist guide as the first entry, with per-design selection, a reference reader, color and typography/spacing/geometry tokens, an AI prompt, and full-guide download. Expose the registry and active guide to agents and pass it to paint scripts; verify persistence, registration errors, small-screen reading, and feedback preservation.
 
-- [ ] **Define a design document model.** Represent screens and elements with stable IDs, bounds, hierarchy, text, styles, and component references. Keep a path for existing custom Canvas drawings.
-- [ ] **Expose element inspection and hit testing.** List elements and inspect a region or ID; let feedback bind to an element while retaining a positional fallback.
-- [ ] **Add reusable components and design tokens.** Provide layout, text, button, input, and container primitives with shared spacing, color, and typography values to reduce repeated drawing code.
-- [ ] **Expose targeted editing operations.** Create, update, move, and remove elements with input validation and actionable errors; verify unrelated elements retain their IDs and properties.
-- [ ] **Define an agent-facing API.** Support listing designs, selecting a screen/state, reading structure and feedback, applying edits, rendering previews, and exporting results. Document inputs, outputs, and examples before choosing an MCP or other transport.
-- [ ] **Add predictable visual exports.** Export clean screenshots and screenshots with feedback, with explicit dimensions, scale, revision, and a render-ready signal after fonts and assets load.
-- [ ] **Refresh designs without a full reload.** Preserve the selected design and feedback while an agent updates the design, and report failed updates visibly.
+- [x] **Define a design document model.** Represent screens and elements with stable IDs, bounds, hierarchy, text, styles, and component references. Keep a path for existing custom Canvas drawings.
+- [x] **Expose element inspection and hit testing.** List elements and inspect a region or ID; let feedback bind to an element while retaining a positional fallback.
+- [x] **Add reusable components and design tokens.** Provide layout, text, button, input, and container primitives with shared spacing, color, and typography values to reduce repeated drawing code.
+- [x] **Expose targeted editing operations.** Create, update, move, and remove elements with input validation and actionable errors; verify unrelated elements retain their IDs and properties.
+- [x] **Define an agent-facing API.** Support listing designs, selecting a screen/state, reading structure and feedback, applying edits, rendering previews, and exporting results. Document inputs, outputs, and examples before choosing an MCP or other transport.
+- [x] **Add predictable visual exports.** Export clean screenshots and screenshots with feedback, with explicit dimensions, scale, revision, and a render-ready signal after fonts and assets load.
+- [x] **Refresh designs without a full reload.** Preserve the selected design and feedback while an agent updates the design, and report failed updates visibly.
 
 Milestone: an agent can inspect a marked element, change it through a documented operation, and obtain a screenshot of the result.
 
