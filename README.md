@@ -40,4 +40,4 @@ The main envelope view includes a crossover overlay spanning the full graph with
 
 Smooth and Swing use horizontal sliders without handles; Mix and Output retain their rotary knobs.
 
-The composition groups stacked Smooth/Swing sliders beside Mix/Output, with the compact band strip immediately below the curve presets. Dual activation lives with its band controls.
+The composition groups stacked LP/HP mix sliders beside Mix/Output, with Smooth/Swing in the compact strip immediately below the curve presets. Dual activation lives with its band controls.
