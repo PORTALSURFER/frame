@@ -4,13 +4,14 @@ This backlog follows a source review of `README.md`, `frame.js`, `app.js`, `inde
 
 ## What we have
 
-- A small browser app with no build step and two example designs.
-- A `Frame.register` API for fixed-size designs painted with Canvas 2D.
-- Design and styleguide pickers, automatic board scaling, and Pen, Note, and Select tools.
-- Freehand and Shift-constrained lines, placed/editable/movable notes, per-design undo/redo, recoverable clear, per-design browser storage, and JSON feedback export.
-- A README describing the AI-first product vision and current limitations.
+- Three example designs, including a responsive, interactive Instrument workstation.
+- Structured design documents with stable element IDs, reusable components, tokens, image assets, and an agent-facing browser API; custom Canvas drawings remain supported.
+- A styleguide picker with the complete supplied Technical Futurist guide.
+- Accessible red-pen and note tools, import/export, open/resolved status, undo/redo, and recoverable browser storage.
+- Viewport and state previews, zoom/pan/fit, structural and semantic checks, and repeatable visual/interaction tests.
+- Persistent revision snapshots, comparison, element-bound feedback carry-forward, portable projects, and a runnable end-to-end example.
 
-The main gap is the feedback-to-revision loop. An agent can edit a drawing script and read positioned written feedback, but Frame cannot yet identify the elements in that drawing, attach notes to stable element identities, or expose design review and testing operations. Fitting a fixed canvas into a window also does not test a responsive layout.
+All feature items below are implemented. Hosted browser execution is the remaining external blocker: GitHub Actions fails before starting job steps. Local model/browser tests and the end-to-end workflow pass.
 
 ## 1. Make existing feedback reliable
 
@@ -68,6 +69,6 @@ Milestone: an agent can inspect a marked element, change it through a documented
 - [x] **Export a portable project.** Bundle design data, assets, revisions, and feedback so work can move between browsers and agent sessions.
 - [x] **Add an end-to-end example and update documentation.** Demonstrate create → render → human annotation → agent edit → checks → review, and keep README feature claims aligned with shipped behavior.
 
-## Recommended implementation order
+## Remaining external follow-up
 
-Start with feedback reliability, placed notes, and the versioned feedback format. Next establish element identity and the agent API. Build review/testing and revision comparison on those foundations. Preserve the simple local workflow while these capabilities are added.
+Restore GitHub-hosted runner execution, then verify the existing workflow against main. Retries still fail before steps begin, so there is no application failure log to diagnose. Repository/account Actions settings and runner availability need inspection by someone with access to those settings. See [CI troubleshooting](docs/ci-troubleshooting.md) for the evidence and rerun procedure.

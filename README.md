@@ -31,7 +31,7 @@ The red pen and placed annotations are available. Structured designs also preser
 
 ## Current prototype
 
-Frame currently provides a code-painted design canvas using plain HTML, CSS, JavaScript, and Canvas 2D, with no build step. Agents or developers edit design scripts; humans select a design and draw or place feedback over it.
+Frame uses plain HTML, CSS, JavaScript, and Canvas 2D, with no build step. Agents create and edit structured documents through the browser API or register custom Canvas scripts; humans review designs and place feedback over them.
 
 Available today:
 
@@ -120,7 +120,7 @@ New notes allow up to **4,000 characters**, with **1,000 notes per design**. Lon
 
 History retains the last **100 changes per design** during the current browser session, including across design switches. A new change replaces that design's redo branch; cancelled or unchanged note edits leave it available. Undo during a stroke or note drag finishes the gesture, then reverses it. Feedback saves after undo and redo, and remains available for export and retry if storage fails. Reloading keeps saved feedback but starts fresh history. History reads each design's storage on its first visit; edits in another browser tab appear after reload.
 
-Strokes and notes save together in a [version 3 feedback document](docs/feedback-schema.md) under frame-feedback-v3:<design-id>, with stable mark IDs, types, design/revision context, timestamps, and optional element anchors. Storage and export share the format. Version 2 documents, version 1 arrays, and the original Sift key migrate without overwriting old backups. Unknown historic dates and revisions remain null. Design scripts can register a revisionId; full revision snapshots are a separate planned capability. Unreadable saved documents are protected from replacement.
+Strokes and notes save together in a [version 3 feedback document](docs/feedback-schema.md) under frame-feedback-v3:<design-id>, with stable mark IDs, types, design/revision context, timestamps, and optional element anchors. Storage and export share the format. Version 2 documents, version 1 arrays, and the original Sift key migrate without overwriting old backups. Unknown historic dates and revisions remain null. Design scripts can register a revisionId; structured documents retain full revision snapshots. Unreadable saved documents are protected from replacement.
 
 **Import feedback** accepts v3 documents, v2 feedback, and legacy stroke arrays. Choose a file and review its design, dimensions, and mark counts before **Replace feedback**. Wrong-design, mismatched-size, malformed, or duplicate-ID documents are rejected before any marks change. Import is undoable; export preserves IDs, timestamps, optional anchors, text, and coordinates. Oversized older marks are retained. Failed saves remain available for export and retry.
 
@@ -146,7 +146,7 @@ Run FRAME_BROWSER_PATH=/path/to/chromium npm run example (or npm run example wit
 
 ## Browser tests
 
-The app itself needs no build step or dependencies. To run the feedback regression tests, use Node.js 20 or newer:
+The app itself needs no build step or dependencies. To run the model and browser regression tests, use Node.js 20 or newer:
 
 ```sh
 npm ci

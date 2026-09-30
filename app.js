@@ -489,7 +489,17 @@
       brush.removeAttribute("hidden");
       notesLayer.hidden = false;
       designStatus.hidden = true;
-      Frame.markRendering(new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+      const renderedId=design.id, renderedRevision=design.revisionId, doc=Frame.documents.get(design.id);
+      const assetsReady=doc?FrameDocument.prepareAssets(doc):Promise.resolve();
+      Frame.markRendering(Promise.all([assetsReady,document.fonts.ready]).then(()=>{
+        if(doc&&design.id===renderedId&&design.revisionId===renderedRevision) {
+          context.save();try {design.paint(context,{styleguide:Frame.activeStyleguide});}finally{context.restore();}
+        }
+        return new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));
+      }).catch(error=>{
+        if(design.id===renderedId)showDesignStatus("Design assets could not be rendered","Check embedded assets, then retry.",error.message,true);
+        throw error;
+      }));
     } catch (error) {
       showDesignStatus("Design could not be rendered", "Retry rendering or choose another design. Your feedback is still available for download.", error instanceof Error ? error.message : String(error), true);
     }
@@ -842,6 +852,11 @@
       const target=nextById.get(mark.elementAnchor.elementId),old=oldById.get(mark.elementAnchor.elementId);
       if(!target || target.visible===false) {mark.needsReview=true;mark.reviewReason="The anchored element is removed or hidden";return points;}
       mark.needsReview=false;delete mark.reviewReason;mark.anchorRevisionId=design.revisionId;
+      if(points&&mark.elementAnchor.offset&&points.length) {
+        const dx=target.bounds.x+mark.elementAnchor.offset[0]-points[0][0];
+        const dy=target.bounds.y+mark.elementAnchor.offset[1]-points[0][1];
+        return points.map(([x,y])=>[x+dx,y+dy]);
+      }
       if(points&&old) return points.map(([x,y])=>[x+target.bounds.x-old.bounds.x,y+target.bounds.y-old.bounds.y]);
       if(!points&&mark.elementAnchor.offset) mark.anchor=[target.bounds.x+mark.elementAnchor.offset[0],target.bounds.y+mark.elementAnchor.offset[1]];
       return points;
@@ -860,6 +875,7 @@
   };
   Frame.connectUI({
     selectedId: () => design?.id,
+    isReady: () => designReady,
     selectDesign,
     feedback: () => { finishLine(); finishNoteDrag(); return currentDocument(); }
   });

@@ -48,7 +48,7 @@
   async function exportImage({designId,feedback=false,scale=1}={}) {
     const design=Frame.designs.get(designId||bridge?.selectedId());if(!design) throw new Error("Unknown design");
     if(!Number.isFinite(scale)||scale<=0||scale>4||design.width*design.height*scale*scale>64000000) throw new Error("Invalid export scale or image too large");
-    await document.fonts.ready;await renderPromise;
+    await document.fonts.ready;if(documents.has(design.id))await FrameDocument.prepareAssets(requireDocument(design.id));await renderPromise;
     const canvas=document.createElement("canvas");canvas.width=Math.round(design.width*scale);canvas.height=Math.round(design.height*scale);
     const ctx=canvas.getContext("2d");if(!ctx) throw new Error("Canvas unavailable");
     ctx.scale(scale,scale);design.paint(ctx,{styleguide:Frame.activeStyleguide});
@@ -73,13 +73,13 @@
     getValues: id => copy(values.get(id)||{}),
     setValues: (id, next) => {const doc=requireDocument(id);if(!next||typeof next!=="object"||Object.keys(next).some(key=>!doc.elements.some(n=>n.id===key&&n.type==="input")||typeof next[key]!=="string"))throw new Error("Invalid input values");values.set(id,copy(next));changed(id);},
 getFeedback:()=>copy(requireBridge().feedback()),exportImage,
-    renderReady:()=>Promise.all([document.fonts.ready,renderPromise]).then(()=>({designId:bridge?.selectedId(),ready:true})),
+    renderReady:()=>Promise.all([document.fonts.ready,renderPromise]).then(()=>{if(!bridge?.isReady())throw new Error("Design is not render-ready");return {designId:bridge.selectedId(),ready:true};}),
     refreshDesign:(id,patch)=>{const current=Frame.designs.get(id);if(!current||documents.has(id)) throw new Error("Use updateDocument for structured designs");
       const next={...current,...patch,id};if(typeof next.paint!=="function"||![next.width,next.height].every(n=>Number.isInteger(n)&&n>0)||typeof next.name!=="string"||!next.name.trim()) throw new Error("Invalid design update");
       Object.assign(current,next);changed(id);return id;}
   };
   Frame.connectUI=api=>{bridge=api;};
-  Frame.markRendering=promise=>{renderPromise=promise;};
+  Frame.markRendering=promise=>{renderPromise=promise;promise.catch(()=>{});};
   Frame.currentViewport=id=>copy(view(id));
   Frame.currentState=id=>states.get(id)||"default";
 })();

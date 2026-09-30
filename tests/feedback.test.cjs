@@ -39,7 +39,7 @@ after(async () => {
 
 async function openPage(t, options = {}) {
   const {setup, selectDesign = 'starter', ...contextOptions} = options;
-  const context = await browser.newContext({viewport: {width: 1280, height: 900}, ...contextOptions});
+  const context = await browser.newContext({viewport: {width: 1280, height: 1000}, ...contextOptions});
   t.after(() => context.close());
   const page = await context.newPage();
   const errors = [];

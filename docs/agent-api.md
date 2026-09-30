@@ -2,7 +2,7 @@
 
 Use these methods through ordinary JavaScript or browser automation. No MCP transport is required. Mutations validate before applying; errors leave the current document intact.
 
-A document is JSON with version 1, id, name, revisionId, positive integer width/height, and elements. Each element has a stable id, a type (container, text, button, input, line, chart), and bounds {x,y,width,height}. Optional parentId defines an acyclic hierarchy; child coordinates are relative to their parent. Text, styles, accessible labels, and component identity remain inspectable. Frame.components creates each primitive; Frame.tokens provides shared color, spacing, and typography defaults. Existing custom Canvas designs remain supported.
+A document is JSON with version 1, id, name, revisionId, positive integer width/height, and up to 10,000 elements. Image elements reference assetId; assets embed PNG/JPEG/WebP data and render readiness waits for decoding. Each element has a stable id, a type (container, text, button, input, line, chart, image), and bounds {x,y,width,height}. Optional parentId defines an acyclic hierarchy; child coordinates are relative to their parent. Text, styles, accessible labels, and component identity remain inspectable. Frame.components creates each primitive; Frame.tokens provides shared color, spacing, and typography defaults. Existing custom Canvas designs remain supported.
 
 ## Operations
 

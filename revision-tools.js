@@ -19,7 +19,10 @@
     const existing=archive.revisions.find(r=>r.revisionId===doc.revisionId);
     if(existing&&JSON.stringify(existing.document)!==JSON.stringify(doc))throw new Error("A revision ID cannot identify two different documents");
     if(!existing)archive.revisions.push({revisionId:doc.revisionId,capturedAt:new Date().toISOString(),parentRevisionId:archive.currentRevisionId===doc.revisionId?null:archive.currentRevisionId,document:copy(doc)});
-    archive.currentRevisionId=doc.revisionId;archives.set(doc.id,archive);
+    archive.currentRevisionId=doc.revisionId;
+    if(sourceRevisionId)archive.sourceRevisionId=sourceRevisionId;
+    if(Frame.documents.has(doc.id)) archive.context={viewport:Frame.currentViewport(doc.id),state:Frame.currentState(doc.id),values:Frame.agent.getValues?.(doc.id)||{}};
+    archives.set(doc.id,archive);
     return archive;
   }
   function validateArchive(archive) {
@@ -39,7 +42,16 @@
     catch {blocked.add(input.id);}
     if(archive)archives.set(input.id,archive);
     const document=archive?.sourceRevisionId===input.revisionId?archive.revisions.find(r=>r.revisionId===archive.currentRevisionId).document:input;
+    const context=archive?.sourceRevisionId===input.revisionId?copy(archive.context||null):null;
     const result=originalRegister(document);
+    if(result&&context) {
+      if(context.viewport&&[context.viewport.width,context.viewport.height].every(n=>Number.isInteger(n)&&n>0&&n<=8192))Frame.agent.setViewport(input.id,context.viewport);
+      if(Object.hasOwn(document.states||{default:{}},context.state))Frame.agent.setState(input.id,context.state);
+      if(context.values&&typeof context.values==="object") {
+        const values=Object.fromEntries(Object.entries(context.values).filter(([id,value])=>typeof value==="string"&&document.elements.some(n=>n.id===id&&n.type==="input")));
+        Frame.agent.setValues?.(input.id,values);
+      }
+    }
     if(result){record(document,input.revisionId);persist(input.id);refresh();}
     return result;
   };
