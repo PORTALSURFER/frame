@@ -1,8 +1,57 @@
 # Frame
 
-Frame is a small, code-painted UI design canvas for sketching application interfaces and collecting visual feedback. It uses plain HTML, CSS, JavaScript, and Canvas 2D; there is no build step. The user-facing controls are a design picker and a red annotation brush. Agents or developers change the actual interface by editing its design script.
+Frame is a UI design tool built specifically for AI agents. Its goal is to give AI the right tools to create, review, test, and refine interface designs quickly, with a simple visual toolkit for humans to give feedback.
 
-Open `index.html` in a browser, or serve this folder with `python3 -m http.server 8765` and open `http://127.0.0.1:8765/`. The included **Starter UI** is a neutral example. **Sift example** preserves the original VST mockup and its traced waveform as a separate design. These are visual mockups, not functional application controls or generated VST code.
+AI handles the design work; humans guide it by pointing directly at what needs to change. Circle an element with a red pen, place a note beside a button, or mark an area that feels too crowded. Frame should give the AI enough visual and structured context to understand that feedback and turn it into a precise revision.
+
+## The vision
+
+Design tools usually assume a human will operate every control. Frame puts AI at the center of the workflow: creating and editing a design should be easy to automate, inspecting the result should be reliable, and feedback should be tied to the relevant part of the interface.
+
+The intended toolset covers four activities:
+
+- **Create:** Build screens, layouts, components, and design variations through a predictable, programmatic interface.
+- **Review:** Render designs and inspect visual details, hierarchy, spacing, typography, and consistency.
+- **Test:** Preview different screen sizes and interface states, exercise interactions, and check usability and accessibility where the design supports them.
+- **Refine:** Read human feedback in context, make targeted changes, and compare revisions.
+
+The aim is a short loop from an idea to a visible design, from feedback to a change, and from a change to a checked result.
+
+## Human feedback
+
+Giving feedback should require very little setup or knowledge of design software. The intended toolkit includes:
+
+- **Red pen:** Circle, underline, cross out, or draw directly over the design.
+- **Placed annotations:** Attach a text note to a specific position or element.
+- **Context for AI:** Associate feedback with the relevant screen, location, and design revision so an agent can understand what the human is referring to.
+
+For example, a human could circle a toolbar and add “Give these controls more space.” The AI could then adjust the layout, review the result, and present the revised design for another pass.
+
+The red pen is available in the current prototype. Placed text annotations and revision-aware feedback are planned capabilities.
+
+## Current prototype
+
+Frame currently provides a code-painted design canvas using plain HTML, CSS, JavaScript, and Canvas 2D, with no build step. Agents or developers edit design scripts; humans select a design and draw feedback over it.
+
+Available today:
+
+- Register and render multiple designs from JavaScript.
+- Scale the board to fit the window and render at device resolution.
+- Draw freehand red marks or straight lines, with undo and clear controls.
+- Keep marks aligned with design coordinates when the board resizes.
+- Save feedback per design in browser `localStorage` and export strokes as JSON.
+
+The included designs are visual mockups. Interactive prototypes, automated review and testing tools, placed annotations, and revision comparisons are part of the vision, not implemented features.
+
+## Run locally
+
+Open `index.html` in a browser, or serve this folder:
+
+```sh
+python3 -m http.server 8765
+```
+
+Then open <http://127.0.0.1:8765/>. **Starter UI** is a neutral example. **Sift example** preserves the original VST mockup and its traced waveform as a separate design; it does not generate functional VST code.
 
 ## Add a design
 
