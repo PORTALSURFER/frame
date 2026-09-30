@@ -15,6 +15,8 @@
   const undo = document.getElementById("undo");
   const redo = document.getElementById("redo");
   const clear = document.getElementById("clear");
+  const resolveSelected = document.getElementById("resolve-selected");
+  const statusFilter = document.getElementById("feedback-filter");
   const deleteSelected = document.getElementById("delete-selected");
   const download = document.getElementById("download");
   const retrySave = document.getElementById("retry-save");
@@ -105,10 +107,16 @@
     redo.title = history.redo.at(-1)?.label ? `Redo: ${history.redo.at(-1).label}` : "Redo";
     clear.disabled = lines.length === 0 && notes.length === 0;
     download.disabled = !design;
+    const selected = selectedNote || (selectedLine && lineMetadata.get(selectedLine));
+    resolveSelected.disabled = !selected;
+    resolveSelected.textContent = selected?.status === "resolved" ? "Reopen" : "Mark resolved";
     deleteSelected.disabled = !designReady || (!selectedLine && !selectedNote);
     retrySave.hidden = !feedback.unsaved;
     retrySave.disabled = active !== null || noteDrag !== null;
     saveNotice.textContent = feedback.notice;
+    const marks = [...lines.map(line=>lineMetadata.get(line)), ...notes];
+    const openCount = marks.filter(mark=>mark.status!=="resolved").length;
+    count.title = openCount + " open · " + (marks.length-openCount) + " resolved";
     count.textContent = `${lines.length} ${lines.length === 1 ? "line" : "lines"}`;
     if (notes.length) count.textContent += ` · ${notes.length} ${notes.length === 1 ? "note" : "notes"}`;
     const notices = [];
@@ -145,19 +153,19 @@
   // Finished strokes are immutable: retain point arrays rather than copying them.
   // Notes remain live objects for pointer capture/focus, so snapshot their mutable fields.
   function snapshot() {
-    return {lines: [...lines], notes: notes.map(note => ({note, text: note.text, updatedAt: note.updatedAt, anchor: [...note.anchor]}))};
+    return {lines: [...lines], lineState: lines.map(line=>({...lineMetadata.get(line)})), notes: notes.map(note => ({note, text: note.text, status: note.status, updatedAt: note.updatedAt, anchor: [...note.anchor]}))};
   }
   function record(before, label) {
     let after = snapshot();
-    const unchanged = before.lines.length === after.lines.length && before.lines.every((line, i) => line === after.lines[i]) &&
+    const unchanged = before.lines.length === after.lines.length && before.lines.every((line, i) => line === after.lines[i] && before.lineState[i].status === after.lineState[i].status) &&
       before.notes.length === after.notes.length && before.notes.every((entry, i) => {
         const next = after.notes[i];
-        return entry.note === next.note && entry.text === next.text && entry.anchor.every((value, axis) => value === next.anchor[axis]);
+        return entry.note === next.note && entry.text === next.text && entry.status === next.status && entry.anchor.every((value, axis) => value === next.anchor[axis]);
       });
     if (unchanged) return;
     for (const entry of before.notes) {
       const note = notes.find(note => note === entry.note);
-      if (note && (note.text !== entry.text || note.anchor.some((value, axis) => value !== entry.anchor[axis]))) note.updatedAt = new Date().toISOString();
+      if (note && (note.text !== entry.text || note.status !== entry.status || note.anchor.some((value, axis) => value !== entry.anchor[axis]))) note.updatedAt = new Date().toISOString();
     }
     after = snapshot();
     history.undo.push({before, after, label});
@@ -166,8 +174,10 @@
   }
   function restore(state) {
     lines = [...state.lines];
+    lines.forEach((line,i)=>lineMetadata.set(line,{...state.lineState[i]}));
     notes = state.notes.map(entry => {
       entry.note.text = entry.text;
+      entry.note.status = entry.status;
       entry.note.updatedAt = entry.updatedAt;
       entry.note.anchor = [...entry.anchor];
       return entry.note;
@@ -212,6 +222,7 @@
     const path = document.createElementNS(NS, "path");
     path.setAttribute("d", pathData(points));
     path.dataset.lineIndex = index;
+    path.dataset.markId = lineMetadata.get(points).id;
     path.setAttribute("role", "button");
     path.setAttribute("aria-label", `Feedback line ${index + 1}`);
     path.addEventListener("focus", () => {
@@ -225,6 +236,8 @@
     path.setAttribute("tabindex", mode === "select" ? "0" : "-1");
     path.setAttribute("aria-pressed", points === selectedLine ? "true" : "false");
     path.classList.toggle("selected", points === selectedLine);
+    path.classList.toggle("resolved", lineMetadata.get(points).status === "resolved");
+    path.toggleAttribute("hidden", statusFilter.value !== "all" && lineMetadata.get(points).status !== statusFilter.value);
   }
   function selectLine(line) {
     selectedLine = line;
@@ -260,6 +273,8 @@
     for (const [note, pin] of notePins) {
       pin.classList.toggle("selected", note === selectedNote);
       pin.setAttribute("aria-pressed", note === selectedNote ? "true" : "false");
+      pin.classList.toggle("resolved", note.status === "resolved");
+      pin.hidden = statusFilter.value !== "all" && note.status !== statusFilter.value;
       pin.tabIndex = mode === "pen" ? -1 : 0;
     }
   }
@@ -367,6 +382,7 @@
     const y = event.clientY - boardBounds.top;
     for (let index = lines.length - 1; index >= 0; index--) {
       const line = lines[index];
+      if (statusFilter.value !== "all" && lineMetadata.get(line).status !== statusFilter.value) continue;
       for (let point = 0; point < line.length; point++) {
         const a = line[Math.max(0, point - 1)];
         const b = line[point];
@@ -592,6 +608,28 @@
     selectNote(noteDraft.note);
     deleteSelection();
   });
+  function setFeedbackStatus(id, status) {
+    if (!["open","resolved"].includes(status)) throw new Error("Status must be open or resolved");
+    finishLine(); finishNoteDrag();
+    const note = notes.find(mark=>mark.id===id);
+    const line = lines.find(line=>lineMetadata.get(line).id===id);
+    const mark = note || (line && lineMetadata.get(line));
+    if (!mark) throw new Error("Unknown feedback ID");
+    if (mark.status === status) return;
+    const before = snapshot();
+    mark.status = status; mark.updatedAt = new Date().toISOString();
+    record(before, status === "resolved" ? "Resolve feedback" : "Reopen feedback");
+    selectLine(null);redrawMarks();save();
+  }
+  Frame.feedback = {
+    list: (status="all") => { if (!["all","open","resolved"].includes(status)) throw new Error("Unknown feedback filter"); return JSON.parse(JSON.stringify([...currentDocument().lines,...notes].filter(mark=>status==="all"||mark.status===status))); },
+    setStatus: setFeedbackStatus
+  };
+  resolveSelected.addEventListener("click", () => {
+    const mark=selectedNote || (selectedLine && lineMetadata.get(selectedLine));
+    if (mark) setFeedbackStatus(mark.id, mark.status==="resolved"?"open":"resolved");
+  });
+  statusFilter.addEventListener("change",()=>{selectLine(null);redrawMarks();});
   deleteSelected.addEventListener("click", deleteSelection);
   retrySave.addEventListener("click", save);
   retryRender.addEventListener("click", () => {

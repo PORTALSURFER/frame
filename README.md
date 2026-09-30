@@ -104,6 +104,8 @@ The **Instrument workstation** example uses a serializable design document with 
 
 ## Feedback
 
+Selected marks can be resolved or reopened. Filter the canvas to All, Open, or Resolved; filtering preserves every mark in saves and exports. Status changes support undo/redo and persist across reload. Agents use Frame.feedback.list(status) and Frame.feedback.setStatus(id,status) for the selected design. Legacy marks start open.
+
 Choose **Pen** (shortcut **P**) to draw, **Note** (**N**) to place or edit text annotations, or **Select** (**V**) to inspect a line or note. Select a line by clicking within eight screen pixels of it or focusing it with Tab; the selected mark is highlighted. Click empty space or press Escape to deselect. Changing tools finishes an active stroke safely. Frame shortcuts leave normal editing and undo behavior intact inside text inputs, textareas, and editable text.
 
 Use **Delete selected**, **Delete**, or **Backspace** to remove only the selected line or note. Selection clears afterward, and focus returns to the active tool. Deletion keeps unrelated marks and is saved and exported normally; failed saves remain recoverable through the unsaved feedback flow. Deletions can be undone and redone.

@@ -1511,3 +1511,19 @@ test('empty feedback exports and failed imports remain recoverable through expor
   await page.locator('#retry-save').click(); await page.reload();
   assert.deepEqual(await exportFeedback(page,true),original);
 });
+
+test('feedback resolution is filterable, undoable, and retained through export and reload',async t=>{
+ const page=await openPage(t);await beginMouse(page);await page.mouse.up();await addNote(page,'Address this');
+ const marks=await page.evaluate(()=>Frame.feedback.list());assert.equal(marks.length,2);assert.ok(marks.every(m=>m.status==='open'));
+ await page.evaluate(id=>Frame.feedback.setStatus(id,'resolved'),marks[0].id);
+ await page.locator('#feedback-filter').selectOption('open');
+ assert.equal(await page.locator('#brush path:visible').count(),0);assert.equal(await page.locator('.note-pin:visible').count(),1);
+ assert.equal((await exportFeedback(page,true)).lines[0].status,'resolved');
+ await page.locator('#undo').click();assert.equal((await exportFeedback(page,true)).lines[0].status,'open');
+ await page.locator('#redo').click();await page.reload();
+ assert.equal((await exportFeedback(page,true)).lines[0].status,'resolved');
+ await page.locator('#tool-select').click();await page.locator('.note-pin').focus();await page.locator('#resolve-selected').click();
+ assert.equal((await exportFeedback(page,true)).notes[0].status,'resolved');
+ await page.evaluate(id=>Frame.feedback.setStatus(id,'open'),marks[0].id);
+ assert.equal((await exportFeedback(page,true)).lines[0].status,'open');
+});
