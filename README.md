@@ -37,3 +37,5 @@ The Sift reference screenshot in `assets/` is source material for that example. 
 Run `python3 scripts/build-standalone.py` to regenerate `frame-standalone.html`. That portable artifact embeds all styles and scripts and works in viewers that cannot load sibling files. Saved design selections still take precedence over the initial Pump view.
 
 The main envelope view includes a crossover overlay spanning the full graph with mint low-pass and blue high-pass responses, translucent band fills, a crossover marker, and a separate logarithmic 20 Hz–20 kHz scale. Its frequency axis is independent of the envelope's time axis.
+
+Smooth and Swing use horizontal sliders without handles; Mix and Output retain their rotary knobs.
