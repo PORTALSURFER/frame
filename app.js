@@ -66,6 +66,8 @@
   const confirmImport = document.getElementById("confirm-import");
   let importDraft = null;
   let importRequest = 0;
+  let keyboardAnchor = null;
+  const keyboardCursor = document.getElementById("keyboard-cursor");
   let strokeBefore = null;
   let history = {undo: [], redo: []};
 
@@ -406,10 +408,36 @@
     for (const button of toolButtons) button.setAttribute("aria-pressed", button.dataset.feedbackTool === mode ? "true" : "false");
     instructions.textContent = mode === "pen"
       ? "Draw red lines anywhere. Hold Shift for a straight line. Marks save per design in this browser."
-      : mode === "note" ? "Click to place a note. Click an existing note to edit, or drag it to move."
+      : mode === "note" ? "Click to place a note. Or Tab to the canvas, use arrows to position, and Enter to place. Click a note to edit or drag to move."
       : "Click a line or note to select it, or use Tab. Double-click a note to edit. Escape deselects.";
     selectLine(null);
+    updateKeyboardCursor();
   }
+  function updateKeyboardCursor() {
+    keyboardCursor.hidden = !designReady || mode !== "note" || document.activeElement !== brush;
+    if (!keyboardCursor.hidden) {
+      keyboardAnchor ||= [design.width/2,design.height/2];
+      const view=geometry();
+      keyboardCursor.style.left = view.offsetX+keyboardAnchor[0]*view.scaleX+"px";
+      keyboardCursor.style.top = view.offsetY+keyboardAnchor[1]*view.scaleY+"px";
+    }
+  }
+  brush.addEventListener("focus",updateKeyboardCursor);
+  brush.addEventListener("blur",updateKeyboardCursor);
+  brush.addEventListener("keydown",event=>{
+    if(mode!=="note" || event.target!==brush || event.metaKey || event.ctrlKey || event.altKey) return;
+    keyboardAnchor ||= [design.width/2,design.height/2];
+    if(["ArrowLeft","ArrowRight","ArrowUp","ArrowDown"].includes(event.key)) {
+      event.preventDefault();event.stopPropagation();
+      const axis=["ArrowLeft","ArrowRight"].includes(event.key)?0:1;
+      keyboardAnchor[axis] += (["ArrowLeft","ArrowUp"].includes(event.key)?-1:1)*(event.shiftKey?1:10);
+      keyboardAnchor[0]=Math.max(0,Math.min(design.width,keyboardAnchor[0]));
+      keyboardAnchor[1]=Math.max(0,Math.min(design.height,keyboardAnchor[1]));
+      updateKeyboardCursor();
+    } else if(event.key==="Enter" || event.key===" ") {
+      event.preventDefault();event.stopPropagation();openNoteEditor(null,keyboardAnchor);
+    }
+  });
   function redrawMarks() {
     const {stageBounds} = geometry();
     brush.setAttribute("viewBox", `0 0 ${stageBounds.width} ${stageBounds.height}`);
@@ -419,6 +447,7 @@
       if (line === active) activePath = path;
     });
     redrawNotes();
+    updateKeyboardCursor();
     updateControls();
   }
   function fitBoard() {
@@ -476,6 +505,7 @@
     design = Frame.designs.get(id);
     if (!design) return;
     picker.value = id;
+    keyboardAnchor = null;
     sizeLabel.textContent = `${design.width} × ${design.height}`;
     board.setAttribute("aria-label", `${design.name} interface design`);
     designCanvas.setAttribute("aria-label", `${design.name} painted interface`);

@@ -1527,3 +1527,19 @@ test('feedback resolution is filterable, undoable, and retained through export a
  await page.evaluate(id=>Frame.feedback.setStatus(id,'open'),marks[0].id);
  assert.equal((await exportFeedback(page,true)).lines[0].status,'open');
 });
+
+test('notes can be placed, moved and resolved entirely through keyboard with a visible canvas cursor',async t=>{
+ const page=await openPage(t);
+ await page.locator('#tool-note').focus();await page.keyboard.press('Enter');
+ await page.locator('#brush').focus();
+ assert.equal(await page.locator('#keyboard-cursor').isVisible(),true);
+ await page.keyboard.press('ArrowRight');await page.keyboard.press('Shift+ArrowDown');await page.keyboard.press('Enter');
+ await page.locator('#note-text').fill('Keyboard feedback');await page.keyboard.press('Control+Enter');
+ const note=(await exportFeedback(page,true)).notes[0];assert.deepEqual(note.anchor,[490,301]);
+ await page.locator('.note-pin').focus();await page.keyboard.press('ArrowRight');
+ assert.deepEqual((await exportFeedback(page,true)).notes[0].anchor,[491,301]);
+ await page.locator('.note-pin').focus();await page.locator('#resolve-selected').focus();await page.keyboard.press('Enter');
+ assert.equal((await exportFeedback(page,true)).notes[0].status,'resolved');
+ await page.setViewportSize({width:320,height:740});
+ assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);
+});

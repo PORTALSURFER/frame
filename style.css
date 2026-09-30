@@ -81,3 +81,8 @@ pre { white-space: pre-wrap; overflow-wrap: anywhere; }
 #import-error { color: #ffc3b3; }
 .brush path.resolved { stroke:#88918d; stroke-dasharray:6 4; }
 .note-pin.resolved { opacity:.55; }
+.brush:focus-visible { outline:2px solid #ffd37a; outline-offset:-4px; }
+.keyboard-cursor { position:absolute; z-index:4; width:24px; height:24px; transform:translate(-50%,-50%); pointer-events:none; border:1px solid #ffd37a; }
+.keyboard-cursor::before, .keyboard-cursor::after { content:"";position:absolute;background:#ffd37a; }
+.keyboard-cursor::before {height:1px;width:32px;top:11px;left:-5px;}
+.keyboard-cursor::after {width:1px;height:32px;left:11px;top:-5px;}
