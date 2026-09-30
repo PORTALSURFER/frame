@@ -79,3 +79,5 @@ pre { white-space: pre-wrap; overflow-wrap: anywhere; }
 
 #import-file { max-width: 100%; font: inherit; }
 #import-error { color: #ffc3b3; }
+.brush path.resolved { stroke:#88918d; stroke-dasharray:6 4; }
+.note-pin.resolved { opacity:.55; }
