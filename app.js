@@ -15,6 +15,7 @@
   let lines = [];
   let active = null;
   let activePath = null;
+  let activePointerId = null;
 
   function storageKey() { return `${STORAGE_PREFIX}${design.id}`; }
   function validLines(value) {
@@ -114,19 +115,23 @@
     activePath.setAttribute("d", pathData(active));
     active = null;
     activePath = null;
+    const pointerId = activePointerId;
+    activePointerId = null;
+    if (brush.hasPointerCapture(pointerId)) brush.releasePointerCapture(pointerId);
     save();
   }
 
   brush.addEventListener("pointerdown", (event) => {
-    if (event.button !== 0) return;
+    if (event.button !== 0 || activePointerId !== null) return;
     event.preventDefault();
     active = [pointFromEvent(event)];
+    activePointerId = event.pointerId;
     lines.push(active);
     activePath = makePath(active);
     brush.setPointerCapture(event.pointerId);
   });
   function updateActive(event) {
-    if (!active) return;
+    if (!active || event.pointerId !== activePointerId) return;
     if (event.shiftKey) {
       active.splice(1, active.length - 1, pointFromEvent(event));
     } else {
@@ -139,8 +144,16 @@
     activePath.setAttribute("d", pathData(active));
   }
   brush.addEventListener("pointermove", updateActive);
-  brush.addEventListener("pointerup", (event) => { updateActive(event); finishLine(); });
-  brush.addEventListener("pointercancel", finishLine);
+  brush.addEventListener("pointerup", (event) => {
+    if (event.pointerId !== activePointerId) return;
+    updateActive(event);
+    finishLine();
+  });
+  function finishPointer(event) {
+    if (event.pointerId === activePointerId) finishLine();
+  }
+  brush.addEventListener("pointercancel", finishPointer);
+  brush.addEventListener("lostpointercapture", finishPointer);
   undo.addEventListener("click", () => { lines.pop(); redrawMarks(); save(); });
   clear.addEventListener("click", () => { lines = []; redrawMarks(); save(); });
   download.addEventListener("click", () => {

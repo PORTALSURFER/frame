@@ -1,0 +1,13 @@
+{
+  "name": "frame",
+  "private": true,
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "test": "node --test tests/*.test.cjs"
+  },
+  "devDependencies": {
+    "playwright": "^1.63.0"
+  }
+}

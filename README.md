@@ -78,3 +78,15 @@ The drawing coordinates use the registered width and height. Frame scales the bo
 Draw red lines anywhere in the stage, including outside the interface. Hold **Shift** while dragging for a straight line. **Undo line** (or Command/Ctrl+Z) removes the latest stroke; **Clear all lines** removes every stroke for the selected design. Feedback is saved separately for each design in browser `localStorage`. **Download feedback** exports the selected design's dimensions and strokes as JSON. Existing Sift brush marks saved by the earlier canvas are loaded automatically.
 
 The Sift reference screenshot in `assets/` is source material for that example. The app paints its visible interface live from code and does not display the screenshot.
+
+## Browser tests
+
+The app itself needs no build step or dependencies. To run the feedback regression tests, use Node.js 20 or newer:
+
+```sh
+npm ci
+npx playwright install chromium
+npm test
+```
+
+To use an existing Chromium installation, run `FRAME_BROWSER_PATH=/path/to/chromium npm test` instead. Tests serve the app locally and exercise it in a headless browser with isolated storage.
