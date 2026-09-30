@@ -38,7 +38,7 @@ after(async () => {
 });
 
 async function openPage(t, options = {}) {
-  const {setup, ...contextOptions} = options;
+  const {setup, selectDesign = 'starter', ...contextOptions} = options;
   const context = await browser.newContext({viewport: {width: 1280, height: 900}, ...contextOptions});
   t.after(() => context.close());
   const page = await context.newPage();
@@ -47,7 +47,7 @@ async function openPage(t, options = {}) {
   t.after(() => assert.deepEqual(errors, [], 'no uncaught browser errors'));
   if (setup) await setup(page);
   await page.goto(baseURL);
-  await page.locator('#design-picker').selectOption('starter');
+  if (selectDesign) await page.locator('#design-picker').selectOption(selectDesign);
   return page;
 }
 
@@ -407,4 +407,116 @@ test('unavailable localStorage at startup reports a load failure while drawing/e
   await page.locator('#design-picker').selectOption('sift');
   await page.locator('#design-picker').selectOption('starter');
   assert.deepEqual((await exportFeedback(page)).lines, exported.lines);
+});
+
+test('invalid and duplicate registrations report errors while retaining working designs', async t => {
+  const page = await openPage(t);
+  const result = await page.evaluate(() => {
+    const original = Frame.designs.get('starter');
+    return {
+      invalid: Frame.register({id: 'bad', name: 'Bad design', width: 0, height: 200, paint() {}}),
+      duplicate: Frame.register({...original, name: 'Replacement'}),
+      retained: Frame.designs.get('starter') === original,
+      errors: Frame.errors
+    };
+  });
+  assert.equal(result.invalid, false);
+  assert.equal(result.duplicate, false);
+  assert.equal(result.retained, true);
+  assert.equal(result.errors.length, 2);
+  assert.equal(await page.locator('#registration-notice').isVisible(), true);
+  await page.locator('#registration-summary').click();
+  assert.match(await page.locator('#registration-errors').textContent(), /bad:.*positive integer size/);
+  assert.match(await page.locator('#registration-errors').textContent(), /starter: Duplicate design id/);
+  assert.equal(await page.locator('#design-status').isVisible(), false);
+  assert.equal(await page.locator('#design-picker option').count(), 2);
+  await beginMouse(page);
+  await page.mouse.up();
+  assert.equal((await savedLines(page)).length, 1);
+});
+
+for (const mode of ['empty', 'invalid']) {
+  test(`${mode} startup shows an empty state and can recover when a valid design is registered`, async t => {
+    const page = await openPage(t, {selectDesign: false, setup: async page => {
+      for (const file of ['starter', 'sift']) {
+        await page.route(`**/examples/${file}.js`, route => route.fulfill({
+          contentType: 'text/javascript',
+          body: mode === 'empty' ? '' : `Frame.register({id: 'bad-${file}', name: 'Invalid', width: 0, height: 100, paint() {}});`
+        }));
+      }
+    }});
+    assert.equal(await page.locator('#design-status').isVisible(), true);
+    assert.equal(await page.locator('#design-status-title').textContent(), 'No designs available');
+    assert.equal(await page.locator('#design-picker').isDisabled(), true);
+    assert.equal(await page.locator('#download').isDisabled(), true);
+    assert.equal(await page.locator('#brush').isVisible(), false);
+    assert.equal(await page.locator('#registration-notice').isVisible(), mode === 'invalid');
+    assert.equal(await page.evaluate(() => Frame.register({
+      id: 'recovered', name: 'Recovered design', width: 400, height: 300,
+      paint(ctx) { ctx.fillStyle = '#77b6a7'; ctx.fillRect(0, 0, 400, 300); }
+    })), true);
+    assert.equal(await page.locator('#design-picker').inputValue(), 'recovered');
+    assert.equal(await page.locator('#design-picker').isDisabled(), false);
+    assert.equal(await page.locator('#design-status').isVisible(), false);
+    assert.equal(await page.locator('#brush').isVisible(), true);
+    await beginMouse(page);
+    await page.mouse.up();
+    const exported = await exportFeedback(page);
+    assert.equal(exported.design, 'recovered');
+    assert.equal(exported.lines.length, 1);
+  });
+}
+
+test('paint failures preserve feedback and allow switching, failed retry, and successful retry', async t => {
+  const previous = [[[10, 10], [20, 20]]];
+  const page = await openPage(t, {setup: async page => {
+    await page.addInitScript(previous => {
+      localStorage.setItem('frame-feedback-v1:starter', JSON.stringify(previous));
+    }, previous);
+    await page.route('**/examples/starter.js', route => route.fulfill({
+      contentType: 'text/javascript',
+      body: "Frame.register({id: 'starter', name: 'Broken design', width: 960, height: 600, paint(ctx) {ctx.fillRect(0, 0, 200, 200); throw new Error('Deliberate paint failure');}});"
+    }));
+  }});
+  assert.equal(await page.locator('#design-status-title').textContent(), 'Design could not be rendered');
+  assert.equal(await page.locator('#brush').isVisible(), false);
+  assert.equal(await page.locator('#board').isVisible(), false);
+  assert.deepEqual((await exportFeedback(page)).lines, previous);
+  await page.locator('#design-status details summary').click();
+  assert.equal(await page.locator('#design-error-details').textContent(), 'Deliberate paint failure');
+  await page.locator('#retry-render').click();
+  assert.equal(await page.locator('#design-status').isVisible(), true);
+  await page.locator('#design-picker').selectOption('sift');
+  assert.equal(await page.locator('#design-status').isVisible(), false);
+  await beginMouse(page);
+  await page.mouse.up();
+  assert.equal((await exportFeedback(page)).lines.length, 1);
+  await page.locator('#design-picker').selectOption('starter');
+  assert.deepEqual((await exportFeedback(page)).lines, previous);
+  await page.evaluate(() => {
+    Frame.designs.get('starter').paint = ctx => { ctx.fillStyle = '#77b6a7'; ctx.fillRect(0, 0, 960, 600); };
+  });
+  await page.locator('#retry-render').click();
+  assert.equal(await page.locator('#design-status').isVisible(), false);
+  assert.equal(await page.locator('#brush').isVisible(), true);
+  assert.equal(await page.locator('#brush path').count(), 1);
+  await beginMouse(page);
+  await page.mouse.up();
+  assert.equal((await savedLines(page)).length, 2);
+});
+
+test('a missing Canvas context produces a recoverable render error', async t => {
+  const page = await openPage(t, {setup: page => page.addInitScript(() => {
+    const original = HTMLCanvasElement.prototype.getContext;
+    HTMLCanvasElement.prototype.getContext = () => null;
+    window.restoreCanvasContext = () => { HTMLCanvasElement.prototype.getContext = original; };
+  })});
+  assert.equal(await page.locator('#design-error-details').textContent(), 'Canvas drawing is unavailable in this browser');
+  assert.equal(await page.locator('#brush').isVisible(), false);
+  await page.evaluate(() => window.restoreCanvasContext());
+  await page.locator('#retry-render').click();
+  assert.equal(await page.locator('#design-status').isVisible(), false);
+  await beginMouse(page);
+  await page.mouse.up();
+  assert.equal((await savedLines(page)).length, 1);
 });
