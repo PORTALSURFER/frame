@@ -43,7 +43,7 @@ Available today:
 - Keep marks aligned with design coordinates when the board resizes.
 - Save feedback per design in browser `localStorage` and export strokes and notes as JSON.
 
-The included designs are visual mockups. Interactive prototypes, automated design review and testing tools, and revision comparisons are part of the vision, not implemented features.
+The original Canvas examples are visual mockups. Instrument workstation adds a structured prototype with responsive layouts and interactive controls. Viewport/state selectors, zoom/pan/fit, structural checks, semantic checks of actual controls, and repeatable visual/interaction comparisons are available through the toolbar and browser API. See docs/agent-api.md for their scope and limitations.
 
 ## Run locally
 

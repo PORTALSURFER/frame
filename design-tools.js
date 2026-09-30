@@ -41,6 +41,7 @@
     if(options.elementId) nodes=nodes.filter(node=>node.id===options.elementId);
     if(options.region) {const b=options.region;if(!["x","y","width","height"].every(k=>Number.isFinite(b[k]))||b.width<0||b.height<0) throw new Error("Invalid inspection region");
       nodes=nodes.filter(n=>n.bounds.x+n.bounds.width>=b.x&&n.bounds.x<=b.x+b.width&&n.bounds.y+n.bounds.height>=b.y&&n.bounds.y<=b.y+b.height);}
+    for (const node of nodes) if (node.type === "input" && values.get(id)?.[node.id] !== undefined) node.value = values.get(id)[node.id];
     return copy(nodes);
   }
   async function exportImage({designId,feedback=false,scale=1}={}) {
@@ -67,7 +68,10 @@
     selectDesign:id=>{if(!Frame.designs.has(id)) throw new Error("Unknown design");requireBridge().selectDesign(id);return id;},
     inspect, hitTest:(id,x,y)=>{if(![x,y].every(Number.isFinite)) throw new Error("Invalid point");return copy(FrameDocument.hitTest(inspect(id),x,y));},
     applyEdits:(id,operations)=>updateDocument(FrameDocument.edit(requireDocument(id),operations)),
-    updateDocument,setViewport,setState,setValue,getFeedback:()=>copy(requireBridge().feedback()),exportImage,
+    updateDocument,setViewport,setState,setValue,
+    getValues: id => copy(values.get(id)||{}),
+    setValues: (id, next) => {const doc=requireDocument(id);if(!next||typeof next!=="object"||Object.keys(next).some(key=>!doc.elements.some(n=>n.id===key&&n.type==="input")||typeof next[key]!=="string"))throw new Error("Invalid input values");values.set(id,copy(next));changed(id);},
+getFeedback:()=>copy(requireBridge().feedback()),exportImage,
     renderReady:()=>Promise.all([document.fonts.ready,renderPromise]).then(()=>({designId:bridge?.selectedId(),ready:true})),
     refreshDesign:(id,patch)=>{const current=Frame.designs.get(id);if(!current||documents.has(id)) throw new Error("Use updateDocument for structured designs");
       const next={...current,...patch,id};if(typeof next.paint!=="function"||![next.width,next.height].every(n=>Number.isInteger(n)&&n>0)||typeof next.name!=="string"||!next.name.trim()) throw new Error("Invalid design update");
