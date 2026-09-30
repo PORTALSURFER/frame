@@ -108,8 +108,8 @@ button:focus-visible, select:focus-visible { outline: 2px solid #e95843; outline
   }
   function shell(c,mode){
     c.fillStyle=C.bg;c.fillRect(0,0,640,400);rect(c,1,1,638,398,5,C.bg,C.line);
-    button(c,'SYNC',10,12,47);button(c,'Sync 1/4 ▾',63,12,96);button(c,'‹',171,12,27);button(c,'›',202,12,27);button(c,'A',241,12,28,true);button(c,'→',273,12,27);button(c,'B',305,12,28);
-    text(c,'PORTALSURFER /',427,20,10,C.muted);text(c,'PUMP',542,20,10,C.accent);text(c,'UI STUDY',542,34,7,C.muted);button(c,'?',603,12,26);
+    text(c,'PORTALSURFER /',10,20,10,C.muted);text(c,'PUMP',125,20,10,C.accent);text(c,'UI STUDY',10,34,7,C.muted);
+    button(c,'SYNC',269,12,47);button(c,'Sync 1/4 ▾',322,12,96);button(c,'‹',430,12,27);button(c,'›',461,12,27);button(c,'A',500,12,28,true);button(c,'→',532,12,27);button(c,'B',564,12,28);button(c,'?',603,12,26);
     const x=50,y=50,w=534,h=182;rect(c,10,48,575,186,0,C.bg,C.line);
     c.strokeStyle='#333737';c.lineWidth=1;for(let i=0;i<=4;i++){c.beginPath();c.moveTo(x+w*i/4,y);c.lineTo(x+w*i/4,y+h);c.stroke();}for(const level of [0,.5,.75,1]){c.beginPath();c.moveTo(x,y+h*level);c.lineTo(x+w,y+h*level);c.stroke();}
     const gradient=c.createLinearGradient(0,y,0,y+h);gradient.addColorStop(0,'rgba(233,88,67,.30)');gradient.addColorStop(1,'rgba(233,88,67,.03)');c.beginPath();c.moveTo(x,y+h);for(let i=0;i<=w;i++)c.lineTo(x+i,y+(1-sample(shapes[1],i/w))*h);c.lineTo(x+w,y+h);c.closePath();c.fillStyle=gradient;c.fill();
