@@ -27,11 +27,11 @@ Giving feedback should require very little setup or knowledge of design software
 
 For example, a human could circle a toolbar and add “Give these controls more space.” The AI could then adjust the layout, review the result, and present the revised design for another pass.
 
-The red pen and placed text annotations are available in the current prototype. Revision-aware feedback is a planned capability.
+The red pen and placed annotations are available. Structured designs also preserve revision snapshots and element-bound feedback.
 
 ## Current prototype
 
-Frame currently provides a code-painted design canvas using plain HTML, CSS, JavaScript, and Canvas 2D, with no build step. Agents or developers edit design scripts; humans select a design and draw or place feedback over it.
+Frame uses plain HTML, CSS, JavaScript, and Canvas 2D, with no build step. Agents create and edit structured documents through the browser API or register custom Canvas scripts; humans review designs and place feedback over them.
 
 Available today:
 
@@ -120,7 +120,7 @@ New notes allow up to **4,000 characters**, with **1,000 notes per design**. Lon
 
 History retains the last **100 changes per design** during the current browser session, including across design switches. A new change replaces that design's redo branch; cancelled or unchanged note edits leave it available. Undo during a stroke or note drag finishes the gesture, then reverses it. Feedback saves after undo and redo, and remains available for export and retry if storage fails. Reloading keeps saved feedback but starts fresh history. History reads each design's storage on its first visit; edits in another browser tab appear after reload.
 
-Strokes and notes save together in a [version 3 feedback document](docs/feedback-schema.md) under frame-feedback-v3:<design-id>, with stable mark IDs, types, design/revision context, timestamps, and optional element anchors. Storage and export share the format. Version 2 documents, version 1 arrays, and the original Sift key migrate without overwriting old backups. Unknown historic dates and revisions remain null. Design scripts can register a revisionId; full revision snapshots are a separate planned capability. Unreadable saved documents are protected from replacement.
+Strokes and notes save together in a [version 3 feedback document](docs/feedback-schema.md) under frame-feedback-v3:<design-id>, with stable mark IDs, types, design/revision context, timestamps, and optional element anchors. Storage and export share the format. Version 2 documents, version 1 arrays, and the original Sift key migrate without overwriting old backups. Unknown historic dates and revisions remain null. Design scripts can register a revisionId; structured documents retain full revision snapshots. Unreadable saved documents are protected from replacement.
 
 **Import feedback** accepts v3 documents, v2 feedback, and legacy stroke arrays. Choose a file and review its design, dimensions, and mark counts before **Replace feedback**. Wrong-design, mismatched-size, malformed, or duplicate-ID documents are rejected before any marks change. Import is undoable; export preserves IDs, timestamps, optional anchors, text, and coordinates. Oversized older marks are retained. Failed saves remain available for export and retry.
 
@@ -132,9 +132,21 @@ If saving fails because browser storage is full or unavailable, Frame shows an *
 
 The Sift reference screenshot in `assets/` is source material for that example. The app paints its visible interface live from code and does not display the screenshot.
 
+## Revisions and portable handoff
+
+Structured design edits preserve snapshots with immutable revision IDs. The Revision picker restores a snapshot; Compare shows changes by element ID and side-by-side or overlay views. Snapshots persist in browser storage and are included in project downloads. A saved browser draft resumes when its source revision has not changed; changing the source revision starts a new source snapshot. Storage failures show a project notice, retry, and a download path instead of discarding the in-memory project.
+
+Feedback retains the revision and viewport originally reviewed. Bound marks follow surviving element IDs when layouts move; removed or hidden targets and position-only marks are flagged for review. Moving a bound note updates its offset. These rules preserve human context instead of silently assigning a different element.
+
+Download project bundles the document, embedded assets, all stored revisions, complete feedback, the selected guide, viewport, state, and prototype input values into a versioned JSON file. Import project validates every dependency and adds a new design; existing design IDs and conflicting guides are protected. Use a fresh browser or rename design IDs consistently before importing an existing example. Portable imports are limited to 32 MB and image assets to embedded PNG/JPEG/WebP data. Custom Canvas callbacks stay in source files and cannot be serialized.
+
+## Complete example
+
+Run FRAME_BROWSER_PATH=/path/to/chromium npm run example (or npm run example with Playwright Chromium installed). The example opens Instrument workstation, places a human note through the UI, reads its element anchor, applies a targeted spacing edit, compares revisions and pixels, tests desktop and phone states, resolves the feedback, and exports before/after PNGs plus a portable project and review report into artifacts/. FRAME_OUTPUT_DIR can choose another output folder.
+
 ## Browser tests
 
-The app itself needs no build step or dependencies. To run the feedback regression tests, use Node.js 20 or newer:
+The app itself needs no build step or dependencies. To run the model and browser regression tests, use Node.js 20 or newer:
 
 ```sh
 npm ci

@@ -71,9 +71,11 @@
   const keyboardCursor = document.getElementById("keyboard-cursor");
   let strokeBefore = null;
   let history = {undo: [], redo: []};
+  let previousElements = [];
 
   function markMetadata(type, anchor) {
     const metadata = FrameFeedback.metadata(type, design);
+    metadata.reviewedViewport = {width:design.width,height:design.height};
     if (Frame.documents.has(design.id)) {
       const element = Frame.agent.hitTest(design.id, anchor[0], anchor[1])[0];
       if (element) metadata.elementAnchor = {elementId: element.id, offset: [anchor[0] - element.bounds.x, anchor[1] - element.bounds.y]};
@@ -156,19 +158,24 @@
   // Finished strokes are immutable: retain point arrays rather than copying them.
   // Notes remain live objects for pointer capture/focus, so snapshot their mutable fields.
   function snapshot() {
-    return {lines: [...lines], lineState: lines.map(line=>({...lineMetadata.get(line)})), notes: notes.map(note => ({note, text: note.text, status: note.status, updatedAt: note.updatedAt, anchor: [...note.anchor]}))};
+    return {lines:[...lines],lineState:lines.map(line=>JSON.parse(JSON.stringify(lineMetadata.get(line)))),
+      notes:notes.map(note=>({...JSON.parse(JSON.stringify(note)),note}))};
   }
   function record(before, label) {
     let after = snapshot();
-    const unchanged = before.lines.length === after.lines.length && before.lines.every((line, i) => line === after.lines[i] && before.lineState[i].status === after.lineState[i].status) &&
-      before.notes.length === after.notes.length && before.notes.every((entry, i) => {
-        const next = after.notes[i];
-        return entry.note === next.note && entry.text === next.text && entry.status === next.status && entry.anchor.every((value, axis) => value === next.anchor[axis]);
-      });
+    const unchanged = before.lines.length === after.lines.length && before.lines.every((line,i)=>line===after.lines[i]&&JSON.stringify(before.lineState[i])===JSON.stringify(after.lineState[i])) &&
+      before.notes.length === after.notes.length && before.notes.every((entry,i)=>entry.note===after.notes[i].note&&JSON.stringify({...entry,note:undefined})===JSON.stringify({...after.notes[i],note:undefined}));
     if (unchanged) return;
     for (const entry of before.notes) {
       const note = notes.find(note => note === entry.note);
       if (note && (note.text !== entry.text || note.status !== entry.status || note.anchor.some((value, axis) => value !== entry.anchor[axis]))) note.updatedAt = new Date().toISOString();
+    }
+    for(const entry of before.notes) {
+      const note=notes.find(note=>note===entry.note);
+      if(note?.elementAnchor&&note.anchor.some((v,i)=>v!==entry.anchor[i])&&Frame.documents.has(design.id)) {
+        const target=Frame.agent.inspect(design.id,{elementId:note.elementAnchor.elementId})[0];
+        if(target)note.elementAnchor={elementId:target.id,offset:[note.anchor[0]-target.bounds.x,note.anchor[1]-target.bounds.y]};
+      }
     }
     after = snapshot();
     history.undo.push({before, after, label});
@@ -177,13 +184,12 @@
   }
   function restore(state) {
     lines = [...state.lines];
-    lines.forEach((line,i)=>lineMetadata.set(line,{...state.lineState[i]}));
+    lines.forEach((line,i)=>lineMetadata.set(line,JSON.parse(JSON.stringify(state.lineState[i]))));
     notes = state.notes.map(entry => {
-      entry.note.text = entry.text;
-      entry.note.status = entry.status;
-      entry.note.updatedAt = entry.updatedAt;
-      entry.note.anchor = [...entry.anchor];
-      return entry.note;
+      const {note,...fields}=entry;
+      for(const key of Object.keys(note))delete note[key];
+      Object.assign(note,JSON.parse(JSON.stringify(fields)));
+      return note;
     });
     selectedLine = null;
     selectedNote = null;
@@ -483,7 +489,17 @@
       brush.removeAttribute("hidden");
       notesLayer.hidden = false;
       designStatus.hidden = true;
-      Frame.markRendering(new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+      const renderedId=design.id, renderedRevision=design.revisionId, doc=Frame.documents.get(design.id);
+      const assetsReady=doc?FrameDocument.prepareAssets(doc):Promise.resolve();
+      Frame.markRendering(Promise.all([assetsReady,document.fonts.ready]).then(()=>{
+        if(doc&&design.id===renderedId&&design.revisionId===renderedRevision) {
+          context.save();try {design.paint(context,{styleguide:Frame.activeStyleguide});}finally{context.restore();}
+        }
+        return new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));
+      }).catch(error=>{
+        if(design.id===renderedId)showDesignStatus("Design assets could not be rendered","Check embedded assets, then retry.",error.message,true);
+        throw error;
+      }));
     } catch (error) {
       showDesignStatus("Design could not be rendered", "Retry rendering or choose another design. Your feedback is still available for download.", error instanceof Error ? error.message : String(error), true);
     }
@@ -522,6 +538,7 @@
     lines = feedback.lines;
     notes = feedback.notes;
     pointLimitReached = false;
+    previousElements = Frame.documents.has(design.id) ? Frame.agent.inspect(design.id) : [];
     window.dispatchEvent(new CustomEvent("frame:design-selected", {detail: {design}}));
     paintDesign();
     fitBoard();
@@ -817,13 +834,54 @@
   document.getElementById("zoom-in").addEventListener("click", () => Frame.view.set({zoom:Math.min(8,zoom*1.25),panX,panY}));
   document.getElementById("zoom-out").addEventListener("click", () => Frame.view.set({zoom:Math.max(0.25,zoom/1.25),panX,panY}));
   document.getElementById("fit-view").addEventListener("click", Frame.view.fit);
+  function carryFeedback() {
+    if (!Frame.documents.has(design?.id)) return;
+    const next = Frame.agent.inspect(design.id);
+    if (!previousElements.length) { previousElements=next; return; }
+    const oldById=new Map(previousElements.map(node=>[node.id,node]));
+    const nextById=new Map(next.map(node=>[node.id,node]));
+    const moved=next.length!==previousElements.length || previousElements.some(node=>{
+      const target=nextById.get(node.id);
+      return !target || target.visible!==node.visible || JSON.stringify(node.bounds)!==JSON.stringify(target.bounds);
+    });
+    if(!moved){previousElements=next;return;}
+    finishLine();finishNoteDrag();
+    const before=snapshot();
+    function carry(mark, points) {
+      if(!mark.elementAnchor) {mark.needsReview=true;mark.reviewReason="Position-only feedback needs review after layout changes";return points;}
+      const target=nextById.get(mark.elementAnchor.elementId),old=oldById.get(mark.elementAnchor.elementId);
+      if(!target || target.visible===false) {mark.needsReview=true;mark.reviewReason="The anchored element is removed or hidden";return points;}
+      mark.needsReview=false;delete mark.reviewReason;mark.anchorRevisionId=design.revisionId;
+      if(points&&mark.elementAnchor.offset&&points.length) {
+        const dx=target.bounds.x+mark.elementAnchor.offset[0]-points[0][0];
+        const dy=target.bounds.y+mark.elementAnchor.offset[1]-points[0][1];
+        return points.map(([x,y])=>[x+dx,y+dy]);
+      }
+      if(points&&old) return points.map(([x,y])=>[x+target.bounds.x-old.bounds.x,y+target.bounds.y-old.bounds.y]);
+      if(!points&&mark.elementAnchor.offset) mark.anchor=[target.bounds.x+mark.elementAnchor.offset[0],target.bounds.y+mark.elementAnchor.offset[1]];
+      return points;
+    }
+    lines=lines.map(line=>{const metadata={...lineMetadata.get(line)},points=carry(metadata,line);lineMetadata.set(points,metadata);return points;});
+    for(const note of notes)carry(note);
+    record(before,"Carry feedback to changed layout");redrawMarks();save();previousElements=next;
+    document.getElementById("feedback-revision-notice").textContent=[...lines.map(line=>lineMetadata.get(line)),...notes].filter(mark=>mark.needsReview).length+" marks need review after layout changes.";
+  }
+  Frame.projectBridge={
+    importFeedback: data=>{
+      const imported=unpack(FrameFeedback.importDocument(data,design));
+      const before=snapshot();lines=imported.lines;notes=imported.notes;feedback.blocked=false;
+      record(before,"Import project feedback");redrawMarks();save();
+    }
+  };
   Frame.connectUI({
     selectedId: () => design?.id,
+    isReady: () => designReady,
     selectDesign,
     feedback: () => { finishLine(); finishNoteDrag(); return currentDocument(); }
   });
   window.addEventListener("frame:design-updated", event => {
     if (design?.id !== event.detail.id) return;
+    carryFeedback();
     finishLine(); finishNoteDrag(); closeNoteEditor();
     sizeLabel.textContent = design.width + " × " + design.height;
     paintDesign(); fitBoard(); refreshDesigns();

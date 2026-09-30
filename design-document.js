@@ -1,7 +1,7 @@
 // Serializable design documents and atomic editing, shared by the browser and Node.
 (function(root) {
   const clone = value => JSON.parse(JSON.stringify(value));
-  const types = new Set(["container", "text", "button", "input", "line", "chart"]);
+  const types = new Set(["container", "text", "button", "input", "line", "chart", "image"]);
   const finite = Number.isFinite;
   const fail = message => { throw new Error(message); };
   const validId = value => typeof value === "string" && /^[a-z0-9][a-z0-9_-]*$/i.test(value);
@@ -11,6 +11,7 @@
     if (!doc || doc.version !== 1 || !validId(doc.id) || typeof doc.name !== "string" || !doc.name.trim() ||
         ![doc.width, doc.height].every(value => Number.isInteger(value) && value > 0) ||
         !validId(doc.revisionId) || !Array.isArray(doc.elements)) fail("Expected a version 1 design with id, name, positive integer size, revisionId, and elements");
+    if (doc.elements.length > 10000) fail("Design exceeds the 10,000-element limit");
     const ids = new Set();
     for (const node of doc.elements) {
       if (!node || !validId(node.id) || ids.has(node.id) || !types.has(node.type)) fail("Element IDs must be unique and element types must be supported");
@@ -51,7 +52,20 @@
       }
     }
     if (doc.assets && (!Array.isArray(doc.assets) || !doc.assets.every(asset => validId(asset.id) && typeof asset.data === "string" && /^data:image\/(png|jpeg|webp);base64,/.test(asset.data)))) fail("Assets must be embedded PNG, JPEG, or WebP data URLs");
+    const assetIds=new Set();
+    for(const asset of doc.assets||[]) {if(assetIds.has(asset.id))fail("Duplicate asset ID");assetIds.add(asset.id);}
+    for(const node of doc.elements)if(node.type==="image"&&!assetIds.has(node.assetId))fail(node.id+": missing image asset");
     return doc;
+  }
+  const imageCache=new Map();
+  function ensureImage(data) {
+    if(imageCache.has(data))return imageCache.get(data);
+    const image=new Image();image.src=data;
+    const promise=image.decode();promise.catch(()=>{});
+    const entry={image,promise};imageCache.set(data,entry);return entry;
+  }
+  function prepareAssets(doc) {
+    return Promise.all(doc.elements.filter(node=>node.type==="image").map(node=>ensureImage(doc.assets.find(asset=>asset.id===node.assetId).data).promise));
   }
   function layout(doc, viewport = {width: doc.width, height: doc.height}, state = "default") {
     if (!Object.hasOwn(doc.states || {default: {}}, state)) fail("Unknown state: " + state);
@@ -126,6 +140,11 @@
         if (s.fill !== "none") ctx.fill();
         if (s.stroke !== "none") ctx.stroke();
       }
+      if(node.type==="image") {
+        const asset=doc.assets.find(asset=>asset.id===node.assetId);
+        const entry=ensureImage(asset.data);
+        if(entry.image.complete&&entry.image.naturalWidth)ctx.drawImage(entry.image,b.x,b.y,b.width,b.height);
+      }
       if (["line", "chart"].includes(node.type)) {
         ctx.beginPath();
         const points = node.points || [[0, 0], [b.width, b.height]];
@@ -145,6 +164,6 @@
     return elements;
   }
   function inspect(doc, viewport, state) { return layout(doc, viewport, state).map(node => ({...node, children: doc.elements.filter(child => child.parentId === node.id).map(child => child.id)})); }
-  const api = {validate, layout, hitTest, edit, render, inspect, components, tokens, clone};
+  const api = {prepareAssets, validate, layout, hitTest, edit, render, inspect, components, tokens, clone};
   if (typeof module !== "undefined") module.exports = api; else root.FrameDocument = api;
 })(typeof window === "undefined" ? globalThis : window);

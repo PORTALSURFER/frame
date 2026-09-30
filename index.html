@@ -9,6 +9,7 @@
   <script src="design-document.js" defer></script>
   <script src="design-tools.js" defer></script>
   <script src="design-review.js" defer></script>
+  <script src="revision-tools.js" defer></script>
   <script src="examples/starter.js" defer></script>
   <script src="examples/sift-waveform-data.js" defer></script>
   <script src="examples/sift.js" defer></script>
@@ -54,6 +55,13 @@
       <label><input id="image-feedback" type="checkbox"> Include feedback</label><button id="download-image" type="button">Download PNG</button>
       <span id="review-action-status" role="status"></span>
     </div>
+    <div class="revision-toolbar" role="group" aria-label="Revisions and project">
+      <label>Revision <select id="revision-picker" aria-label="Revision"></select></label>
+      <button id="restore-revision" type="button">Restore revision</button><button id="compare-revisions" type="button">Compare</button>
+      <button id="download-project" type="button">Download project</button><button id="import-project" type="button">Import project</button>
+      <button id="retry-project-save" type="button" hidden>Retry project save</button>
+      <span id="project-save-notice" role="status"></span><span id="feedback-revision-notice" role="status"></span>
+    </div>
     <div class="stage" id="stage">
       <section id="design-status" class="design-status" role="status" hidden>
         <h1 id="design-status-title"></h1>
@@ -84,6 +92,15 @@
       <span id="mark-count">0 lines</span>
     </footer>
   </main>
+  <dialog id="compare-dialog" aria-labelledby="compare-title" data-text-editor>
+    <h2 id="compare-title">Compare revisions</h2><label>Before <select id="compare-before" aria-label="Before revision"></select></label><label>After <select id="compare-after" aria-label="After revision"></select></label>
+    <label><input id="compare-overlay" type="checkbox"> Overlay revisions</label><pre id="compare-summary"></pre>
+    <div id="revision-canvases"><canvas id="revision-before" role="img"></canvas><canvas id="revision-after" role="img"></canvas></div><button id="close-compare" type="button">Close</button>
+  </dialog>
+  <dialog id="project-dialog" aria-labelledby="project-title" data-text-editor><h2 id="project-title">Import project</h2>
+    <p>Import a portable project as a new design. Existing design IDs are protected.</p><label for="project-file">Project JSON</label><input id="project-file" type="file" accept=".json,application/json">
+    <p id="project-import-status" role="status"></p><button id="confirm-project" type="button" disabled>Import project</button><button id="cancel-project" type="button">Cancel</button>
+  </dialog>
   <dialog id="import-dialog" aria-labelledby="import-title" data-text-editor>
     <h2 id="import-title">Import feedback</h2>
     <p>Choose a JSON feedback file for this design. Review it before replacing current marks; replacement can be undone.</p>

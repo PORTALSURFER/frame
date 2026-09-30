@@ -2,7 +2,7 @@
 
 Use these methods through ordinary JavaScript or browser automation. No MCP transport is required. Mutations validate before applying; errors leave the current document intact.
 
-A document is JSON with version 1, id, name, revisionId, positive integer width/height, and elements. Each element has a stable id, a type (container, text, button, input, line, chart), and bounds {x,y,width,height}. Optional parentId defines an acyclic hierarchy; child coordinates are relative to their parent. Text, styles, accessible labels, and component identity remain inspectable. Frame.components creates each primitive; Frame.tokens provides shared color, spacing, and typography defaults. Existing custom Canvas designs remain supported.
+A document is JSON with version 1, id, name, revisionId, positive integer width/height, and up to 10,000 elements. Image elements reference assetId; assets embed PNG/JPEG/WebP data and render readiness waits for decoding. Each element has a stable id, a type (container, text, button, input, line, chart, image), and bounds {x,y,width,height}. Optional parentId defines an acyclic hierarchy; child coordinates are relative to their parent. Text, styles, accessible labels, and component identity remain inspectable. Frame.components creates each primitive; Frame.tokens provides shared color, spacing, and typography defaults. Existing custom Canvas designs remain supported.
 
 ## Operations
 
@@ -34,3 +34,13 @@ Frame.review.check(id) reports text overflow, clipping, unexpected overlaps, spa
 Frame.review.checkAccessibility() checks actual interactive controls' names, focusability, and order only while Interact is active. It explicitly reports unverified otherwise; screen reader behavior and complete WCAG conformance need separate testing.
 
 Frame.review.approve(id,name) records an in-session raster baseline for a viewport/state. compare(id,{name,channelTolerance,maxChangedRatio}) returns changed pixels and a tolerance verdict. Missing baselines are errors, not passes. Frame.review.run(id,scenarios) tests declared click/input actions across viewport/state cases and expectedState; it restores the initial view, state, and input values afterward. These checks can be called from Playwright or the browser console.
+
+## Revisions and handoff
+
+Frame.revisions.list(id), get(id,revisionId), restore(id,revisionId), and compare(id,before,after) preserve and inspect immutable snapshots. Comparisons list added/removed elements, changed fields, and document settings. Snapshot persistence failures remain recoverable through project download and Frame.revisions.retry().
+
+Frame.project.export(id) returns a versioned project object with the complete archive, feedback, selected guide, viewport/state/input values, and embedded assets. Frame.project.validate(object) validates dependencies without changing registries. Frame.project.import(object) adds a new design atomically after validation and protects existing IDs and conflicting guide definitions. Select a design before exporting its feedback.
+
+Marked element IDs and reviewed revisions persist through edits. Surviving bound marks move with their targets; missing/hidden targets and position-only feedback are marked needsReview with a reason. Restoring a snapshot can bring surviving anchors back into position. Review original geometry using the archived document and each mark's reviewedViewport.
+
+Revision snapshots and projects describe structured designs; custom paint functions are code, not serializable project data. Visual comparison baselines remain in-session, while revision and feedback data are portable.
