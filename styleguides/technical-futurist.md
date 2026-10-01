@@ -8,6 +8,22 @@ The style should not look like generic science-fiction decoration. It should loo
 
 ---
 
+# 0. Refinement and information discipline
+
+This section takes precedence over later motif lists, density variants, sample terminology, and generation prompts. The default is a sleek, quiet functional interface. Technical character comes from alignment, proportion, material restraint, and precise interaction; it does not require a collection of instrumentation decorations.
+
+Start with the actual task and one dominant workspace. Place the primary action where it naturally supports that task. Organize secondary controls into no more than a few tight, aligned groups. A sidebar is justified only by enough useful content to occupy it; otherwise use a compact toolbar or disclosure. Do not choose a 70/30 split simply because the document lists controlled asymmetry as an option. Avoid large mostly empty side panels with scattered controls.
+
+Every permanent string must identify a control, identify content the user needs to distinguish, report actionable state, or provide an essential measurement. Remove decorative revision labels, style names, instruction slogans, synthetic-data captions, duplicate section names, arbitrary channel IDs, and fake telemetry from the designed surface. Keep demonstration provenance in the surrounding harness or documentation. A plausible-looking code is still inappropriate if it carries no real meaning. Empty space needs no explanatory caption.
+
+Use at most a few text scales with clear roles: readable primary labels around 13–15 px at a compact 1140-pixel device width, secondary labels 11–12, and genuine measurement or version metadata 9–10. Avoid shrinking every label to microtext to make an interface look technical. Prefer single-word controls. Use one consistent sans-serif monospace or a coordinated technical sans-serif pair. Verify the actual fallback face rather than accepting a serif typewriter substitution.
+
+Align groups to a small set of shared rails, standard control heights, and clear baselines. Keep values near their labels and related controls adjacent. Use a consistent 8/12/16/24 spacing rhythm, with optical adjustments for icons and clipped corners. Do not spread a few controls vertically through a tall panel. Buttons fit their content and interaction target; a full-column Export button is not justified by an otherwise empty column.
+
+Maintain one continuous chassis and one dominant recessed workspace. Use tonal separation before adding outlines. A workspace should not need a surrounding box, separate header rule, another divider, corner brackets, and a repeated caption to explain that it is a workspace. Each functional boundary normally gets one treatment. Use the approved graphite-green and coral palette; allow depth through shallow bevels and tonal gradients within that palette. Geometric filler is optional and the default is none.
+
+At thumbnail size the workspace and primary action must read immediately. At full size check typography, optical centering, balanced gutters, and restrained border contrast. Remove anything that survives neither a functional justification nor a clear hierarchy benefit. Preserve the precision and craft of the instrument while reducing visual noise; sleek does not mean empty or unfinished.
+
 # 1. Core Visual Identity
 
 The interface should feel:
@@ -726,7 +742,7 @@ Avoid large traffic-light indicators unless necessary.
 
 # 24. Micro-Annotations
 
-Small technical annotations are important to this style.
+Small technical annotations are optional and permitted only when they convey genuine information required by the task. They are never a default stylistic ingredient.
 
 Examples of suitable metadata:
 
@@ -753,11 +769,11 @@ Place them near:
 - Headers
 - Status rails
 
-These annotations should imply a larger technical system.
+These annotations must identify a real system, channel, object, or state. They must not merely imply technical complexity.
 
 Do not fill the interface with random meaningless codes.
 
-Use contextually plausible terminology.
+Use accurate terminology tied to the actual product. Plausibility alone is insufficient.
 
 ---
 
@@ -1888,7 +1904,7 @@ Avoid excessive padding.
 
 A visually complex interface should still remain cognitively clear.
 
-Separate functional information from atmospheric technical detail.
+Keep functional information clear and remove atmospheric technical text. Geometry alone can supply quiet peripheral character when justified.
 
 Functional information should use:
 
@@ -1897,14 +1913,7 @@ Functional information should use:
 - Stronger hierarchy
 - Clear alignment
 
-Ambient detail should use:
-
-- Tiny text
-- Low contrast
-- Peripheral placement
-- Secondary geometry
-
-This distinction is essential.
+Optional ambient detail should use low-contrast secondary geometry in a few peripheral areas. It must not introduce tiny filler text, compete with controls, or turn neutral space into a decorative dashboard. The default is no ambient detail.
 
 ---
 
@@ -1989,14 +1998,7 @@ It should not evoke:
 
 # 61. Visual Balance
 
-A useful target balance is:
-
-- 40% structural precision
-- 25% typography
-- 15% data visualization
-- 10% micro-detail
-- 5% accent color
-- 5% atmospheric texture
+Use a dominant functional workspace, legible compact typography, and restrained secondary controls. There is no quota for micro-detail, telemetry, or atmospheric texture. Optional decorative detail can be zero.
 
 The futuristic identity should come primarily from structure and information design.
 
@@ -2097,7 +2099,7 @@ These terms often cause models to generate overly decorative results.
 
 Design a restrained near-future technical systems interface inspired by aerospace telemetry, industrial instrumentation, signal-analysis software, scientific visualization, and advanced engineering terminals.
 
-Use an almost-black or charcoal background with subtle tonal variation. Add fine structural lines, a faint engineering grid, compact monospaced typography, precise numerical readouts, partial frames, calibration marks, small status indicators, crosshairs, signal graphs, and contextual technical annotations.
+Use an almost-black or charcoal background with subtle tonal variation. Use compact readable typography, a small number of shared alignment rails, and one dominant functional workspace. Add only the structural boundaries and genuine data visualization required by the task. Grids, calibration marks, crosshairs, and annotations are optional tools, never a checklist to populate.
 
 Use one restrained accent color such as muted orange, cyan, red, blue, or acid yellow. Most of the interface should remain neutral gray and off-white.
 
@@ -2115,7 +2117,7 @@ Every visual element should appear to serve a technical purpose.
 
 Create an extremely sparse technical interface with large areas of near-black negative space.
 
-Use thin gray structural lines, tiny monospaced labels, precise numerical values, compact metadata clusters, coordinate marks, partial frames, small crosshairs, and one restrained accent color.
+Use thin gray boundaries, readable monospaced labels, genuine measurements where needed, and one restrained accent color. Keep related controls together and omit metadata clusters, coordinate marks, and crosshairs unless function requires them.
 
 The interface should resemble aerospace instrumentation, experimental scientific software, or an advanced industrial control system.
 
@@ -2125,7 +2127,7 @@ Avoid glow, gradients, rounded cards, decorative sci-fi elements, and unnecessar
 
 # 67. Dense Variant Prompt
 
-Create a dense engineering control interface containing many compact technical modules.
+Use the dense variant only when the actual task contains many essential controls or measurements. It is not the default. Do not invent modules or data to achieve density.
 
 Use an almost-black canvas with a faint underlying grid.
 
@@ -2189,7 +2191,7 @@ Whenever designing a component in this style:
 5. Add only the structural lines necessary to explain grouping.
 6. Add appropriate status indicators.
 7. Apply accent color only to the active or important state.
-8. Add a small amount of contextual technical metadata.
+8. Add metadata only if the user needs it to distinguish content or take action; otherwise omit it.
 9. Remove elements that do not improve function, hierarchy, or technical credibility.
 
 The final removal step is essential.
@@ -2218,6 +2220,8 @@ Before considering a screen complete, verify the following:
 ---
 
 # 72. Compact Master Specification
+
+Follow section 0 first: create a sleek functional interface with one dominant workspace, a few compact control groups, readable type and deliberate quiet space. Use the actual product task to choose layout. Remove random text, redundant captions, decorative IDs, fake measurements and unnecessary frames. Keep preview provenance outside the designed surface. Every visible element must earn its place.
 
 Use clear background, middle-ground and foreground layers with restrained intentional overlaps. Keep controls and data unobstructed. Retain a continuous rectangular outer frame; shape the inner chassis with straight-edged recesses. Single-line numeric inputs must tightly fit expected values and center glyphs on both axes. Audio meter and fader fills are continuous and fully opaque.
 
@@ -2249,9 +2253,9 @@ Use a restrained near-future industrial and engineering visual language.
 
 Always place PORTALSURFER / DEVICE NAME at the device top left: uppercase monospaced text, neutral gray PORTALSURFER and slash, accent-colored device name. Put the real device version in tiny, barely noticeable text at the extreme top-right, opposite the branding line.
 
-Surfaces should be almost black or dark charcoal. Typography should be compact, technical, mostly monospaced, and frequently uppercase. Use small tracked labels, precise numerical readouts, leading zeroes, system IDs, and short technical terminology.
+Surfaces should be almost black or dark charcoal. Typography should be compact, technical, mostly monospaced, and frequently uppercase. Use readable compact labels and genuine numerical readouts. Leading zeroes and system IDs are permitted only when required by the actual data format; they are not decoration.
 
-Build hierarchy using alignment, spacing, thin structural lines, partial frames, rails, corner brackets, grids, ticks, crosshairs, and technical metadata rather than conventional cards.
+Build hierarchy first through alignment, consistent spacing, restrained tonal depth and a dominant workspace. Select only the functional structural lines or markings needed; do not layer rails, brackets, grids, crosshairs and metadata over every region.
 
 Keep approximately 85–95% of the interface neutral gray and off-white. Use one accent color such as muted orange, red, cyan, blue, or acid yellow for active states and important data.
 
