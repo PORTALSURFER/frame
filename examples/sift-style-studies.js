@@ -317,16 +317,47 @@
     return d;
   }
 
+  function technicalExpressive() {
+    const d=technicalReference();d.revisionId='sift-technical-futurist-r7';
+    d.preview.guideRevision='expressive-panels-2026-10-01';
+    const find=id=>d.elements.find(n=>n.id===id);
+    Object.assign(find('enclosure').style,{fillTop:'#21130E',fillBottom:'#090909',stroke:'#574137'});
+    Object.assign(find('display').style,{fillTop:'#17120F',fillBottom:'#090A0A',stroke:'#594236'});
+    Object.assign(find('overview').style,{fillTop:'#1C1510',fillBottom:'#0C0D0C',stroke:'#594236'});
+    const panel=(id,x,y,w,h,points,style)=>({id,type:'container',bounds:{x,y,width:w,height:h},points,style:{stroke:'#594236',lineWidth:1,...style}});
+    const plates=[
+      panel('identity-plate',18,20,276,44,[[0,0],[256,0],[276,20],[276,44],[12,44],[0,32]],{fill:'#DDD8CD',stroke:'#DDD8CD'}),
+      panel('utility-bed',853,19,269,48,[[14,0],[269,0],[269,34],[255,48],[0,48],[0,14]],{fillTop:'#251910',fillBottom:'#100E0C'}),
+      panel('capture-bed',18,440,222,55,[[0,0],[208,0],[222,14],[222,55],[0,55]],{fillTop:'#251910',fillBottom:'#100E0C'}),
+      panel('timing-bed',876,440,246,55,[[14,0],[246,0],[246,55],[0,55],[0,14]],{fillTop:'#251910',fillBottom:'#100E0C'})
+    ];
+    d.elements.splice(1,0,...plates);
+    find('brand').style.color='#17120F';find('brand-separator').style.color='#65564A';find('name').style.color='#A34D27';
+    for(const n of d.elements.filter(n=>n.type==='button'&&n.id!=='arm'))Object.assign(n.style,{fillTop:'#211710',fillBottom:'#100F0D',stroke:'#675044'});
+    const p=primitives(d);
+    // Graphic registration details belong to frame/identity regions, never control hit areas.
+    for(const [id,x,y,points] of [
+      ['display-register-left',18,78,[[0,16],[0,0],[24,0]]],
+      ['display-register-right',1098,356,[[24,0],[24,24],[0,24]]],
+      ['overview-register',18,396,[[0,12],[0,0],[24,0]]]
+    ])p.add(id,'line',x,y,24,24,{points,style:{stroke:'#B86B46',lineWidth:1.6}});
+    for(let i=0;i<3;i++)p.box('identity-stripe-'+i,249+i*9,47,6,8,{fill:'#65564A',stroke:'none'},{points:[[3,0],[6,0],[3,8],[0,8]]});
+    // Keep functional timing grids sparse rather than multiplying visual treatments.
+    d.elements=d.elements.filter(n=>!['grid-1','grid-3','grid-5','grid-7'].includes(n.id));
+    for(const state of Object.values(d.states))for(const id of ['grid-1','grid-3','grid-5','grid-7'])delete state[id];
+    return d;
+  }
+
   window.addEventListener('DOMContentLoaded',()=>{
     if(!Frame.registerDocument(technical()))return;
     let added=false;
-    for(const create of [hardware,technicalRefined,hardwareRefined,hardwareClearance,technicalReference]) {
+    for(const create of [hardware,technicalRefined,hardwareRefined,hardwareClearance,technicalReference,technicalExpressive]) {
       const document=create();
       if(!Frame.revisions.list(id).some(r=>r.revisionId===document.revisionId)) {
         Frame.agent.updateDocument(document);added=true;
       }
     }
-    if(added)Frame.revisions.restore(id,'sift-technical-futurist-r6');
+    if(added)Frame.revisions.restore(id,'sift-technical-futurist-r7');
     function syncGuide() {
       if(document.getElementById('design-picker').value!==id)return;
       const guideId=Frame.agent.getDocument(id).styleguideId,picker=document.getElementById('styleguide-picker');
