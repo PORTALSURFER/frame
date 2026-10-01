@@ -98,3 +98,6 @@ dialog .note-actions button { background:linear-gradient(#424140,#333230); borde
  .app.feedback-collapsed { grid-template-columns:52px minmax(0,1fr); grid-template-rows:auto auto minmax(360px,60dvh) auto; }
  .app.feedback-collapsed footer { grid-row:4; }
 }
+
+/* Anchor the panel control at the toolbar’s far edge, above its panel. */
+#toggle-feedback { margin-left:auto; flex-shrink:0; }

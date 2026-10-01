@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Frame — UI design canvas</title>
   <link rel="stylesheet" href="style.css">
-  <link rel="stylesheet" href="workspace.css?v=3">
+  <link rel="stylesheet" href="workspace.css?v=4">
   <script src="frame.js" defer></script>
   <script src="design-document.js" defer></script>
   <script src="design-tools.js" defer></script>
@@ -46,8 +46,8 @@
         <label>State <select id="state-picker" aria-label="Interface state"></select></label><div class="zoom-controls"><button id="zoom-out" type="button" aria-label="Zoom out">−</button><output id="zoom-value" aria-live="polite">100%</output><button id="zoom-in" type="button" aria-label="Zoom in">+</button>
         <button id="fit-view" type="button">Fit</button></div><div class="review-actions"><button id="compare-revisions" type="button">Compare</button>
         <button id="check-design" type="button">Check design</button><label><input id="image-feedback" type="checkbox"> Include feedback</label>
-        <button id="toggle-feedback" type="button" aria-controls="feedback-panel" aria-expanded="true">Hide feedback</button>
-        <button id="download-image" type="button">Download PNG</button></div><span id="review-action-status" role="status"></span>
+        <button id="download-image" type="button">Download PNG</button></div>
+      <button id="toggle-feedback" type="button" aria-controls="feedback-panel" aria-expanded="true">Hide feedback</button><span id="review-action-status" role="status"></span>
     </div>
     <nav class="tool-rail" aria-label="Canvas tools">
       <div class="feedback-tools" role="group" aria-label="Feedback tools">
