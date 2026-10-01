@@ -92,7 +92,9 @@ paint(ctx, {styleguide}) {
 }
 ```
 
-A guide change repaints the selected design. Agents can inspect `Frame.activeStyleguide` or list `Frame.styleguides` to obtain the full document, compact prompt, rules, and tokens. The first supplied palette color is a surface; the accent families are alternatives, so choose one dominant accent for a design.
+**Sift Hardware** is a separate, text-only guide derived from the supplied SIFT idle and waveform screenshots. It covers graphite-green materials, recessed displays, clipped control geometry, monospaced typography, the idle dot field, layered purple/coral waveforms, and rules for applying this style to other products. Its [full specification](styleguides/sift-hardware.md) distinguishes observed states from proposed interaction rules and includes a compact AI prompt. It is available in the picker, reader, prompt copy, and Markdown download, including when Frame is opened directly from disk.
+
+A guide change repaints the selected design. Agents can inspect `Frame.activeStyleguide` or list `Frame.styleguides` to obtain the full document, compact prompt, rules, and tokens. The first supplied palette color is a surface. Follow the selected guide's color roles: Technical Futurist offers alternative accent families, while Sift Hardware uses distinct coral and purple roles for layered signal data.
 
 To add another guide, load a script after `frame.js` and before `styleguide-picker.js` that calls `Frame.registerStyleguide({id, name, summary, document, prompt, rules, tokens})`. IDs use lowercase letters, numbers, and hyphens. `rules` is an array of strings; `tokens` contains `palette: [{name, value}]` with six-digit hex colors and string values for `typography`, `spacing`, and `geometry`. See [the first entry](styleguides/technical-futurist.js) for the full definition. The registry returns `false` for invalid or duplicate definitions, preserves the original, and reports errors in the footer; valid guides registered after startup appear in the picker.
 
@@ -142,18 +144,18 @@ Download project bundles the document, embedded assets, all stored revisions, co
 
 ## Complete example
 
+For a guide-only Sift comparison, select **Sift · style studies**. Its Revision picker contains **sift-technical-futurist-r1** (a split instrumentation workspace and take rail) and **sift-hardware-r2** (an independently composed recessed hardware workspace). Select a revision and click **Restore** to view it; **Compare revisions** shows them together. Each revision selects its corresponding guide. The State picker offers populated, idle, and recording-prototype states. These designs use a shared synthetic signal generated from code, not the reference screenshot or its extracted waveform. Prototype buttons demonstrate state changes; they do not record, play, or export real audio. Existing Sift example and feedback are preserved.
+
 Run FRAME_BROWSER_PATH=/path/to/chromium npm run example (or npm run example with Playwright Chromium installed). The example opens Instrument workstation, places a human note through the UI, reads its element anchor, applies a targeted spacing edit, compares revisions and pixels, tests desktop and phone states, resolves the feedback, and exports before/after PNGs plus a portable project and review report into artifacts/. FRAME_OUTPUT_DIR can choose another output folder.
 
 ## Browser tests
 
-The app itself needs no build step or dependencies. To run the model and browser regression tests, use Node.js 20 or newer:
+The app itself needs no build step or dependencies. Local CI requires Node.js 20 or newer and npm:
 
 ```sh
-npm ci
-npx playwright install chromium
-npm test
+npm run ci
 ```
 
-To use an existing Chromium installation, run `FRAME_BROWSER_PATH=/path/to/chromium npm test` instead. Tests serve the app locally and exercise it in a headless browser with isolated storage.
+This installs locked dependencies and Playwright Chromium, runs the model/browser regression tests, and runs the complete review example. It stops on failure and writes a stage report plus example artifacts to `artifacts/local-ci/`. To use an existing Chromium installation, run `FRAME_BROWSER_PATH=/path/to/chromium npm run ci` instead. Tests serve the app locally and exercise it in a headless browser with isolated storage. After setup, `npm test` runs just the tests and `npm run example` runs just the example.
 
-The suite covers drawing and pointer recovery, undo/clear, drawing limits, storage failures and retry, design error recovery, and the full draw → resize → switch → reload → export workflow. It measures SVG endpoint alignment with the design and checks marks outside the board. GitHub Actions is configured to run these checks on pull requests and updates to `main` using Playwright's Chromium. Hosted execution remains unverified: the initial run and retry failed before any job steps ran; the follow-up is tracked in `todo.md`.
+The suite covers drawing and pointer recovery, undo/clear, drawing limits, storage failures and retry, design error recovery, and the full draw → resize → switch → reload → export workflow. It measures SVG endpoint alignment with the design and checks marks outside the board. Run local CI before submitting or accepting changes. GitHub-hosted Actions has been removed; there is no automatic remote check. See [CI troubleshooting](docs/ci-troubleshooting.md) for reports, browser setup, and the reason for switching.

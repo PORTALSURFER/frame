@@ -1,9 +1,23 @@
-# Browser CI execution
+# Local CI execution
 
-The browser suite runs locally with npm ci followed by FRAME_BROWSER_PATH=/path/to/chromium npm test, or with Playwright-installed Chromium. The end-to-end example runs with npm run example. The checked-in browser-tests workflow triggers on pull requests, main updates, and manual dispatch.
+Frame uses local CI instead of GitHub-hosted Actions. Run the complete validation from the repository root with Node.js 20 or newer and npm:
 
-GitHub-hosted runs have failed before any steps execute. The initial run https://github.com/PORTALSURFER/frame/actions/runs/36715797256 and retried run https://github.com/PORTALSURFER/frame/actions/runs/36747748334 expose no step results; available job-log requests return no log blob. Rerunning failed jobs was accepted, but execution again failed before steps. This evidence does not identify a code, dependency, billing, or runner configuration cause.
+```sh
+npm run ci
+```
 
-A repository/account administrator should inspect the run page for an actionable service notice, repository Settings → Actions → General and Runners, and account Actions usage/availability. Address the reported restriction, then use Actions → Browser tests → Run workflow on main. Verify checkout, Node setup, npm ci, Chromium installation, and npm test actually execute and finish successfully. A successful rerun request alone is not a passing workflow.
+The command installs the exact dependencies from `package-lock.json` with `npm ci`, installs Playwright Chromium, runs every model/browser test, and runs the end-to-end review example. It stops at the first failure and exits with a nonzero status. Run it before submitting or accepting changes; there is no automatic GitHub check.
 
-Until a run executes, hosted browser execution remains unchecked in todo.md. Local test results are the validation evidence for the merged changes.
+Successful runs produce screenshots, feedback, a portable project, and the example's review report in `artifacts/local-ci/`. `ci-report.json` records the stage results, Node version, commit, whether the checkout was dirty, and start/finish times. A dirty checkout means the report validates local changes as well as the recorded commit. Artifacts are ignored by Git. `FRAME_OUTPUT_DIR` selects a different output directory; an old example artifact is not evidence that the current run passed, so check the CI report and exit status.
+
+To use an existing Chromium installation and skip the browser download:
+
+```sh
+FRAME_BROWSER_PATH=/absolute/path/to/chromium npm run ci
+```
+
+Tests use a local HTTP server and isolated browser storage. Some managed Chromium installations block file URLs; the file-URL test explicitly reports a skip under that policy. Use Playwright Chromium for full coverage. If Chromium cannot launch on Linux because system libraries are missing, install its host dependencies with `npx playwright install --with-deps chromium`, then rerun local CI. This may require administrator access. Dependency and browser installation require network access.
+
+## Why hosted Actions was removed
+
+The [failed main run](https://github.com/PORTALSURFER/frame/actions/runs/36752840326) at commit `844f3b44b9e28017c1a444fa3b0a3fcb6f38a75a` never executed job steps. Its check annotations reported an account payment or spending-limit restriction. Local CI replaces that workflow without changing account billing. Hosted execution is no longer an acceptance requirement.

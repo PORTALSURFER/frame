@@ -11,7 +11,7 @@ This backlog follows a source review of `README.md`, `frame.js`, `app.js`, `inde
 - Viewport and state previews, zoom/pan/fit, structural and semantic checks, and repeatable visual/interaction tests.
 - Persistent revision snapshots, comparison, element-bound feedback carry-forward, portable projects, and a runnable end-to-end example.
 
-All feature items below are implemented. Hosted browser execution is the remaining external blocker: GitHub Actions fails before starting job steps. Local model/browser tests and the end-to-end workflow pass.
+All feature items below are implemented. Local CI replaces GitHub-hosted execution and runs the model/browser tests plus the end-to-end workflow with one command: `npm run ci`.
 
 ## 1. Make existing feedback reliable
 
@@ -21,8 +21,8 @@ All feature items below are implemented. Hosted browser execution is the remaini
 - [x] **Make feedback limits explicit and consistent.** Enforce 1,000 lines per design and 5,000 points per new line during drawing, with visible limit notices. Preserve older feedback above either limit in full when loading, saving, and exporting. Cover boundaries, continued drawing, undo/clear, and oversized legacy feedback with browser regression tests.
 - [x] **Show persistence failures.** Display unsaved feedback and a retry action when browser storage is unavailable or full. Keep export available, including failed clears, retain unsaved marks across design switches, and clear the notice only after saving succeeds. Verify quota/security failures and recovery in browser tests.
 - [x] **Recover from design errors.** Reject invalid or duplicate registrations with visible diagnostics, show an empty state when no designs are valid, and catch paint failures with a retry action. Preserve feedback for export and allow switching to a working design. Verify startup, registration, painting, and retry recovery in browser tests.
-- [x] **Add focused browser regression checks.** Cover draw → resize → switch design → reload → export with measured SVG alignment, outside-board Shift lines, pointer cancellation, undo during a stroke, storage failures, and leaving with unsaved feedback. These checks pass locally in Chromium; a GitHub Actions workflow is configured for PRs and main updates.
-- [ ] **Restore hosted browser test execution.** The first GitHub Actions run and its retry failed before a runner was assigned or any steps ran, with no job logs. Investigate repository/account runner availability and rerun the configured workflow; hosted test execution remains unverified. See [the initial run](https://github.com/PORTALSURFER/frame/actions/runs/36715797256).
+- [x] **Add focused browser regression checks.** Cover draw → resize → switch design → reload → export with measured SVG alignment, outside-board Shift lines, pointer cancellation, undo during a stroke, storage failures, and leaving with unsaved feedback. These checks run in Chromium through local CI.
+- [x] **Replace blocked hosted execution with local CI.** `npm run ci` installs locked dependencies and Chromium, runs the full test suite and review example, stops on failure, and writes a stage report. The GitHub workflow is removed; hosted execution is no longer required. See [CI troubleshooting](docs/ci-troubleshooting.md).
 
 ## 2. Complete the human feedback loop
 
@@ -69,6 +69,6 @@ Milestone: an agent can inspect a marked element, change it through a documented
 - [x] **Export a portable project.** Bundle design data, assets, revisions, and feedback so work can move between browsers and agent sessions.
 - [x] **Add an end-to-end example and update documentation.** Demonstrate create → render → human annotation → agent edit → checks → review, and keep README feature claims aligned with shipped behavior.
 
-## Remaining external follow-up
+## Validation before handoff
 
-Restore GitHub-hosted runner execution, then verify the existing workflow against main. Retries still fail before steps begin, so there is no application failure log to diagnose. Repository/account Actions settings and runner availability need inspection by someone with access to those settings. See [CI troubleshooting](docs/ci-troubleshooting.md) for the evidence and rerun procedure.
+Run `npm run ci` from the checkout being handed off and inspect `artifacts/local-ci/ci-report.json`. Local validation is the acceptance requirement; no GitHub billing or runner changes are needed. See [CI troubleshooting](docs/ci-troubleshooting.md) for setup and report details.

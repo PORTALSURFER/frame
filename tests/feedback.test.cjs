@@ -443,7 +443,7 @@ test('invalid and duplicate registrations report errors while retaining working 
   assert.match(await page.locator('#registration-errors').textContent(), /bad:.*positive integer size/);
   assert.match(await page.locator('#registration-errors').textContent(), /starter: Duplicate design id/);
   assert.equal(await page.locator('#design-status').isVisible(), false);
-  assert.equal(await page.locator('#design-picker option').count(), 3);
+  assert.equal(await page.locator('#design-picker option').count(), 4);
   await beginMouse(page);
   await page.mouse.up();
   assert.equal((await savedLines(page)).length, 1);
@@ -452,7 +452,7 @@ test('invalid and duplicate registrations report errors while retaining working 
 for (const mode of ['empty', 'invalid']) {
   test(`${mode} startup shows an empty state and can recover when a valid design is registered`, async t => {
     const page = await openPage(t, {selectDesign: false, setup: async page => {
-      for (const file of ['starter', 'sift', 'instrument']) {
+      for (const file of ['starter', 'sift', 'instrument', 'sift-style-studies']) {
         await page.route(`**/examples/${file}.js`, route => route.fulfill({
           contentType: 'text/javascript',
           body: mode === 'empty' ? '' : `Frame.register({id: 'bad-${file}', name: 'Invalid', width: 0, height: 100, paint() {}});`
@@ -1190,9 +1190,9 @@ test('history shortcuts leave textarea native undo and redo available', async t 
   await page.locator('.note-pin').click();
   await page.locator('#note-text').press('End');
   await page.locator('#note-text').pressSequentially(' draft');
-  await page.keyboard.press('Control+Z');
+  await page.keyboard.press('ControlOrMeta+Z');
   assert.equal(await page.locator('#note-text').inputValue(), 'Saved');
-  await page.keyboard.press('Control+Shift+Z');
+  await page.keyboard.press('ControlOrMeta+Shift+Z');
   assert.equal(await page.locator('#note-text').inputValue(), 'Saved draft');
   assert.equal((await savedFeedback(page)).notes[0].text, 'Saved');
   await page.locator('#note-cancel').click();
@@ -1309,6 +1309,27 @@ test('guide selection repaints opt-in designs and retains feedback and independe
   assert.deepEqual(await savedFeedback(page), original);
 });
 
+test('Sift Hardware guide is selectable, persistent, readable and downloadable without changing feedback', async t => {
+  const page = await openPage(t);
+  await addNote(page, 'Keep this feedback');
+  const original = await savedFeedback(page);
+  const source = await fs.readFile(path.join(root, 'styleguides/sift-hardware.md'), 'utf8');
+  await page.locator('#styleguide-picker').selectOption('sift-hardware');
+  assert.equal(await page.evaluate(() => Frame.activeStyleguide.document), source);
+  await page.locator('#view-styleguide').click();
+  assert.equal(await page.locator('#styleguide-title').textContent(), 'Sift Hardware');
+  assert.equal(await page.locator('#styleguide-document').textContent(), source);
+  assert.match(await page.locator('#styleguide-prompt').textContent(), /purple outer envelope/);
+  const pendingDownload = page.waitForEvent('download');
+  await page.locator('#download-styleguide').click();
+  const download = await pendingDownload;
+  assert.equal(download.suggestedFilename(), 'sift-hardware.md');
+  assert.equal(await fs.readFile(await download.path(), 'utf8'), source);
+  await page.reload();
+  assert.equal(await page.locator('#styleguide-picker').inputValue(), 'sift-hardware');
+  assert.deepEqual(await savedFeedback(page), original);
+});
+
 test('guide registration rejects invalid and duplicate definitions and renders guide text safely', async t => {
   const page = await openPage(t);
   assert.deepEqual(await page.evaluate(() => [
@@ -1316,9 +1337,9 @@ test('guide registration rejects invalid and duplicate definitions and renders g
     Frame.registerStyleguide({...Frame.activeStyleguide, id: 'technical-futurist', name: 'Replacement'})
   ]), [false, false]);
   assert.equal(await page.locator('#styleguide-registration-notice').isVisible(), true);
-  assert.equal(await page.locator('#styleguide-picker option').count(), 1);
-  await registerTestStyleguide(page);
   assert.equal(await page.locator('#styleguide-picker option').count(), 2);
+  await registerTestStyleguide(page);
+  assert.equal(await page.locator('#styleguide-picker option').count(), 3);
   await page.locator('#styleguide-picker').selectOption('minimal');
   await page.locator('#view-styleguide').click();
   assert.equal(await page.locator('#styleguide-summary').textContent(), '<img src=x onerror=alert(1)>');
@@ -1364,7 +1385,7 @@ test('guide selection survives unavailable storage in memory and clipboard error
 });
 
 test('missing and stale guide selections recover when a guide becomes available', async t => {
-  const page = await openPage(t, {setup: page => page.route('**/styleguides/technical-futurist.js', route => route.fulfill({contentType: 'application/javascript', body: ''}))});
+  const page = await openPage(t, {setup: page => page.route('**/styleguides/*.js', route => route.fulfill({contentType: 'application/javascript', body: ''}))});
   assert.equal(await page.locator('#styleguide-picker').isDisabled(), true);
   assert.equal(await page.locator('#view-styleguide').isDisabled(), true);
   await page.evaluate(() => localStorage.setItem('frame-styleguide:starter', 'missing'));
@@ -1389,6 +1410,10 @@ test('the embedded guide reader also works when index.html is opened directly', 
   await page.locator('#view-styleguide').click();
   assert.match(await page.locator('#styleguide-document').textContent(), /# 72. Compact Master Specification/);
   assert.equal(await page.locator('#styleguide-palette .guide-color').count(), 9);
+  await page.keyboard.press('Escape');
+  await page.locator('#styleguide-picker').selectOption('sift-hardware');
+  await page.locator('#view-styleguide').click();
+  assert.equal(await page.locator('#styleguide-document').textContent(), await fs.readFile(path.join(root, 'styleguides/sift-hardware.md'), 'utf8'));
 });
 
 test('v3 mark identity and timestamps survive editing, history, switching, reload and export', async t => {

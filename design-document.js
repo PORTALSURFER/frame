@@ -19,7 +19,7 @@
       if (!node.bounds || !["x", "y", "width", "height"].every(key => finite(node.bounds[key])) || node.bounds.width < 0 || node.bounds.height < 0) fail(node.id + ": invalid bounds");
       if (node.text !== undefined && typeof node.text !== "string") fail(node.id + ": text must be a string");
       if (node.style && (typeof node.style !== "object" || Array.isArray(node.style))) fail(node.id + ": invalid style");
-      for (const key of ["fontSize", "lineWidth", "radius", "opacity"]) if (node.style?.[key] !== undefined && !finite(node.style[key])) fail(node.id + ": invalid " + key);
+      for (const key of ["fontSize", "lineWidth", "radius", "cutCorner", "opacity"]) if (node.style?.[key] !== undefined && !finite(node.style[key])) fail(node.id + ": invalid " + key);
       if (node.points && (!Array.isArray(node.points) || !node.points.every(point => Array.isArray(point) && point.length === 2 && point.every(finite)))) fail(node.id + ": invalid points");
       for (const layout of [node.responsive, ...(node.breakpoints || []).map(item => item.bounds)].filter(Boolean)) {
         for (const [key, value] of Object.entries(layout)) if (!["x", "y", "width", "height"].includes(key) || !(finite(value) || typeof value === "string" && /^-?\d+(\.\d+)?%$/.test(value))) fail(node.id + ": invalid responsive bounds");
@@ -136,7 +136,22 @@
       ctx.strokeStyle = palette[s.stroke] || s.stroke || palette.border;
       ctx.fillStyle = palette[s.fill] || s.fill || palette.surface;
       if (["container", "button", "input"].includes(node.type)) {
-        ctx.beginPath(); ctx.roundRect(b.x, b.y, b.width, b.height, Math.max(0, Math.min(s.radius || 0, b.width / 2, b.height / 2)));
+        ctx.beginPath();
+        const radius = Math.max(0, Math.min(s.radius || 0, b.width / 2, b.height / 2));
+        const cut = Math.max(0, Math.min(s.cutCorner || 0, b.width / 2, b.height / 2));
+        if (node.points) {
+          node.points.forEach(([x,y],i)=>ctx[i?"lineTo":"moveTo"](b.x+x,b.y+y));ctx.closePath();
+        } else if (cut) {
+          const x=b.x,y=b.y,right=x+b.width,bottom=y+b.height,r=Math.min(radius,cut);
+          ctx.moveTo(x+r,y);ctx.lineTo(right-r,y);ctx.quadraticCurveTo(right,y,right,y+r);
+          ctx.lineTo(right,bottom-cut);ctx.lineTo(right-cut,bottom);ctx.lineTo(x+r,bottom);
+          ctx.quadraticCurveTo(x,bottom,x,bottom-r);ctx.lineTo(x,y+r);ctx.quadraticCurveTo(x,y,x+r,y);ctx.closePath();
+        } else ctx.roundRect(b.x,b.y,b.width,b.height,radius);
+        if (s.fillTop && s.fillBottom) {
+          const gradient=ctx.createLinearGradient(0,b.y,0,b.y+b.height);
+          gradient.addColorStop(0,palette[s.fillTop]||s.fillTop);gradient.addColorStop(1,palette[s.fillBottom]||s.fillBottom);
+          ctx.fillStyle=gradient;
+        }
         if (s.fill !== "none") ctx.fill();
         if (s.stroke !== "none") ctx.stroke();
       }
@@ -157,7 +172,15 @@
         const padding = s.padding ?? (["button", "input"].includes(node.type) ? 8 : 0);
         const x = s.textAlign === "center" ? b.x + b.width / 2 : s.textAlign === "right" ? b.x + b.width - padding : b.x + padding;
         const content = node.type === "input" ? options.values?.[node.id] ?? node.value ?? node.text ?? "" : node.text || "";
-        String(content).split("\n").forEach((line, i) => ctx.fillText(line, x, b.y + padding + i * (s.lineHeight || (s.fontSize || 14) * 1.4)));
+        const lines = String(content).split("\n");
+        if (s.verticalAlign === "middle" && lines.length === 1) {
+          ctx.textBaseline = "alphabetic";
+          const metrics = ctx.measureText(lines[0]);
+          const ascent = metrics.actualBoundingBoxAscent ?? (s.fontSize || 14) * 0.8;
+          const descent = metrics.actualBoundingBoxDescent ?? (s.fontSize || 14) * 0.2;
+          ctx.textBaseline = "alphabetic";
+          ctx.fillText(lines[0], x, b.y + (b.height + ascent - descent) / 2);
+        } else lines.forEach((line, i) => ctx.fillText(line, x, b.y + padding + i * (s.lineHeight || (s.fontSize || 14) * 1.4)));
       }
       ctx.restore();
     }
