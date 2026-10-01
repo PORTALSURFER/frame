@@ -159,13 +159,31 @@ test('comparison UI presents snapshots and overlay without changing the selected
  const page=await pageFor(t);
  await page.evaluate(()=>Frame.agent.applyEdits('instrument',[{op:'update',id:'run',patch:{text:'COMPARE ME'}}]));
  const current=await page.evaluate(()=>Frame.agent.getDocument('instrument').revisionId);
- await page.locator('#revision-picker').selectOption('instrument-r1');
  await page.locator('#compare-revisions').click();
+ await page.locator('#compare-before').selectOption('instrument-r1');
  assert.match(await page.locator('#compare-summary').textContent(),/1 changed/);
  await page.locator('#compare-overlay').check();
  assert.equal(await page.locator('#revision-canvases').evaluate(el=>el.classList.contains('overlay')),true);
  await page.locator('#close-compare').click();
  assert.equal(await page.evaluate(()=>Frame.agent.getDocument('instrument').revisionId),current);
+});
+test('selecting a revision immediately loads it, preserves feedback and history, and persists after reload',async t=>{
+ const page=await pageFor(t);
+ const board=await page.locator('#board').boundingBox();
+ await page.mouse.move(board.x+100,board.y+100);await page.mouse.down();await page.mouse.move(board.x+150,board.y+150);await page.mouse.up();
+ const original=await page.evaluate(()=>Frame.agent.getDocument('instrument').elements.find(n=>n.id==='run').text);
+ const edited=await page.evaluate(()=>Frame.agent.applyEdits('instrument',[{op:'update',id:'run',patch:{text:'NEW REVISION'}}]).revisionId);
+ const before=await page.evaluate(()=>({feedback:Frame.agent.getFeedback(),history:Frame.revisions.list('instrument')}));
+ await page.locator('#revision-picker').selectOption('instrument-r1');
+ assert.deepEqual(await page.evaluate(()=>({revision:Frame.agent.getDocument('instrument').revisionId,text:Frame.agent.inspect('instrument').find(n=>n.id==='run').text})),{revision:'instrument-r1',text:original});
+ assert.deepEqual(await page.evaluate(()=>Frame.agent.getFeedback().lines),before.feedback.lines);
+ assert.deepEqual(await page.evaluate(()=>Frame.revisions.list('instrument')),before.history);
+ await page.locator('#revision-picker').selectOption(edited);
+ assert.equal(await page.evaluate(()=>Frame.agent.inspect('instrument').find(n=>n.id==='run').text),'NEW REVISION');
+ await page.reload();await page.locator('#design-picker').selectOption('instrument');
+ assert.equal(await page.locator('#revision-picker').inputValue(),edited);
+ assert.equal(await page.evaluate(()=>Frame.agent.getDocument('instrument').revisionId),edited);
+ assert.deepEqual(await page.evaluate(()=>Frame.agent.getFeedback().lines),before.feedback.lines);
 });
 test('embedded image assets decode before readiness and survive portable export',async t=>{
  const page=await pageFor(t);

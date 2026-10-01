@@ -136,6 +136,7 @@
     const url=URL.createObjectURL(new Blob([data],{type})),link=document.createElement("a");link.href=url;link.download=filename;link.click();setTimeout(()=>URL.revokeObjectURL(url),1000);
   }
   if(picker) {
+    picker.addEventListener("change",()=>Frame.revisions.restore(currentId(),picker.value));
     document.getElementById("restore-revision").addEventListener("click",()=>Frame.revisions.restore(currentId(),picker.value));
     document.getElementById("compare-revisions").addEventListener("click",()=>{
       const id=currentId(),all=Frame.revisions.list(id),latest=Frame.designs.get(id).revisionId;

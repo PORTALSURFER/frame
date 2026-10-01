@@ -259,11 +259,41 @@
     d.elements.find(n=>n.id==='division-chevron').bounds.x=1113;
     return d;
   }
+  function hardwareClearance() {
+    const d=hardwareRefined();d.revisionId='sift-hardware-r5';
+    d.preview.guideRevision='clearance-2026-10-01';
+    const node=id=>d.elements.find(n=>n.id===id);
+    // Keep the archived r4 immutable. Move each control and its vector parts together.
+    function move(id,x,y,w,height) {
+      const button=node(id),old={...button.bounds},dx=x-old.x,dy=y-old.y;
+      for(const part of d.elements.filter(n=>n.id.startsWith(id+'-'))) {
+        part.bounds.x+=dx+(w-old.width)/2;part.bounds.y+=dy+(height-old.height)/2;
+      }
+      Object.assign(button.bounds,{x,y,width:w,height});
+      if(node(id+'-chevron'))Object.assign(node(id+'-chevron').bounds,{x:x+w-18,y:y+13});
+    }
+    move('capture',850,31,32,32);move('takes',894,31,84,32);
+    move('export',990,31,32,32);move('settings',1034,31,32,32);move('help',1078,31,32,32);
+    move('arm',29,448,84,38);
+    move('level',790,450,32,32);move('play',834,450,32,32);move('loop',878,450,32,32);
+    move('sync',922,450,52,32);move('snap',998,450,48,32);move('division',1058,450,64,32);
+    Object.assign(node('division').style,{fontSize:11,padding:10});
+    Object.assign(node('timing-divider').bounds,{x:986,y:452,height:28});
+    // Insets occupy the quiet chassis, with space around their lips and shoulders.
+    const top=node('top-metal');top.points=top.points.map(([x,y])=>[x*630/748,y*16/19]);Object.assign(top.bounds,{width:630,height:16});
+    Object.assign(node('top-lip').bounds,{x:246,y:18,width:530});
+    const bottom=node('bottom-metal');bottom.points=bottom.points.map(([x,y])=>[x*620/786,y*16/19]);Object.assign(bottom.bounds,{y:488,width:620,height:16});
+    Object.assign(node('bottom-lip').bounds,{x:168,y:488,width:560});
+    Object.assign(node('glint-left').bounds,{x:149,y:492,height:7});
+    Object.assign(node('glint-right').bounds,{x:738,y:492,height:7});
+    node('glint-left').points=[[0,0],[6,7]];node('glint-right').points=[[6,0],[0,7]];
+    return d;
+  }
 
   window.addEventListener('DOMContentLoaded',()=>{
     if(!Frame.registerDocument(technical()))return;
     let added=false;
-    for(const create of [hardware,technicalRefined,hardwareRefined]) {
+    for(const create of [hardware,technicalRefined,hardwareRefined,hardwareClearance]) {
       const document=create();
       if(!Frame.revisions.list(id).some(r=>r.revisionId===document.revisionId)) {
         Frame.agent.updateDocument(document);added=true;

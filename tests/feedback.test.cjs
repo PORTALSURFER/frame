@@ -453,7 +453,7 @@ for (const mode of ['empty', 'invalid']) {
   test(`${mode} startup shows an empty state and can recover when a valid design is registered`, async t => {
     const page = await openPage(t, {selectDesign: false, setup: async page => {
       for (const file of ['starter', 'sift', 'instrument', 'sift-style-studies']) {
-        await page.route(`**/examples/${file}.js`, route => route.fulfill({
+        await page.route(`**/examples/${file}.js*`, route => route.fulfill({
           contentType: 'text/javascript',
           body: mode === 'empty' ? '' : `Frame.register({id: 'bad-${file}', name: 'Invalid', width: 0, height: 100, paint() {}});`
         }));
@@ -1385,7 +1385,7 @@ test('guide selection survives unavailable storage in memory and clipboard error
 });
 
 test('missing and stale guide selections recover when a guide becomes available', async t => {
-  const page = await openPage(t, {setup: page => page.route('**/styleguides/*.js', route => route.fulfill({contentType: 'application/javascript', body: ''}))});
+  const page = await openPage(t, {setup: page => page.route(/\/styleguides\/[^/]+\.js(?:\?v=\d+)?$/, route => route.fulfill({contentType: 'application/javascript', body: ''}))});
   assert.equal(await page.locator('#styleguide-picker').isDisabled(), true);
   assert.equal(await page.locator('#view-styleguide').isDisabled(), true);
   await page.evaluate(() => localStorage.setItem('frame-styleguide:starter', 'missing'));

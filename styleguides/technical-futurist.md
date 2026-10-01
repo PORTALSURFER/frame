@@ -946,12 +946,19 @@ everything as a single flat layer of neatly isolated boxes.
   functional handles. Give these the strongest local contrast and unobstructed
   interaction areas. Reserve coral and exceptional mint accents for meaning.
 
-Use deliberate occlusion and overlap to establish depth: a control may sit over
-an interrupted rail or backing plate, and a recessed display may hide part of a
-background stripe. Keep overlaps between decoration and structure intentional;
-never cover text, data, meter scales, handles or focus indicators. Preserve clear
-hit areas and focus order. In Frame documents, declare intentional overlaps so
-review checks can distinguish them from collisions.
+Use overlap sparingly and only for an explicit depth relationship between
+non-interactive background layers. A recessed display may hide a background
+stripe, or a backing plate may occlude a subdued decorative rail. Foreground
+controls may sit within their intended display bed or enclosure, but decorative
+edges must not intersect or crowd controls, labels, data, meter scales, handles,
+hit areas or focus indicators. Shorten or move decoration before compressing
+functional groups. Keep at least 6 design units of clear space after strokes,
+preferably 12–16 around prominent inset shoulders, at the 1140-unit reference
+width. Reserve an unobstructed 6-unit focus halo. Measure dropdown text and leave
+at least 8 units before the chevron and after it; protect clipped corners. Check
+all interface states at the actual viewing scale. Declare each intentional
+background overlap locally in Frame documents; a blanket exemption or merely
+placing an intersecting plate behind a button does not establish intent.
 
 Prefer a few well-composed intersections, fine edge highlights, darker contact
 edges and restrained material gradients over heavy drop shadows. Keep quiet areas
@@ -2265,4 +2272,4 @@ Use hard corners or very small radii, crisp layered surfaces, minimal shadows, l
 
 Avoid generic cyberpunk, neon effects, glassmorphism, glossy controls, rounded SaaS cards, colorful gradients, random science-fiction decoration, oversized icons, meaningless technical noise, and excessive visual density.
 
-The interface should feel engineered, believable, precise, restrained, and functional rather than cinematic.
+The interface should feel engineered, believable, precise, restrained, and functional rather than cinematic. Keep decorative edges clear of all foreground, hit areas and focus indicators; allow only locally declared purposeful background overlaps. Shorten inset shoulders before cramping controls and verify clearances in every state.
