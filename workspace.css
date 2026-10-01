@@ -90,3 +90,11 @@ dialog :is(input,textarea,select) { color:var(--ui-ink); background:#242322; bor
 dialog .note-actions button { background:linear-gradient(#424140,#333230); border-color:var(--ui-line); color:var(--ui-ink); font:11px "Helvetica Neue",Arial,system-ui,sans-serif; }
 .design-status { background:linear-gradient(#424140,#302f2e); border-color:var(--ui-line); color:var(--ui-ink); }
 #styleguide-tokens dt { color:var(--ui-accent); }
+
+.app.feedback-collapsed { grid-template-columns:64px minmax(0,1fr); }
+.stage.is-panning, .stage.is-panning * { cursor:grabbing!important; }
+@media(max-width:1100px) { .app.feedback-collapsed { grid-template-columns:60px minmax(0,1fr); } }
+@media(max-width:760px) {
+ .app.feedback-collapsed { grid-template-columns:52px minmax(0,1fr); grid-template-rows:auto auto minmax(360px,60dvh) auto; }
+ .app.feedback-collapsed footer { grid-row:4; }
+}

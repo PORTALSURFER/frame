@@ -21,6 +21,9 @@
   const download = document.getElementById("download");
   const retrySave = document.getElementById("retry-save");
   const count = document.getElementById("mark-count");
+  const sidebarToggle = document.getElementById("toggle-feedback");
+  const feedbackPanel = document.getElementById("feedback-panel");
+  const app = document.querySelector(".app");
   const sizeLabel = document.getElementById("design-size");
   const limitNotice = document.getElementById("feedback-limit-notice");
   const saveNotice = document.getElementById("feedback-save-notice");
@@ -446,7 +449,7 @@
     finishLine();
     finishNoteDrag();
     closeNoteEditor();
-    if (panDrag) {const pointerId=panDrag.pointerId;panDrag=null;if(brush.hasPointerCapture(pointerId))brush.releasePointerCapture(pointerId);}
+    finishPan();
     mode = next;
     window.dispatchEvent(new CustomEvent("frame:feedback-mode", {detail: {mode}}));
     brush.dataset.mode = mode;
@@ -458,7 +461,7 @@
       : mode === "note" ? "Click to place a note. Or Tab to the canvas, use arrows to position, and Enter to place. Click a note to edit or drag to move."
       : "Click a line or note to select it, or use Tab. Double-click a note to edit. Escape deselects.";
     if (mode === "interact") instructions.textContent = "Use prototype controls and Tab to test interaction. Feedback tools resume annotation.";
-    if (mode === "pan") instructions.textContent = "Drag to pan. Use +/− to zoom and Fit to restore the board.";
+    if (mode === "pan") instructions.textContent = "Drag to pan, or middle-drag in any tool. Scroll to zoom. Fit restores the board.";
     selectLine(null);
     updateKeyboardCursor();
   }
@@ -567,7 +570,8 @@
     if (!design) return;
     picker.value = id;
     keyboardAnchor = null;
-    zoom = 1; panX = 0; panY = 0; panDrag = null;
+    finishPan();
+    zoom = 1; panX = 0; panY = 0;
     sizeLabel.textContent = `${design.width} × ${design.height}`;
     board.setAttribute("aria-label", `${design.name} interface design`);
     designCanvas.setAttribute("aria-label", `${design.name} painted interface`);
@@ -597,12 +601,76 @@
     save();
   }
 
+  function finishPan(cancel = false) {
+    if (!panDrag) return;
+    const drag = panDrag;
+    panDrag = null;
+    if (cancel) [panX, panY] = drag.original;
+    stage.classList.remove("is-panning");
+    if (drag.target.hasPointerCapture(drag.pointerId)) drag.target.releasePointerCapture(drag.pointerId);
+    if (cancel) fitBoard();
+  }
+  function movePan(event) {
+    panX = panDrag.original[0] + event.clientX - panDrag.start[0];
+    panY = panDrag.original[1] + event.clientY - panDrag.start[1];
+    fitBoard();
+  }
+  // Capture on the stage so middle-drag works over notes and prototype controls too.
+  stage.addEventListener("pointerdown", event => {
+    if (!designReady || event.button !== 1 || event.pointerType !== "mouse" || activePointerId !== null || noteDrag || panDrag) return;
+    event.preventDefault(); event.stopPropagation();
+    panDrag = {pointerId:event.pointerId, target:stage, start:[event.clientX,event.clientY], original:[panX,panY]};
+    stage.classList.add("is-panning");
+    stage.setPointerCapture(event.pointerId);
+  }, true);
+  stage.addEventListener("pointermove", event => {
+    if (panDrag?.target !== stage || panDrag.pointerId !== event.pointerId) return;
+    event.preventDefault(); event.stopPropagation();
+    movePan(event);
+    if (!(event.buttons & 4)) finishPan();
+  }, true);
+  stage.addEventListener("pointerup", event => {
+    if (panDrag?.target !== stage || panDrag.pointerId !== event.pointerId) return;
+    event.preventDefault(); event.stopPropagation(); movePan(event); finishPan();
+  }, true);
+  for (const type of ["pointercancel", "lostpointercapture"]) stage.addEventListener(type, event => {
+    if (panDrag?.target === stage && panDrag.pointerId === event.pointerId) finishPan(type === "pointercancel");
+  }, true);
+  stage.addEventListener("auxclick", event => { if (event.button === 1) event.preventDefault(); });
+  stage.addEventListener("wheel", event => {
+    if (!designReady || !event.deltaY || event.target.closest("input,textarea,select,[contenteditable]")) return;
+    event.preventDefault();
+    if (activePointerId !== null || noteDrag || panDrag) return;
+    const delta = event.deltaY * (event.deltaMode === 1 ? 16 : event.deltaMode === 2 ? stage.clientHeight : 1);
+    const nextZoom = Math.max(0.25, Math.min(8, zoom * Math.exp(-delta * 0.002)));
+    const bounds = board.getBoundingClientRect(), ratio = nextZoom / zoom;
+    // Keep the design point beneath the cursor stationary while scaling.
+    panX += (event.clientX - bounds.x - bounds.width / 2) * (1 - ratio);
+    panY += (event.clientY - bounds.y - bounds.height / 2) * (1 - ratio);
+    zoom = nextZoom; fitBoard();
+  }, {passive:false});
+  function setSidebarCollapsed(collapsed) {
+    app.classList.toggle("feedback-collapsed", collapsed);
+    feedbackPanel.hidden = collapsed;
+    sidebarToggle.setAttribute("aria-expanded", String(!collapsed));
+    sidebarToggle.textContent = collapsed ? "Show feedback" : "Hide feedback";
+  }
+  let sidebarCollapsed = false;
+  try { sidebarCollapsed = localStorage.getItem("frame-feedback-sidebar-collapsed") === "true"; } catch { /* optional preference */ }
+  setSidebarCollapsed(sidebarCollapsed);
+  sidebarToggle.addEventListener("click", () => {
+    finishLine(); finishNoteDrag(); finishPan();
+    sidebarCollapsed = !sidebarCollapsed;
+    setSidebarCollapsed(sidebarCollapsed);
+    try { localStorage.setItem("frame-feedback-sidebar-collapsed", String(sidebarCollapsed)); } catch { /* layout still works without storage */ }
+  });
+
   brush.addEventListener("pointerdown", (event) => {
     if (!designReady || event.button !== 0 || activePointerId !== null || noteDrag !== null || panDrag !== null) return;
     event.preventDefault();
     if (mode === "interact") return;
     if (mode === "pan") {
-      panDrag = {pointerId: event.pointerId, start: [event.clientX,event.clientY], original: [panX,panY]};
+      panDrag = {pointerId: event.pointerId, target:brush, start: [event.clientX,event.clientY], original: [panX,panY]};
       brush.setPointerCapture(event.pointerId); return;
     }
     if (mode === "note") {
@@ -650,19 +718,18 @@
   }
   brush.addEventListener("pointermove", event => {
     if (panDrag && panDrag.pointerId === event.pointerId) {
-      panX = panDrag.original[0] + event.clientX - panDrag.start[0]; panY = panDrag.original[1] + event.clientY - panDrag.start[1]; fitBoard();
+      movePan(event);
     } else updateActive(event);
   });
   brush.addEventListener("pointerup", (event) => {
-    if (panDrag && panDrag.pointerId === event.pointerId) { const pointerId=panDrag.pointerId; panDrag=null; if(brush.hasPointerCapture(pointerId))brush.releasePointerCapture(pointerId); return; }
+    if (panDrag && panDrag.pointerId === event.pointerId) { movePan(event); finishPan(); return; }
     if (event.pointerId !== activePointerId) return;
     updateActive(event);
     finishLine();
   });
   function finishPointer(event) {
     if (panDrag?.pointerId === event.pointerId) {
-      if (event.type === "pointercancel") [panX,panY] = panDrag.original;
-      panDrag = null; fitBoard();
+      finishPan(event.type === "pointercancel");
     }
     if (event.pointerId === activePointerId) finishLine();
   }
@@ -864,9 +931,9 @@
     get: () => ({zoom, panX, panY}),
     set: value => {
       if (!value || !Number.isFinite(value.zoom) || value.zoom < 0.25 || value.zoom > 8 || !Number.isFinite(value.panX) || !Number.isFinite(value.panY)) throw new Error("Invalid view");
-      finishLine(); finishNoteDrag(); ({zoom,panX,panY}=value); fitBoard(); return Frame.view.get();
+      finishLine(); finishNoteDrag(); finishPan(); ({zoom,panX,panY}=value); fitBoard(); return Frame.view.get();
     },
-    fit: () => { finishLine(); finishNoteDrag(); zoom=1;panX=panY=0;fitBoard(); },
+    fit: () => { finishLine(); finishNoteDrag(); finishPan(); zoom=1;panX=panY=0;fitBoard(); },
     setMode
   };
   document.getElementById("zoom-in").addEventListener("click", () => Frame.view.set({zoom:Math.min(8,zoom*1.25),panX,panY}));
