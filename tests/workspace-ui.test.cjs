@@ -92,9 +92,10 @@ for(const width of [320,1280])test(`feedback sidebar toggles, restores, and pres
  const board=await page.locator('#board').boundingBox();await page.mouse.move(board.x+board.width/3,board.y+board.height/3);await page.mouse.down();await page.mouse.move(board.x+board.width/2,board.y+board.height/2);await page.mouse.up();
  const marks=await page.evaluate(()=>Frame.agent.getFeedback());
  const before=await page.locator('#stage').boundingBox(),height=await page.evaluate(()=>document.documentElement.scrollHeight);
- const toggle=page.locator('#toggle-feedback');await toggle.click();assert.equal(await toggle.getAttribute('aria-expanded'),'false');assert.equal(await page.locator('#feedback-panel').isVisible(),false);
+ const toggle=page.locator('#toggle-feedback');assert.equal(await toggle.evaluate(n=>!!n.closest('#feedback-panel')),true);
+ await toggle.click();assert.equal(await toggle.evaluate(n=>document.activeElement===n),true);assert.equal(await toggle.getAttribute('aria-expanded'),'false');assert.equal(await page.locator('#feedback-panel').isVisible(),false);
  await page.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))));
  if(width>760)assert.ok((await page.locator('#stage').boundingBox()).width>before.width+200);else assert.ok(await page.evaluate(()=>document.documentElement.scrollHeight)<height);
  assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);
- await page.reload();assert.equal(await toggle.getAttribute('aria-expanded'),'false');await toggle.press('Enter');assert.equal(await page.locator('#feedback-panel').isVisible(),true);assert.deepEqual(await page.evaluate(()=>Frame.agent.getFeedback()),marks);
+ await page.reload();assert.equal(await toggle.getAttribute('aria-expanded'),'false');await toggle.press('Enter');assert.equal(await toggle.evaluate(n=>document.activeElement===n),true);assert.equal(await page.locator('#feedback-panel').isVisible(),true);assert.deepEqual(await page.evaluate(()=>Frame.agent.getFeedback()),marks);
 });

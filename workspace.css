@@ -2,7 +2,7 @@
 :root { color-scheme:dark; --ui-bg:#262524; --ui-panel:#393837; --ui-line:#51504e; --ui-ink:#d3d3cf; --ui-muted:#a5a5a0; --ui-accent:#b5a1e5; --ui-review:#55c3e4; --ui-resolved:#bcd887; }
 body { background:var(--ui-bg); color:var(--ui-ink); font-family:"Helvetica Neue",Arial,system-ui,sans-serif; }
 .app { height:100dvh; min-height:600px; display:grid; grid-template-columns:64px minmax(0,1fr) 246px; grid-template-rows:auto auto minmax(0,1fr) auto; gap:12px; padding:16px; background:linear-gradient(#302f2e,#262524 70%); }
-.topbar { grid-column:1/-1; display:flex; flex-direction:row; align-items:center; min-height:40px; padding:0 0 12px; gap:20px; border-bottom:1px solid var(--ui-line); background:transparent; }
+.topbar { grid-column:1/-1; display:flex; flex-direction:row; align-items:center; min-height:40px; padding:0 0 8px; gap:20px; border-bottom:1px solid var(--ui-line); background:transparent; }
 .brand { display:flex; flex-shrink:0; align-items:center; justify-content:center; width:156px; height:38px; text-decoration:none; color:#e8e8e2; background:transparent; clip-path:none; justify-content:flex-start; }
 .brand strong { font-size:32px; letter-spacing:-1px; font-weight:700; }
 .tools { display:flex; flex:1; flex-wrap:wrap; justify-content:flex-start; gap:12px; min-width:0; align-items:end; }
@@ -34,7 +34,7 @@ body { background:var(--ui-bg); color:var(--ui-ink); font-family:"Helvetica Neue
 .history-tools { padding-top:16px; border-top:1px solid var(--ui-line); }
 .stage { grid-column:2; grid-row:3; min-height:0; min-width:0; padding:20px; flex:none; border:0; border-radius:6px; background:linear-gradient(#20201f,#181716); box-shadow:inset 0 0 0 1px #171615,inset 0 1px 2px #0005; }
 .board { flex:none; box-shadow:0 10px 30px #0005; }
-.feedback-panel { grid-column:3; grid-row:3; min-height:0; min-width:0; display:flex; flex-direction:column; gap:14px; padding:16px; border:1px solid #242322; border-radius:7px; background:linear-gradient(#424140,#333230); box-shadow:inset 0 1px 0 #51504e,0 2px 3px #0004; }
+.feedback-panel { height:100%; min-height:0; min-width:0; display:flex; flex-direction:column; gap:14px; padding:16px; border:1px solid #242322; border-radius:7px; background:linear-gradient(#424140,#333230); box-shadow:inset 0 1px 0 #51504e,0 2px 3px #0004; }
 .feedback-heading { display:flex; flex-wrap:wrap; align-items:baseline; gap:8px; border-bottom:1px solid var(--ui-line); padding-bottom:12px; }
 .feedback-heading h2 { margin:0; font-size:18px; font-weight:500; color:var(--ui-review); }
 #mark-count { margin-left:auto; color:var(--ui-muted); font-size:10px; }
@@ -77,7 +77,7 @@ dialog :is(input,textarea,select) { color:var(--ui-ink); background:#242322; bor
 #styleguide-dialog button:hover,#compare-dialog button:hover,#project-dialog button:hover { background:#484745; border-color:var(--ui-accent); }
 
 /* Module families identify purpose without filling the workspace with color. */
-.review-toolbar { padding:8px 10px; border-radius:6px; background:linear-gradient(#3b3a39,#302f2e); box-shadow:inset 0 1px 0 #51504e; }
+.review-toolbar { padding:0; border-radius:0; background:transparent; box-shadow:none; }
 .review-toolbar>label { color:var(--ui-review); }
 .topbar { border-bottom-color:#171615; box-shadow:0 1px 0 #454442; }
 .app select { border:0; border-bottom:1px solid #696865; border-radius:2px; box-shadow:inset 0 1px 3px #0003; }
@@ -91,13 +91,21 @@ dialog .note-actions button { background:linear-gradient(#424140,#333230); borde
 .design-status { background:linear-gradient(#424140,#302f2e); border-color:var(--ui-line); color:var(--ui-ink); }
 #styleguide-tokens dt { color:var(--ui-accent); }
 
-.app.feedback-collapsed { grid-template-columns:64px minmax(0,1fr); }
+.app.feedback-collapsed { grid-template-columns:64px minmax(0,1fr) 32px; }
 .stage.is-panning, .stage.is-panning * { cursor:grabbing!important; }
-@media(max-width:1100px) { .app.feedback-collapsed { grid-template-columns:60px minmax(0,1fr); } }
+@media(max-width:1100px) { .app.feedback-collapsed { grid-template-columns:60px minmax(0,1fr) 32px; } }
 @media(max-width:760px) {
- .app.feedback-collapsed { grid-template-columns:52px minmax(0,1fr); grid-template-rows:auto auto minmax(360px,60dvh) auto; }
- .app.feedback-collapsed footer { grid-row:4; }
+ .app.feedback-collapsed { grid-template-columns:52px minmax(0,1fr); grid-template-rows:auto auto minmax(360px,60dvh) auto auto; }
+ .app.feedback-collapsed footer { grid-row:5; }
 }
 
-/* Anchor the panel control at the toolbar’s far edge, above its panel. */
-#toggle-feedback { margin-left:auto; flex-shrink:0; }
+/* Keep collapse/reopen in the panel's own edge rather than the review toolbar. */
+.feedback-dock { grid-column:3; grid-row:3; min-height:0; min-width:0; }
+#toggle-feedback { display:grid; place-items:center; flex-shrink:0; width:28px; min-height:28px; padding:0; background:transparent; border-color:transparent; }
+#toggle-feedback[aria-expanded="false"] { width:32px; min-height:32px; border-color:var(--ui-line); background:var(--ui-panel); }
+#toggle-feedback[aria-expanded="false"] svg { transform:scaleX(-1); }
+@media(max-width:760px) {
+ .feedback-dock { grid-column:1/-1; grid-row:4; }
+ .feedback-panel { height:auto; }
+ .app.feedback-collapsed .feedback-dock { justify-self:end; }
+}

@@ -650,10 +650,15 @@
     zoom = nextZoom; fitBoard();
   }, {passive:false});
   function setSidebarCollapsed(collapsed) {
+    const hadFocus = document.activeElement === sidebarToggle;
     app.classList.toggle("feedback-collapsed", collapsed);
     feedbackPanel.hidden = collapsed;
     sidebarToggle.setAttribute("aria-expanded", String(!collapsed));
-    sidebarToggle.textContent = collapsed ? "Show feedback" : "Hide feedback";
+    sidebarToggle.setAttribute("aria-label", collapsed ? "Show feedback" : "Hide feedback");
+    sidebarToggle.title = collapsed ? "Show feedback" : "Hide feedback";
+    const toggleParent = collapsed ? feedbackPanel.parentElement : feedbackPanel.querySelector(".feedback-heading");
+    if (sidebarToggle.parentElement !== toggleParent) toggleParent.append(sidebarToggle);
+    if (hadFocus) sidebarToggle.focus({preventScroll:true});
   }
   let sidebarCollapsed = false;
   try { sidebarCollapsed = localStorage.getItem("frame-feedback-sidebar-collapsed") === "true"; } catch { /* optional preference */ }

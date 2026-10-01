@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Frame — UI design canvas</title>
   <link rel="stylesheet" href="style.css">
-  <link rel="stylesheet" href="workspace.css?v=4">
+  <link rel="stylesheet" href="workspace.css?v=5">
   <script src="frame.js" defer></script>
   <script src="design-document.js" defer></script>
   <script src="design-tools.js" defer></script>
@@ -22,7 +22,7 @@
   <script src="examples/instrument.js" defer></script>
   <script src="examples/sift-style-studies.js?v=6" defer></script>
   <script src="examples/frame-workspace.js" defer></script>
-  <script src="app.js?v=3" defer></script>
+  <script src="app.js?v=4" defer></script>
   <script src="review-tools.js" defer></script>
 </head>
 <body>
@@ -47,7 +47,7 @@
         <button id="fit-view" type="button">Fit</button></div><div class="review-actions"><button id="compare-revisions" type="button">Compare</button>
         <button id="check-design" type="button">Check design</button><label><input id="image-feedback" type="checkbox"> Include feedback</label>
         <button id="download-image" type="button">Download PNG</button></div>
-      <button id="toggle-feedback" type="button" aria-controls="feedback-panel" aria-expanded="true">Hide feedback</button><span id="review-action-status" role="status"></span>
+<span id="review-action-status" role="status"></span>
     </div>
     <nav class="tool-rail" aria-label="Canvas tools">
       <div class="feedback-tools" role="group" aria-label="Feedback tools">
@@ -58,8 +58,11 @@
         <button id="tool-select" type="button" data-feedback-tool="select" aria-pressed="false" aria-keyshortcuts="V">Select</button></div><div class="history-tools"><button id="undo" type="button" disabled aria-keyshortcuts="Control+Z Meta+Z">Undo</button>
         <button id="redo" type="button" disabled aria-keyshortcuts="Control+Shift+Z Meta+Shift+Z Control+Y">Redo</button></div>
     </nav>
+    <div class="feedback-dock">
     <aside id="feedback-panel" class="feedback-panel" aria-label="Feedback panel">
-      <div class="feedback-heading"><h2>Feedback</h2><span id="mark-count">0 lines</span></div>
+      <div class="feedback-heading"><h2>Feedback</h2><span id="mark-count">0 lines</span>
+        <button id="toggle-feedback" type="button" aria-controls="feedback-panel" aria-expanded="true" aria-label="Hide feedback" title="Hide feedback"><svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><path d="m6 3 5 5-5 5" fill="none" stroke="currentColor" stroke-width="1.5"/></svg></button>
+      </div>
       <label>Show <select id="feedback-filter" aria-label="Feedback status filter"><option value="all">All marks</option><option value="open">Open</option><option value="resolved">Resolved</option></select></label>
       <div id="feedback-list" class="feedback-list" aria-label="Feedback marks"></div>
       <p id="feedback-empty">No feedback yet. Use Pen or Note to mark what should change.</p>
@@ -70,6 +73,7 @@
         <button id="clear" type="button" disabled>Clear feedback</button>
         <button id="retry-save" type="button" hidden>Retry save</button></div>
     </aside>
+    </div>
     <div class="stage" id="stage">
       <section id="design-status" class="design-status" role="status" hidden>
         <h1 id="design-status-title"></h1>
