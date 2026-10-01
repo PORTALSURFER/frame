@@ -20,9 +20,9 @@ test('Sift guide studies retain old revisions and expose a refined guide-driven 
  await page.goto(url);await page.locator('#design-picker').selectOption('sift-style-studies');
  assert.deepEqual(errors,[]);
  const history=await page.evaluate(()=>Frame.revisions.list('sift-style-studies'));
- assert.deepEqual(history.map(r=>r.revisionId),['sift-technical-futurist-r1','sift-hardware-r2','sift-technical-futurist-r3','sift-hardware-r4','sift-hardware-r5','sift-technical-futurist-r6','sift-technical-futurist-r7']);
+ assert.deepEqual(history.map(r=>r.revisionId),['sift-technical-futurist-r1','sift-hardware-r2','sift-technical-futurist-r3','sift-hardware-r4','sift-hardware-r5','sift-technical-futurist-r6','sift-technical-futurist-r7','sift-technical-futurist-r8']);
  const output=path.join(root,'artifacts/sift-style-studies');await fs.mkdir(output,{recursive:true});
- for(const [revision,guide] of [['sift-technical-futurist-r1','technical-futurist'],['sift-hardware-r2','sift-hardware'],['sift-technical-futurist-r3','technical-futurist'],['sift-hardware-r4','sift-hardware'],['sift-hardware-r5','sift-hardware'],['sift-technical-futurist-r6','technical-futurist'],['sift-technical-futurist-r7','technical-futurist']]) {
+ for(const [revision,guide] of [['sift-technical-futurist-r1','technical-futurist'],['sift-hardware-r2','sift-hardware'],['sift-technical-futurist-r3','technical-futurist'],['sift-hardware-r4','sift-hardware'],['sift-hardware-r5','sift-hardware'],['sift-technical-futurist-r6','technical-futurist'],['sift-technical-futurist-r7','technical-futurist'],['sift-technical-futurist-r8','technical-futurist']]) {
   await page.locator('#revision-picker').selectOption(revision);
   assert.equal(await page.evaluate(()=>Frame.agent.getDocument('sift-style-studies').revisionId),revision);
   assert.equal(await page.locator('#styleguide-picker').inputValue(),guide);
@@ -44,7 +44,7 @@ test('Sift guide studies retain old revisions and expose a refined guide-driven 
    });
    for(const field of textGap){assert.ok(field.gap>=8);assert.ok(field.right>=8);}
   }
-  if(['r3','r4','r5','r6','r7'].some(suffix=>revision.endsWith(suffix))) {
+  if(['r3','r4','r5','r6','r7','r8'].some(suffix=>revision.endsWith(suffix))) {
    assert.ok(!doc.elements.some(node=>/SYNTHETIC|STYLE PREVIEW|DESIGN STUDY|INSTRUMENTATION|Capture, select/.test(node.text||'')));
    assert.ok(doc.elements.filter(node=>node.id.startsWith('overview-wave')&&node.type==='container').length<=2);
   }
@@ -62,6 +62,15 @@ test('Sift guide studies retain old revisions and expose a refined guide-driven 
     for(const id of ids){const c=doc.elements.find(n=>n.id===id).bounds;assert.ok(Math.min(c.x-b.x,c.y-b.y,b.x+b.width-c.x-c.width,b.y+b.height-c.y-c.height)>=8,id+' crowds its panel');}
    }
   }
+  if(revision.endsWith('r8')) {
+   assert.equal(doc.width,1280);assert.equal(doc.height,720);
+   assert.equal(doc.elements.find(n=>n.id==='arm').style.radius,48);
+   assert.equal(doc.elements.find(n=>n.id==='duration').text,'2.40');
+   assert.equal(doc.states.idle.duration.text,'0.00');
+   const b=doc.elements.find(n=>n.id==='display').bounds,c=doc.elements.find(n=>n.id==='capture-module').bounds;
+   assert.ok(c.x-b.x-b.width>=24);
+   assert.ok(doc.elements.find(n=>n.id==='capture-arc-inner').bounds.width/2-48>=12);
+  }
   for(const state of ['default','idle']) {
    await page.evaluate(state=>Frame.agent.setState('sift-style-studies',state),state);
    await page.evaluate(()=>Frame.agent.renderReady());
@@ -73,12 +82,12 @@ test('Sift guide studies retain old revisions and expose a refined guide-driven 
   }
  }
  await page.reload();await page.locator('#design-picker').selectOption('sift-style-studies');
- assert.equal(await page.locator('#revision-picker').inputValue(),'sift-technical-futurist-r7');
+ assert.equal(await page.locator('#revision-picker').inputValue(),'sift-technical-futurist-r8');
  assert.equal(await page.locator('#styleguide-picker').inputValue(),'technical-futurist');
  await page.evaluate(()=>Frame.agent.setState('sift-style-studies','recording'));
  assert.equal(await page.evaluate(()=>Frame.currentState('sift-style-studies')),'recording');
  const project=await page.evaluate(()=>Frame.project.export('sift-style-studies'));
- assert.equal(project.archive.revisions.length,7);
+ assert.equal(project.archive.revisions.length,8);
  await fs.writeFile(path.join(output,'sift-style-studies.frame.json'),JSON.stringify(project,null,2));
  assert.deepEqual(errors,[]);
 });
