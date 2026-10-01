@@ -1338,9 +1338,9 @@ test('guide registration rejects invalid and duplicate definitions and renders g
     Frame.registerStyleguide({...Frame.activeStyleguide, id: 'technical-futurist', name: 'Replacement'})
   ]), [false, false]);
   assert.equal(await page.locator('#styleguide-registration-notice').isVisible(), true);
-  assert.equal(await page.locator('#styleguide-picker option').count(), 2);
-  await registerTestStyleguide(page);
   assert.equal(await page.locator('#styleguide-picker option').count(), 3);
+  await registerTestStyleguide(page);
+  assert.equal(await page.locator('#styleguide-picker option').count(), 4);
   await page.locator('#styleguide-picker').selectOption('minimal');
   await page.locator('#view-styleguide').click();
   assert.equal(await page.locator('#styleguide-summary').textContent(), '<img src=x onerror=alert(1)>');

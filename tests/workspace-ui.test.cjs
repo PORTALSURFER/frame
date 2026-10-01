@@ -43,3 +43,16 @@ for(const width of [320,768,1280,1600])test(`workspace controls and canvas remai
  if(width===1280){await page.locator('#design-picker').selectOption('sift-style-studies');await page.screenshot({path:path.join(root,'artifacts/workspace-ui/sift-workspace.png'),fullPage:true});}
  await page.locator('.project-menu summary').click();await page.locator('#import-project').click();assert.equal(await page.locator('#project-dialog').isVisible(),true);
 });
+test('Zebra Modular guide is complete, downloadable, and styles the host independently of canvas guides',async t=>{
+ const context=await browser.newContext({viewport:{width:1280,height:900},acceptDownloads:true});t.after(()=>context.close());const page=await context.newPage();await page.goto(url);
+ const source=await fs.readFile(path.join(root,'styleguides/zebra-modular.md'),'utf8');
+ const before=await page.evaluate(()=>({design:Frame.selectedDesignId,guide:Frame.activeStyleguide.id}));
+ assert.equal(await page.evaluate(()=>Frame.styleguides.get('zebra-modular').document),source);
+ assert.match(await page.locator('.topbar').evaluate(n=>getComputedStyle(n).fontFamily),/Helvetica Neue|Arial/);
+ await page.locator('#styleguide-picker').selectOption('zebra-modular');await page.locator('#view-styleguide').click();
+ assert.equal(await page.locator('#styleguide-title').textContent(),'Zebra Modular');assert.equal(await page.locator('#styleguide-document').textContent(),source);
+ const waiting=page.waitForEvent('download');await page.locator('#download-styleguide').click();const file=await waiting;
+ assert.equal(file.suggestedFilename(),'zebra-modular.md');assert.equal(await fs.readFile(await file.path(),'utf8'),source);
+ await page.locator('#close-styleguide').click();await page.locator('#styleguide-picker').selectOption(before.guide);
+ assert.equal(await page.locator('.topbar').evaluate(n=>getComputedStyle(n).fontFamily),'"Helvetica Neue", Arial, system-ui, sans-serif');
+});
