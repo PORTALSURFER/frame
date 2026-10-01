@@ -1489,6 +1489,23 @@ features for intentional asymmetry; avoid almost-aligned positions. Preserve
 quiet stretches of perimeter and compact device dimensions. A few strong shape
 changes should define the inner chassis; do not serrate every edge or add random cuts.
 
+Distinguish an **edge recess** from an **offset rail**. An edge recess meets the
+inner face of the continuous perimeter border: keep the border itself intact,
+but do not leave an extra moat or draw a second parallel outline along the
+opening. Its wider opening faces the nearest outer edge; its chamfers narrow
+into the chassis. Mirror left/right recesses at matching heights and depths,
+and mirror top/bottom tapers toward their respective edges. Use a subdued bevel
+on the inner contact edges, with consistent lighting and a dark cavity. At
+compact sizes, a depth of roughly 3–5 px is usually sufficient.
+
+A detached rail is also permitted when it serves the layered composition.
+Give it an obviously intentional, consistent separation from the perimeter and
+a clear alignment with the display or another structural rail. Avoid a tiny,
+accidental-looking gap that makes a closed floating shape read ambiguously as
+an edge cutout. Neither treatment may obscure content or break the rectangular
+window footprint. Prefer a few quiet, well-aligned features over extra outlines.
+
+
 ---
 
 # 42. Sidebars
