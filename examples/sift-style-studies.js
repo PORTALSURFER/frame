@@ -410,7 +410,7 @@
         Frame.agent.updateDocument(document);added=true;
       }
     }
-    if(added)Frame.revisions.restore(id,'sift-technical-futurist-r8');
+    if(added)Frame.revisions.restore(id,'sift-technical-futurist-r7');
     function syncGuide() {
       if(document.getElementById('design-picker').value!==id)return;
       const guideId=Frame.agent.getDocument(id).styleguideId,picker=document.getElementById('styleguide-picker');

@@ -18,6 +18,7 @@ test('Sift guide studies retain old revisions and expose a refined guide-driven 
  const context=await browser.newContext({viewport:{width:1440,height:1100}});t.after(()=>context.close());
  const page=await context.newPage(),errors=[];page.on('pageerror',error=>errors.push(error.message));
  await page.goto(url);await page.locator('#design-picker').selectOption('sift-style-studies');
+ assert.equal(await page.locator('#revision-picker').inputValue(),'sift-technical-futurist-r7');
  assert.deepEqual(errors,[]);
  const history=await page.evaluate(()=>Frame.revisions.list('sift-style-studies'));
  assert.deepEqual(history.map(r=>r.revisionId),['sift-technical-futurist-r1','sift-hardware-r2','sift-technical-futurist-r3','sift-hardware-r4','sift-hardware-r5','sift-technical-futurist-r6','sift-technical-futurist-r7','sift-technical-futurist-r8']);
