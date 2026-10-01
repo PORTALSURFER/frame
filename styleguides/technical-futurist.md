@@ -20,9 +20,33 @@ Use at most a few text scales with clear roles: readable primary labels around 1
 
 Align groups to a small set of shared rails, standard control heights, and clear baselines. Keep values near their labels and related controls adjacent. Use a consistent 8/12/16/24 spacing rhythm, with optical adjustments for icons and clipped corners. Do not spread a few controls vertically through a tall panel. Buttons fit their content and interaction target; a full-column Export button is not justified by an otherwise empty column.
 
-Maintain one continuous chassis and one dominant recessed workspace. Use tonal separation before adding outlines. A workspace should not need a surrounding box, separate header rule, another divider, corner brackets, and a repeated caption to explain that it is a workspace. Each functional boundary normally gets one treatment. Use the approved graphite-green and coral palette; allow depth through shallow bevels and tonal gradients within that palette. Geometric filler is optional and the default is none.
+Maintain one continuous chassis and one dominant recessed workspace. Use tonal separation before adding outlines. A workspace should not need a surrounding box, separate header rule, another divider, corner brackets, and a repeated caption to explain that it is a workspace. Each functional boundary normally gets one treatment. Use near-black and warm charcoal with one restrained orange or red signal accent, or the monochrome treatment in section 0.1. Establish depth through fine frames and subtle tonal layers. Geometric filler is optional and the default is none.
 
 At thumbnail size the workspace and primary action must read immediately. At full size check typography, optical centering, balanced gutters, and restrained border contrast. Remove anything that survives neither a functional justification nor a clear hierarchy benefit. Preserve the precision and craft of the instrument while reducing visual noise; sleek does not mean empty or unfinished.
+
+# 0.1. Current reference direction and precedence
+
+The four supplied references establish the current Technical Futurist direction. This section supersedes earlier hardware-inspired palette, metallic-inset, mandatory cut-corner and density prescriptions. Preserve section 0's information discipline and section 30's foreground clearance rules. Sift Hardware remains a separate style; do not blend its sage-green chassis, purple waves, beveled shoulders or lower-right button cuts into this default.
+
+The shared visual grammar is a near-black field, generous uninterrupted negative space, exceptionally precise alignment, fine structural lines and isolated high-contrast signal elements. Most boundaries are hairlines; a small number of brighter strokes or solid accents establish importance. Fine detail belongs in a few purposeful clusters with quiet space between. The result should feel like printed technical markings on a dark instrument surface, with a clean, graphic silhouette rather than a collection of raised panels.
+
+The first reference uses burnt orange on black, a broad sparse perimeter, balanced repetition of solid circular markers, registration crosses and short diagonal bars. Transfer the disciplined rhythm, warm color and fine registration geometry. Repetition must represent actual controls or information in a working UI. Do not copy its slogans, arbitrary numbers, logos or dot array as filler.
+
+The second reference uses a narrow, centered crimson instrument against abundant black space. A large real measurement contrasts with small labels; thin enclosing lines and stronger interrupted brackets establish hierarchy. Transfer the strong value-to-label contrast and controlled line-weight hierarchy. Segmented indicators are appropriate only for genuinely discrete values. An audio amplitude trace or fader remains continuous. Never invent a percentage just to reproduce the graphic.
+
+The third reference is the monochrome treatment: nearly black surfaces, white technical typography, fine neutral-gray construction lines and a sparse white identification plate. Its circles and angled leaders are tightly organized instrument diagrams. Transfer the precision, angular framing and mostly empty composition. Use circular instrumentation only for actual phase, orientation or other circular data; do not add targeting rings to an audio recorder. A tiny local texture can belong to a non-interactive identity plate, but never becomes a dotted workspace background.
+
+The fourth reference uses a warm black field, an extremely subtle reddish-brown tint, fine orange outlines and a compact central information column. Solid orange tabs identify a small set of selected items; nearly all other surfaces stay dark. Transfer the clear contained grouping and generous margins. Do not import dense unreadable microtext, copy its layout regardless of the product, or stretch a few controls into a long column.
+
+Choose one treatment per design. The default is black/charcoal with burnt orange: background #090909, working surface #0E0F10, subtle warm panel #17120F, structural line #3F3731, primary text #EEEAE5, secondary text #ADA49B and signal orange #E47745. Crimson uses #FF495E against #080808 with low-contrast #341619 backing. Monochrome uses #EFEFEA, #969692 and #383836 against #0A0A0A. These are approximate reconstruction targets, not sampled or verified source tokens. Avoid mixing orange, crimson, cyan and sage into one interface. Keep approximately 85–95% of the interface neutral gray and off-white in palette allocation, dominated by black/dark surfaces in actual coverage; accent fills occupy small meaningful regions.
+
+At a 1140-unit device width, use 0.75–1-unit structural strokes, 1.5–2-unit active outlines or meaningful signal markers, and 2–3 units only for an exceptional focal bracket. Do not imitate thicker poster strokes uniformly across compact controls. Frames may be complete or selectively interrupted, with a few restrained corner ticks. Use mostly square corners or a 1–2-unit radius. A chamfer can identify a major frame or identity plate; repeating clipped control corners and metallic edge strips are not defaults. No glow, shiny chrome, heavy shadows or noisy surface texture.
+
+Typography is crisp and technical: compact monospace for labels and values, with a restrained geometric technical heading only if a verified font is available. Avoid exotic font substitutions. Use roughly 13–15-unit main labels, 11–12-unit secondary labels and 9–10-unit real metadata at this reference size. Larger numerals are reserved for a real primary measurement. Let spacing and scale create the graphic hierarchy, not random character codes or unreadable microtext. Use uppercase concise labels where readable; wider letter spacing belongs to short headings, not all controls.
+
+Apply this vocabulary to the actual product. For Sift, the waveform remains the dominant information surface, accompanied by one thin overview, a compact header and clearly separated recording/transport controls. Preserve equal channel space, meaningful timing markers and the actual state controls. Sparse reference graphics are not permission to shrink the usable workspace into a tiny central ornament. The shell, buttons, readouts and waveform must all belong to the chosen reference treatment.
+
+Reject a green hardware chassis, bevel-heavy edge insets, repeated cut-corner buttons, generic dashboard cards, dense auxiliary panels, decorative telemetry, indiscriminate brackets, uniform accent outlines, full-surface grids, fake radar diagrams and glows. Verify both clean rendering and actual use at the final scale. Decorative strokes must clear foreground and focus indicators; purposeful background-layer overlaps require a local justification.
 
 # 1. Core Visual Identity
 
@@ -1221,77 +1245,23 @@ real version (for example `v0.1.3`), not an invented build identifier.
 
 ---
 
-## 41.2 Sift-inspired audio device treatment
+## 41.2 Reference-led audio device treatment
 
-Audio devices should blend the supplied Sift reference with the existing
-Technical Futurist instrumentation. Use a graphite chassis with a restrained
-green-gray undertone (`#272B28`), darker recessed signal displays (`#1F2422`),
-and fine sage-gray outlines (`#49534C`). Use readable neutral-gray labels and
-off-white values; muted coral (`#E96B50`) is the default audio-device accent.
+Use the black-field graphic instrumentation in section 0.1 for audio devices. A dominant signal area, compact controls, thin warm-neutral frames and restrained orange data form the default. Keep top-left product branding and add version metadata only when an actual product version is supplied. The Sift Hardware guide remains independent; metal shoulders, green chassis fills and clipped utility buttons are not required here.
 
-Give the surface the quiet solidity of physical equipment. Signature details
-are common action buttons with softly rounded outlines and a clipped lower-right corner, and shallow
-metallic insets at the top and bottom of the device. Use a 2–4 px corner radius
-and a small 5–8 px cut at compact control sizes, scaled proportionally. Outline
-the cut edge as part of the button border, not as an unrelated decoration.
-
-Top and bottom insets should resemble brushed graphite metal: a shallow
-trapezoidal or chamfered strip, subdued sage-gray bevel lines, a restrained
-vertical tonal transition, a thin edge highlight and a darker contact edge.
-Keep these strips slim on compact devices and leave the branding, version and
-controls clear. These subtle metallic transitions are permitted despite the
-general preference for flat surfaces; avoid shiny chrome or strong gradients.
-Keep these details low-contrast and subordinate to controls. Use smooth display backgrounds. Thin framed
-visualizations, small outlined transport controls and compact monospaced metadata
-should carry the hierarchy. Use short labels and disciplined spacing.
-
-This treatment forms part of the middle ground: use restrained bevels and
-contact edges to establish depth, and preserve the current slim control layouts. Essential
-values must retain readable contrast. Avoid glossy knobs, heavy shadows,
-large cards, or decorative panels without a function. Apply only the device's
-actual controls; do not copy Sift's recording tools into unrelated devices.
-
-The reference's version location does not override section 41.1: versions remain
-at the extreme top-right as tiny, barely noticeable text; the branding line remains
-at the top-left.
+Use genuine audio data and preserve task proportions. A waveform recorder needs a broad waveform, a thin overview and usable transport, not a poster-shaped center column. Keep idle, populated, recording and focus states consistent. Depth comes from tonal separation and fine registration edges, with all decoration clear of controls.
 
 ---
 
-## 41.3 Optional dark ember palette and broad subtle gradients
+## 41.3 Warm orange reference treatment
 
-Blend the supplied dark red/orange reference into the audio-device treatment.
-This optional alternative palette is near-black (`#0E0F10`), warm charcoal (`#191513`),
-recessed displays (`#101212`), ember red (`#D75C49`) and burnt orange
-(`#EF8858`). Use muted amber only when a distinct secondary measurement needs
-it. Keep primary labels off-white and secondary labels neutral warm gray.
-
-Large, subtle gradients are a defining part of this optional variant. Use broad radial
-or gently directional transitions from near-black through dark reddish brown
-or burnt umber (`#2D1C15`), spread across a main device surface or a large
-signal display. The transitions should feel atmospheric and quiet, with no
-hard bands, glow, neon or saturation that reduces measurement readability.
-Keep backgrounds much darker than the active red/orange indicators.
-
-This explicitly permits broad subdued warm gradients alongside the original
-flat instrumentation style. Apply them behind content and preserve thin rails,
-strong alignment, generous negative space and readable data. Keep the rounded
-cut-corner buttons and shallow metallic top/bottom insets from section 41.2;
-tone those insets toward warm graphite for this palette. The brand remains at
-the top-left and the tiny subtle version remains at the extreme top-right.
+Use near-black #090909, working surface #0E0F10, optional subtle warm panel #17120F, fine structural line #3F3731 and signal orange #E47745. Neutral text remains readable. A subdued warm field is optional and must remain close to black; no large luminous gradient or simulated metal strip is required. Place solid orange in a few meaningful active controls or signal regions.
 
 ---
 
-## 41.4 Optional charcoal and bright orange
+## 41.4 Crimson and monochrome reference treatments
 
-The Frameshift reference contributes the charcoal-gray and bright-orange color
-pairing only. Its dotted background pattern is excluded. Use smooth chassis surfaces, allowing only the clearly decorative geometric
-filler in section 41.9; do not use dot matrices, stippling or perforated
-background textures. This does not prohibit functional status indicators or
-measurement ticks.
-
-Dark charcoal (`#18191A` through `#252525`) and bright orange (`#FF8B42`) remain
-an optional palette when explicitly selected. The approved R7 graphite/coral
-palette remains the default. Keep content clear and accents restrained.
+Crimson uses #FF495E with #080808 and restrained #341619 backing. Favor a strong real measurement and sparse fine frames; do not use saturation on every boundary. Monochrome uses #EFEFEA, #969692 and #383836 on #0A0A0A, with at most one high-contrast identity or selected-state plate. Choose either treatment deliberately rather than mixing their accents with orange. Both retain the hierarchy, usable type, quiet margins and collision constraints of section 0.1.
 
 ---
 
@@ -1312,48 +1282,19 @@ Mint should occupy at most roughly 1–3 percent of the visible device and
 normally appear in only one or two small regions at a time. Use a fine outline,
 short indicator or small value highlight; avoid broad mint fills, glow, or
 coloring whole panels. Preserve readable contrast and the warm charcoal,
-smooth surfaces, subtle gradients and metallic edge details of the main style.
+smooth surfaces, sparse fine frames and restrained contrast of the main style.
 
 ---
 
-## 41.6 Common button cut-corner rule
+## 41.6 Control geometry
 
-Use the supplied arrow-button reference for common action, transport and utility
-buttons: softly rounded upper and lower-left corners, a single clipped
-lower-right corner, a thin subdued outline and a compact neutral icon or label.
-The clipped edge is part of the border. Keep the surface dark and its border
-quiet when idle; use the main orange accent for an active state and the rare
-mint accent only when actual focus or a special selection warrants it.
-
-This is a recurring button treatment, not a rule for every button. Choose it
-when the control reads as an independent action. Mode toggles, segmented
-selectors, text links, tiny inline controls and tightly grouped buttons can
-use simple rounded or square outlines. Do not clip every control indiscriminately.
-Within a group of equivalent actions, keep the chosen geometry consistent.
-
-At compact device sizes, use roughly 2–4 px rounded corners and a 5–8 px diagonal
-cut, scaled to the button. Keep labels and icons clear of the cut. Preserve
-comfortable pointer targets, keyboard focus visibility and readable contrast.
+Default to square or minimally rounded thin outlines, dark fills and centered vector icons. Related controls share dimensions, baselines and stroke weights. Use an accent outline or restrained solid fill for a meaningful primary/active action. A chamfer is optional for a major plate; repeating a clipped corner on every small control pulls the interface toward Sift Hardware. Preserve content-sized dropdowns and protected focus space as specified in section 30.
 
 ---
 
-## 41.7 Default approved R7 palette
+## 41.7 Default reference palette and signal rules
 
-Default to the approved R7 audio-device palette: graphite green-gray chassis #272B28, control surfaces #303732, recessed displays #1F2422, sage-gray borders #49534C, muted coral #E96B50, off-white #D5D8D6 and secondary gray #A2ABA4. Warm ember gradients and bright safety orange are optional variants, not the default; mint remains a rare focus accent.
-
-Audio level meters and fader fills must be continuous and fully opaque for clear
-reading; do not segment them into decorative blocks. Segmentation is reserved
-for visualizations where discrete steps convey actual information.
-
-Use R7's neutral, solid graphite chassis as the baseline. Do not add a warm
-brown wash or broad colored gradient by default. Metallic edge insets may use
-subtle cool graphite tonal transitions. Keep backgrounds free of dotted/stippled textures; restrained geometric filler is optional under section 41.9. Primary measurements and active controls use muted coral;
-red may distinguish warnings or a separate signal only when needed.
-
-This default takes precedence over the earlier warm ember and bright-orange
-reference variants in sections 41.3 and 41.4. Those variants remain available
-when explicitly selected. Keep the same compact geometry, top-left branding,
-tiny top-right version and selectively rounded cut-corner action buttons.
+The orange/near-black treatment in section 0.1 is the default. Crimson and monochrome are distinct variants. Earlier green-gray R7 treatment is historical and must not override this reference direction. Keep backgrounds smooth; detail is sparse, geometric and deliberate. Audio meters, faders and waveforms remain continuous unless actual discrete data calls for segmentation. Accent color represents signal, action, state or focus rather than decoration.
 
 ---
 
@@ -2228,48 +2169,14 @@ Before considering a screen complete, verify the following:
 
 # 72. Compact Master Specification
 
-Follow section 0 first: create a sleek functional interface with one dominant workspace, a few compact control groups, readable type and deliberate quiet space. Use the actual product task to choose layout. Remove random text, redundant captions, decorative IDs, fake measurements and unnecessary frames. Keep preview provenance outside the designed surface. Every visible element must earn its place.
+Follow sections 0 and 0.1 first. Create a sleek functional interface in the supplied references' black-field technical graphic language: abundant negative space, precise alignment, fine registration geometry and a few high-contrast signals. Use the actual product task to choose proportions. For Sift, retain a broad stereo waveform, a thin overview and compact useful header/transport controls. Do not reproduce poster layouts, targeting rings, random codes, slogans or fake readings.
 
-Use clear background, middle-ground and foreground layers with restrained intentional overlaps. Keep controls and data unobstructed. Retain a continuous rectangular outer frame; shape the inner chassis with straight-edged recesses. Single-line numeric inputs must tightly fit expected values and center glyphs on both axes. Audio meter and fader fills are continuous and fully opaque.
+Default to background #090909, working surface #0E0F10, optional warm panel #17120F, fine structural line #3F3731, primary text #EEEAE5, secondary text #ADA49B and burnt-orange signal #E47745. Crimson on black and neutral monochrome are separate deliberate variants. Keep approximately 85–95% of the interface neutral gray and off-white in palette allocation, with actual coverage dominated by black/dark surfaces. Use a few meaningful accent fills; avoid uniformly colored frames, green chassis, purple traces and inherited Sift Hardware metal strips.
 
-Compose devices with clear large, medium and small shape scales. Vary supporting shape sizes and concentrate fine details in a few areas separated by quiet space. Consider unequal divisions such as 70/30 where appropriate; preserve consistent geometry for equivalent controls.
+Use 0.75–1-unit structural strokes at a 1140-unit width, 1.5–2-unit active outlines and rare focal brackets. Prefer square or 1–2-unit corners; use occasional angular identity plates rather than clipping every button. Place precise geometric detail in a few clusters separated by quiet space. Circular instruments and segmented gauges require real corresponding data. Waveforms and audio faders remain continuous.
 
-Heavily prefer single-word visible labels: Mode, Gain, Target, Peak, RMS, Match. Use multiple words only when a single word would lose essential meaning; keep fuller explanations in tooltips, help and accessibility descriptions rather than the permanent layout.
+Use crisp verified monospace labels, restrained technical headings, short useful text, readable 13–15-unit main labels and 11–12-unit secondary labels. Larger numerals must report a real important measurement. Put PORTALSURFER / DEVICE NAME at the top left for PORTALSURFER devices; use version metadata only when supplied. Keep study provenance outside the device.
 
-Insets must read as either precisely centered and symmetrical or clearly intentional asymmetry. Centered insets need equal margins and mirrored geometry. Asymmetric insets should use visibly unequal spacing, such as a 20/80 division of available side space; avoid almost-centered placement that looks accidental.
+Size controls from content, including dropdown padding and an 8-unit text-to-chevron gap. Protect foreground, hit areas and focus indicators from decorative edges. Keep at least 6 units clear after strokes, preferably 12–16 around prominent detail. Only locally justified background-layer overlaps are allowed. Shorten decoration before compressing controls. Check every UI state at the final viewing scale.
 
-Optional background detail may use hard rectangles, squares, partial frames, small line grids, plus marks, diagonal hatch patches and PCB-like paths with straight runs and angled bends. Keep it low-contrast, static and clearly decorative; cluster details with quiet space between, without fake data or filler text.
-
-Use concise descriptive labels only where they clarify a specific control or measurement. Do not repeat names, units or explanations across nearby elements, add inflated technical copy, or fill empty space with microtext. State shared units once and let alignment/grouping carry context.
-
-Default to the approved R7 audio-device palette: graphite green-gray chassis #272B28, control surfaces #303732, recessed displays #1F2422, sage-gray borders #49534C, muted coral #E96B50, off-white #D5D8D6 and secondary gray #A2ABA4. Warm ember gradients and bright safety orange are optional variants, not the default; mint remains a rare focus accent.
-
-Common action and utility buttons may use a softly rounded outline with one clipped lower-right corner, as in the supplied arrow-button reference. Use it selectively: mode toggles, segmented controls, text links and very small controls may retain simpler outlines.
-
-Reserve cyan/green/mint as a rare contrast accent against the dominant red/orange theme: use it only for keyboard focus, a selected key item or exceptional secondary telemetry. Never distribute it across routine controls or replace the primary warm accent.
-
-Use smooth chassis backgrounds with optional subtle geometric filler; omit dotted or perforated patterns. Charcoal with bright orange is an optional color variant.
-
-When explicitly selecting the optional warm variant, use near-black and warm charcoal, ember reds and burnt oranges, with broad subtle gradients across large surfaces. Preserve readable neutral text, rounded cut-corner buttons and shallow metallic edge insets.
-
-Signature audio-device details: use softly rounded buttons with a clipped lower-right corner and shallow metallic top/bottom insets. Keep the inset highlights low-contrast and the controls compact.
-
-For audio devices, blend in Sift hardware styling: graphite-green chassis, darker recessed displays, thin sage-gray outlines, shallow edge lips, selectively clipped corners and muted coral accents. Keep the compact instrumentation and required top-left branding and top-right version.
-
-Use a restrained near-future industrial and engineering visual language.
-
-Always place PORTALSURFER / DEVICE NAME at the device top left: uppercase monospaced text, neutral gray PORTALSURFER and slash, accent-colored device name. Put the real device version in tiny, barely noticeable text at the extreme top-right, opposite the branding line.
-
-Surfaces should be almost black or dark charcoal. Typography should be compact, technical, mostly monospaced, and frequently uppercase. Use readable compact labels and genuine numerical readouts. Leading zeroes and system IDs are permitted only when required by the actual data format; they are not decoration.
-
-Build hierarchy first through alignment, consistent spacing, restrained tonal depth and a dominant workspace. Select only the functional structural lines or markings needed; do not layer rails, brackets, grids, crosshairs and metadata over every region.
-
-Keep approximately 85–95% of the interface neutral gray and off-white. Use one accent color such as muted orange, red, cyan, blue, or acid yellow for active states and important data.
-
-Data visualization should resemble instrumentation. Favor waveforms, signal traces, segmented meters, matrices, coordinates, technical tables, radar or orbital diagrams, node networks, timelines, and calibration graphics.
-
-Use hard corners or very small radii, crisp layered surfaces, minimal shadows, little or no glow, and large intentional areas of negative space.
-
-Avoid generic cyberpunk, neon effects, glassmorphism, glossy controls, rounded SaaS cards, colorful gradients, random science-fiction decoration, oversized icons, meaningless technical noise, and excessive visual density.
-
-The interface should feel engineered, believable, precise, restrained, and functional rather than cinematic. Keep decorative edges clear of all foreground, hit areas and focus indicators; allow only locally declared purposeful background overlaps. Shorten inset shoulders before cramping controls and verify clearances in every state.
+Reject bevel-heavy hardware, dense panels, generic cards, random technical text, excessive microannotations, duplicated boundaries, glows and decoration without a clear compositional purpose. Preserve useful controls, readable data and coherent state transitions. The result should feel graphic, precise and refined, with the reference character visible even without text or accent color.
