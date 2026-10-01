@@ -39,7 +39,8 @@ after(async () => {
 
 async function openPage(t, options = {}) {
   const {setup, selectDesign = 'starter', ...contextOptions} = options;
-  const context = await browser.newContext({viewport: {width: 1280, height: 1000}, ...contextOptions});
+  // These pointer tests use an unscaled 960px board; responsive/scaled cases set their own viewport.
+  const context = await browser.newContext({viewport: {width: 1600, height: 1000}, ...contextOptions});
   t.after(() => context.close());
   const page = await context.newPage();
   const errors = [];

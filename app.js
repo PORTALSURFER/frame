@@ -41,6 +41,9 @@
   const noteText = document.getElementById("note-text");
   const noteError = document.getElementById("note-error");
   const noteDelete = document.getElementById("note-delete");
+  const feedbackList = document.getElementById("feedback-list");
+  const feedbackEmpty = document.getElementById("feedback-empty");
+  const feedbackCards = new Map();
   const notePins = new Map();
   const lineMetadata = new WeakMap();
   const pendingFeedback = new Map();
@@ -102,6 +105,40 @@
         notice: "Saved feedback could not be loaded. Drawing and download still work. Existing saved data will not be overwritten."};
     }
   }
+  function renderFeedbackList() {
+    const marks = [...lines.map((line, index) => ({mark:line, metadata:lineMetadata.get(line), title:`Line ${index + 1}`, text:"Drawn annotation", type:"line"})),
+      ...notes.map((note, index) => ({mark:note, metadata:note, title:`Note ${index + 1}`, text:note.text, type:"note"}))];
+    const present = new Set();
+    let visible = 0;
+    let previousCard = null;
+    for (const item of marks) {
+      present.add(item.mark);
+      let card = feedbackCards.get(item.mark);
+      if (!card) {
+        card = document.createElement("button"); card.type = "button"; card.className = "feedback-card";
+        card.append(document.createElement("strong"), document.createElement("span"), document.createElement("span"));
+        card.addEventListener("click", () => {
+          setMode("select");
+          if (item.type === "line") selectLine(item.mark); else selectNote(item.mark);
+        });
+        card.addEventListener("dblclick", () => { if (item.type === "note") openNoteEditor(item.mark); });
+        feedbackCards.set(item.mark, card); feedbackList.append(card);
+      }
+      const expectedCard = previousCard ? previousCard.nextElementSibling : feedbackList.firstElementChild;
+      if (expectedCard !== card) feedbackList.insertBefore(card, expectedCard);
+      previousCard = card;
+      const status = item.metadata?.status || "open";
+      const values = [item.title, item.text, status === "resolved" ? "Resolved" : "Open"];
+      [...card.children].forEach((child, index) => { if (child.textContent !== values[index]) child.textContent = values[index]; });
+      card.dataset.status = status;
+      card.setAttribute("aria-pressed", String(item.mark === selectedLine || item.mark === selectedNote));
+      card.hidden = statusFilter.value !== "all" && status !== statusFilter.value;
+      if (!card.hidden) visible++;
+    }
+    for (const [mark, card] of feedbackCards) if (!present.has(mark)) { card.remove(); feedbackCards.delete(mark); }
+    feedbackEmpty.hidden = visible > 0;
+    feedbackEmpty.textContent = marks.length ? "No feedback matches this filter." : "No feedback yet. Use Pen or Note to mark what should change.";
+  }
   function updateControls() {
     document.getElementById("import-feedback").disabled = !design;
     for (const button of toolButtons) button.disabled = !designReady || (button.dataset.feedbackTool === "interact" && !Frame.documents.has(design?.id));
@@ -136,6 +173,7 @@
     }
     if (notes.length >= MAX_NOTES) notices.push("1,000-note limit reached. Delete a note to add another.");
     limitNotice.textContent = notices.join(" ");
+    renderFeedbackList();
   }
   function save() {
     feedback.lines = lines;
@@ -698,7 +736,7 @@
     const mark=selectedNote || (selectedLine && lineMetadata.get(selectedLine));
     if (mark) setFeedbackStatus(mark.id, mark.status==="resolved"?"open":"resolved");
   });
-  statusFilter.addEventListener("change",()=>{selectLine(null);redrawMarks();});
+  statusFilter.addEventListener("change",()=>{selectLine(null);redrawMarks();updateControls();});
   deleteSelected.addEventListener("click", deleteSelection);
   retrySave.addEventListener("click", save);
   retryRender.addEventListener("click", () => {
