@@ -33,3 +33,9 @@ A design can optionally provide `mount({host, repaint})` to add DOM controls in 
 Draw red lines anywhere in the stage, including outside the interface. Hold **Shift** while dragging for a straight line. **Undo line** (or Command/Ctrl+Z) removes the latest stroke; **Clear all lines** removes every stroke for the selected design. Feedback is saved separately for each design in browser `localStorage` and automatically synced to `feedback/<design>.json` when using the local server. Existing Sift brush marks saved by the earlier canvas are loaded and synced automatically. **Download feedback** exports the selected design's dimensions and strokes as JSON and remains the fallback when automatic sync is unavailable.
 
 The Sift reference screenshot in `assets/` is source material for that example. The app paints its visible interface live from code and does not display the screenshot.
+
+## GainSnap current UI
+
+**GainSnap — current UI** recreates the current 250 × 424 GPUI geometry from `gainsnap/src/gui_gpui.rs` and the native September 29 render. Edit `examples/gainsnap.js` and click **Refresh** to iterate. **Preview** selects Idle, Listening, Adjusting, or Matched as visual fixtures. This is a code-painted reconstruction, not a live plug-in capture. Frame preserves annotations separately under the `gainsnap` design id.
+
+**GainSnap — recessed metal** is a separate visual concept in `examples/gainsnap-recess.js`: an angular shaded knob pocket based on the red outline, complementary large Match/Rematch keys below it, and the target input centered under the meter. The original baseline and its annotations remain under `gainsnap`; concept annotations use `gainsnap-recess`. This concept has not been implemented in the plug-in.
