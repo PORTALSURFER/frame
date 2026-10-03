@@ -444,7 +444,7 @@ test('invalid and duplicate registrations report errors while retaining working 
   assert.match(await page.locator('#registration-errors').textContent(), /bad:.*positive integer size/);
   assert.match(await page.locator('#registration-errors').textContent(), /starter: Duplicate design id/);
   assert.equal(await page.locator('#design-status').isVisible(), false);
-  assert.equal(await page.locator('#design-picker option').count(), 5);
+  assert.equal(await page.locator('#design-picker option').count(), 6);
   await beginMouse(page);
   await page.mouse.up();
   assert.equal((await savedLines(page)).length, 1);
@@ -453,7 +453,7 @@ test('invalid and duplicate registrations report errors while retaining working 
 for (const mode of ['empty', 'invalid']) {
   test(`${mode} startup shows an empty state and can recover when a valid design is registered`, async t => {
     const page = await openPage(t, {selectDesign: false, setup: async page => {
-      for (const file of ['starter', 'sift', 'instrument', 'sift-style-studies', 'frame-workspace']) {
+      for (const file of ['starter', 'sift', 'instrument', 'sift-style-studies', 'frame-workspace', 'gainsnap-sift-hardware']) {
         await page.route(`**/examples/${file}.js*`, route => route.fulfill({
           contentType: 'text/javascript',
           body: mode === 'empty' ? '' : `Frame.register({id: 'bad-${file}', name: 'Invalid', width: 0, height: 100, paint() {}});`
