@@ -157,6 +157,45 @@
     for(const id of ['target-value','gain-value'])Object.assign(finalNode(id).style,{fontSize:11,padding:4});
     for(const id of ['target-label','gain-label','gain-unit'])finalNode(id).visible=false;
     if(!Frame.revisions.list(d.id).some(r=>r.revisionId===lowerGain.revisionId))Frame.agent.updateDocument(lowerGain);
+    const polished=JSON.parse(JSON.stringify(lowerGain));
+    polished.revisionId='gainsnap-sift-hardware-r5';
+    const finish=id=>polished.elements.find(n=>n.id===id);
+    // Center the identity by its visible lettering, not its oversized text bounds.
+    finish('brand').bounds.x=34;finish('brand-slash').bounds.x=107;
+    Object.assign(finish('title').bounds,{x:122,width:64});
+    finish('display').bounds.height=322;
+    finish('meter-bed').bounds.height=292;
+    for(let i=0;i<6;i++){
+      const y=66+i*58.4;
+      finish('tick-'+i).bounds.y=y;finish('scale-'+i).bounds.y=y-5;
+      finish('tick-'+i).style.stroke='#59675D';
+    }
+    for(const [id,db] of [['peak-bar',-9],['rms-bar',-18],['peak-bar-matched',-3],['rms-bar-matched',-12]]){
+      const y=66-db/60*292;
+      Object.assign(finish(id).bounds,{y,height:354-y});
+    }
+    finish('target-rule').bounds.y=124.4;finish('target-arrow').bounds.y=120.4;
+    finish('gain-arrow').bounds.y=120.4;finish('gain-arrow-matched').bounds.y=113.1;
+    // A shared axis unifies readouts, state information, knob and numeric gain.
+    for(const [id,y] of [['peak-readout',66],['rms-readout',102]]){
+      Object.assign(finish(id).bounds,{x:108,y,width:72,height:24});
+      Object.assign(finish(id).style,{fontSize:9,cutCorner:4,radius:2,padding:4});
+    }
+    finish('peak-readout').style.fill='#222923';
+    Object.assign(finish('rms-readout').style,{fill:'#332F3F',stroke:'#6D6188'});
+    polished.states.peak['peak-readout']={style:{fill:'#3B302A',stroke:'#967258'}};
+    Object.assign(finish('status').bounds,{x:108,y:138,width:72,height:13});
+    Object.assign(finish('status').style,{fontSize:9,textAlign:'center'});
+    Object.assign(finish('knob-bed').bounds,{x:122,y:282,width:44,height:44});finish('knob-bed').style.radius=22;
+    Object.assign(finish('knob-ring').bounds,{x:126,y:286,width:36,height:36});finish('knob-ring').style.radius=18;
+    Object.assign(finish('knob-cap').bounds,{x:132,y:292,width:24,height:24});finish('knob-cap').style.radius=12;
+    Object.assign(finish('gain-knob').bounds,{x:122,y:282,width:44,height:44});finish('gain-knob').style.radius=22;
+    Object.assign(finish('knob-pointer').bounds,{x:144,y:295,width:0,height:7});
+    Object.assign(finish('knob-pointer-matched').bounds,{x:150,y:298,width:4,height:4});
+    Object.assign(finish('gain-value').bounds,{x:120,y:334});
+    for(const id of ['target-value','gain-value'])finish(id).style.stroke='#55645A';
+    for(const id of ['match','match-stop','match-hold'])finish(id).style.cutCorner=5;
+    if(!Frame.revisions.list(d.id).some(r=>r.revisionId===polished.revisionId))Frame.agent.updateDocument(polished);
     const sync=()=>{if(document.getElementById('design-picker').value!==d.id)return;const picker=document.getElementById('styleguide-picker');if(picker.value!==d.styleguideId){picker.value=d.styleguideId;picker.dispatchEvent(new Event('change'));}};
     window.addEventListener('frame:design-selected',sync);sync();window.dispatchEvent(new Event('frame:designs-changed'));
   });
