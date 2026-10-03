@@ -18,6 +18,15 @@ test('GainSnap Sift Hardware study preserves compact controls, state previews, e
  const context=await browser.newContext({viewport:{width:1100,height:1000}});t.after(()=>context.close());const page=await context.newPage(),errors=[];page.on('pageerror',error=>errors.push(error.message));
  await page.goto(url);await page.locator('#design-picker').selectOption('gainsnap-sift-hardware');
  const doc=await page.evaluate(()=>Frame.agent.getDocument('gainsnap-sift-hardware'));
+ assert.equal(doc.revisionId,'gainsnap-sift-hardware-r2');
+ const node=id=>doc.elements.find(n=>n.id===id);
+ assert.ok(node('meter-bed').bounds.x<node('gain-knob').bounds.x);
+ assert.ok(node('meter-bed').bounds.height>=280);
+ assert.ok(node('gain-knob').bounds.width<=48);
+ assert.equal(node('top-insert').bounds.y,0);
+ assert.equal(node('bottom-insert').bounds.y+node('bottom-insert').bounds.height,doc.height);
+ assert.ok(node('gain-arrow').bounds.x>node('meter-bed').bounds.x+node('meter-bed').bounds.width);
+ assert.deepEqual(await page.evaluate(()=>Frame.revisions.list('gainsnap-sift-hardware').map(r=>r.revisionId)),['gainsnap-sift-hardware-r1','gainsnap-sift-hardware-r2']);
  assert.equal(doc.width,200);assert.equal(doc.height,424);assert.equal(doc.styleguideId,'sift-hardware');assert.equal(await page.locator('#styleguide-picker').inputValue(),'sift-hardware');
  for(const state of Object.keys(doc.states)){
  await page.evaluate(state=>Frame.agent.setState('gainsnap-sift-hardware',state),state);

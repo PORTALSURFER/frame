@@ -70,6 +70,43 @@
     visibleIn('restart',['default','manual','peak','silence','listening','held']);visibleIn('restart-held',['matched','remeasuring']);
     for(const node of d.elements)node.style={...node.style,fontFamily:d.tokens.typography.family};
     if(!Frame.registerDocument(d))return;
+    // Preserve the first study; this revision restores the product's meter-led layout.
+    const revised=JSON.parse(JSON.stringify(d));
+    revised.revisionId='gainsnap-sift-hardware-r2';
+    const move=(id,x,y,width,height)=>Object.assign(revised.elements.find(n=>n.id===id).bounds,{x,y,width,height});
+    move('top-insert',51,0,98,12);move('bottom-insert',51,412,98,12);
+    revised.elements.find(n=>n.id==='top-insert').points=[[0,0],[98,0],[98,4],[89,10],[84,12],[14,12],[9,10],[0,4]];
+    revised.elements.find(n=>n.id==='bottom-insert').points=[[0,12],[0,8],[9,2],[14,0],[84,0],[89,2],[98,8],[98,12]];
+    move('display',10,44,180,310);
+    move('output-label',20,48,50,14);
+    move('meter-bed',36,66,25,280);
+    move('peak-bar',40,108,7,234);move('rms-bar',50,150,7,192);
+    move('peak-bar-matched',40,80,7,262);move('rms-bar-matched',50,122,7,220);
+    for(let i=0;i<6;i++){const y=66+i*56;move('tick-'+i,70,y,5,0);move('scale-'+i,79,y-5,22,11.2);}
+    move('target-rule',32,122,32,0);move('target-arrow',23,118,6,8);
+    move('gain-label',128,161,50,14);
+    move('knob-bed',128,182,48,48);move('knob-ring',132,186,40,40);move('knob-cap',138,192,28,28);
+    for(const [id,radius] of [['knob-bed',24],['knob-ring',20],['knob-cap',14],['gain-knob',24]])revised.elements.find(n=>n.id===id).style.radius=radius;
+    move('gain-knob',128,182,48,48);move('knob-pointer',152,196,0,8);move('knob-pointer-matched',159,199,4,5);
+    move('gain-value',124,242,56,28);move('gain-unit',144,275,25,12.6);
+    move('peak-readout',104,66,80,28);move('rms-readout',104,106,80,28);
+    move('status',108,294,76,14);
+    for(let i=0;i<3;i++)move('activity-'+i,108+i*26,315,20,4);
+    move('target-label',16,357,80,11.2);revised.elements.find(n=>n.id==='target-label').style.fontSize=8;
+    move('target-value',16,374,70,28);
+    for(const id of ['match','match-stop','match-hold'])move(id,98,374,86,28);
+    for(const id of ['restart','restart-held'])move(id,108,328,76,24);
+    // The right-side gain handle is independent of the moving output bars.
+    // Unity aligns to -12 dB; +6 dB maps to -10.5 dB, matching the native control.
+    for(const [id,y,states] of [
+      ['gain-arrow',118,['default','manual','peak','listening','silence']],
+      ['gain-arrow-matched',111,['matched','held','remeasuring']]
+    ]){
+      revised.elements.push({id,type:'container',bounds:{x:64,y,width:6,height:8},points:[[6,0],[0,4],[6,8]],label:'Manual gain marker',style:{fill:'#C8CDC9',stroke:'none'}});
+      for(const state of Object.keys(revised.states))revised.states[state][id]={visible:states.includes(state)};
+    }
+    revised.states.silence['knob-pointer']={visible:true};
+    if(!Frame.revisions.list(d.id).some(r=>r.revisionId===revised.revisionId))Frame.agent.updateDocument(revised);
     const sync=()=>{if(document.getElementById('design-picker').value!==d.id)return;const picker=document.getElementById('styleguide-picker');if(picker.value!==d.styleguideId){picker.value=d.styleguideId;picker.dispatchEvent(new Event('change'));}};
     window.addEventListener('frame:design-selected',sync);sync();window.dispatchEvent(new Event('frame:designs-changed'));
   });
