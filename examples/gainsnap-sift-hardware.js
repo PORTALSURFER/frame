@@ -107,6 +107,23 @@
     }
     revised.states.silence['knob-pointer']={visible:true};
     if(!Frame.revisions.list(d.id).some(r=>r.revisionId===revised.revisionId))Frame.agent.updateDocument(revised);
+    const compact=JSON.parse(JSON.stringify(revised));
+    compact.revisionId='gainsnap-sift-hardware-r3';
+    const control=id=>compact.elements.find(n=>n.id===id);
+    for(const id of ['match','match-stop','match-hold'])control(id).bounds.width=54;
+    for(const id of ['restart','restart-held']){
+      Object.assign(control(id),{text:' ',label:'Restart matching',bounds:{x:160,y:374,width:24,height:28}});
+      Object.assign(control(id).style,{padding:0,cutCorner:5});
+    }
+    // A drawn restart glyph stays crisp independently of the platform font.
+    const arc=Array.from({length:33},(_,i)=>{const a=-Math.PI/2+i*Math.PI*1.7/32;return [7+5*Math.cos(a),7+5*Math.sin(a)];});
+    compact.elements.push({id:'restart-icon',type:'line',bounds:{x:165,y:381,width:14,height:14},points:arc,style:{stroke:'#C8CDC9',lineWidth:1.4}});
+    compact.elements.push({id:'restart-icon-arrow',type:'line',bounds:{x:169,y:379,width:6,height:6},points:[[0,0],[3,2],[0,5]],style:{stroke:'#C8CDC9',lineWidth:1.4}});
+    for(const state of Object.keys(compact.states))for(const id of ['restart-icon','restart-icon-arrow'])compact.states[state][id]={style:{opacity:['listening','matched','remeasuring'].includes(state)?1:.35}};
+    for(let i=0;i<3;i++)Object.assign(control('activity-'+i).bounds,{x:18+i*57,y:408,width:50,height:2});
+    // Reserve six units between the rail, controls and inward insert lip.
+    Object.assign(control('bottom-insert'),{bounds:{x:51,y:416,width:98,height:8},points:[[0,8],[9,2],[14,0],[84,0],[89,2],[98,8]]});
+    if(!Frame.revisions.list(d.id).some(r=>r.revisionId===compact.revisionId))Frame.agent.updateDocument(compact);
     const sync=()=>{if(document.getElementById('design-picker').value!==d.id)return;const picker=document.getElementById('styleguide-picker');if(picker.value!==d.styleguideId){picker.value=d.styleguideId;picker.dispatchEvent(new Event('change'));}};
     window.addEventListener('frame:design-selected',sync);sync();window.dispatchEvent(new Event('frame:designs-changed'));
   });

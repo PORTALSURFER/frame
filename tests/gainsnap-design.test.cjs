@@ -18,15 +18,20 @@ test('GainSnap Sift Hardware study preserves compact controls, state previews, e
  const context=await browser.newContext({viewport:{width:1100,height:1000}});t.after(()=>context.close());const page=await context.newPage(),errors=[];page.on('pageerror',error=>errors.push(error.message));
  await page.goto(url);await page.locator('#design-picker').selectOption('gainsnap-sift-hardware');
  const doc=await page.evaluate(()=>Frame.agent.getDocument('gainsnap-sift-hardware'));
- assert.equal(doc.revisionId,'gainsnap-sift-hardware-r2');
+ assert.equal(doc.revisionId,'gainsnap-sift-hardware-r3');
  const node=id=>doc.elements.find(n=>n.id===id);
+ assert.equal(node('restart').bounds.y,node('match').bounds.y);
+ assert.ok(node('restart').bounds.width<node('match').bounds.width);
+ assert.equal(node('restart').label,'Restart matching');
+ assert.ok(node('restart-icon').points.length>20);
+ for(let i=0;i<3;i++)assert.ok(node('activity-'+i).bounds.y>=node('target-value').bounds.y+node('target-value').bounds.height+6);
  assert.ok(node('meter-bed').bounds.x<node('gain-knob').bounds.x);
  assert.ok(node('meter-bed').bounds.height>=280);
  assert.ok(node('gain-knob').bounds.width<=48);
  assert.equal(node('top-insert').bounds.y,0);
  assert.equal(node('bottom-insert').bounds.y+node('bottom-insert').bounds.height,doc.height);
  assert.ok(node('gain-arrow').bounds.x>node('meter-bed').bounds.x+node('meter-bed').bounds.width);
- assert.deepEqual(await page.evaluate(()=>Frame.revisions.list('gainsnap-sift-hardware').map(r=>r.revisionId)),['gainsnap-sift-hardware-r1','gainsnap-sift-hardware-r2']);
+ assert.deepEqual(await page.evaluate(()=>Frame.revisions.list('gainsnap-sift-hardware').map(r=>r.revisionId)),['gainsnap-sift-hardware-r1','gainsnap-sift-hardware-r2','gainsnap-sift-hardware-r3']);
  assert.equal(doc.width,200);assert.equal(doc.height,424);assert.equal(doc.styleguideId,'sift-hardware');assert.equal(await page.locator('#styleguide-picker').inputValue(),'sift-hardware');
  for(const state of Object.keys(doc.states)){
  await page.evaluate(state=>Frame.agent.setState('gainsnap-sift-hardware',state),state);
@@ -39,7 +44,7 @@ test('GainSnap Sift Hardware study preserves compact controls, state previews, e
  await page.locator('#state-picker').selectOption('default');
  await page.locator('#tool-interact').click();await page.getByRole('button',{name:'MATCH',exact:true}).click();assert.equal(await page.evaluate(()=>Frame.currentState('gainsnap-sift-hardware')),'listening');
  await page.locator('#state-picker').selectOption('matched');await page.getByRole('button',{name:'MATCH',exact:true}).click();assert.equal(await page.evaluate(()=>Frame.currentState('gainsnap-sift-hardware')),'held');assert.equal(await page.getByRole('textbox',{name:'Gain in dB',exact:true}).inputValue(),'+6.0');
- await page.locator('#state-picker').selectOption('matched');await page.getByRole('button',{name:'RESTART',exact:true}).click();assert.equal(await page.evaluate(()=>Frame.currentState('gainsnap-sift-hardware')),'remeasuring');assert.equal(await page.getByRole('textbox',{name:'Gain in dB',exact:true}).inputValue(),'+6.0');
+ await page.locator('#state-picker').selectOption('matched');await page.getByRole('button',{name:'Restart matching',exact:true}).click();assert.equal(await page.evaluate(()=>Frame.currentState('gainsnap-sift-hardware')),'remeasuring');assert.equal(await page.getByRole('textbox',{name:'Gain in dB',exact:true}).inputValue(),'+6.0');
  await page.getByRole('textbox',{name:'Target in dBFS',exact:true}).fill('-14.0');assert.equal(await page.getByRole('textbox',{name:'Target in dBFS',exact:true}).inputValue(),'-14.0');
  await page.getByRole('textbox',{name:'Target in dBFS',exact:true}).fill('−12.0');
  const output=path.join(root,'artifacts/gainsnap-sift-hardware');await fs.mkdir(output,{recursive:true});
