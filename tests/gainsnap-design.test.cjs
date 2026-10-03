@@ -18,8 +18,19 @@ test('GainSnap Sift Hardware study preserves compact controls, state previews, e
  const context=await browser.newContext({viewport:{width:1100,height:1000}});t.after(()=>context.close());const page=await context.newPage(),errors=[];page.on('pageerror',error=>errors.push(error.message));
  await page.goto(url);await page.locator('#design-picker').selectOption('gainsnap-sift-hardware');
  const doc=await page.evaluate(()=>Frame.agent.getDocument('gainsnap-sift-hardware'));
- assert.equal(doc.revisionId,'gainsnap-sift-hardware-r3');
+ assert.equal(doc.revisionId,'gainsnap-sift-hardware-r4');
  const node=id=>doc.elements.find(n=>n.id===id);
+ assert.ok(node('scale-0').bounds.x+node('scale-0').bounds.width<node('meter-bed').bounds.x);
+ for(const id of ['target-value','gain-value'])assert.ok(node(id).bounds.width<=56&&node(id).bounds.height<=24);
+ for(const id of ['target-label','gain-label','gain-unit'])assert.equal(node(id).visible,false);
+ assert.ok(node('gain-knob').bounds.y>=266);
+ assert.ok(node('gain-value').bounds.y+node('gain-value').bounds.height<=node('display').bounds.y+node('display').bounds.height-8);
+ assert.ok(node('gain-value').bounds.y>node('gain-knob').bounds.y+node('gain-knob').bounds.height);
+ assert.equal(node('brand').style.fontSize,node('title').style.fontSize);
+ assert.equal(node('brand-slash').text,'/');assert.equal(node('version').text,'v0.1.3');
+ assert.equal(node('output-label').bounds.x+node('output-label').bounds.width/2,node('meter-bed').bounds.x+node('meter-bed').bounds.width/2);
+ assert.equal(node('output-label').style.textAlign,'center');
+ for(const state of ['default','manual','peak','held'])assert.equal(doc.states[state].status.visible,false);
  assert.equal(node('restart').bounds.y,node('match').bounds.y);
  assert.ok(node('restart').bounds.width<node('match').bounds.width);
  assert.equal(node('restart').label,'Restart matching');
@@ -31,7 +42,7 @@ test('GainSnap Sift Hardware study preserves compact controls, state previews, e
  assert.equal(node('top-insert').bounds.y,0);
  assert.equal(node('bottom-insert').bounds.y+node('bottom-insert').bounds.height,doc.height);
  assert.ok(node('gain-arrow').bounds.x>node('meter-bed').bounds.x+node('meter-bed').bounds.width);
- assert.deepEqual(await page.evaluate(()=>Frame.revisions.list('gainsnap-sift-hardware').map(r=>r.revisionId)),['gainsnap-sift-hardware-r1','gainsnap-sift-hardware-r2','gainsnap-sift-hardware-r3']);
+ assert.deepEqual(await page.evaluate(()=>Frame.revisions.list('gainsnap-sift-hardware').map(r=>r.revisionId)),['gainsnap-sift-hardware-r1','gainsnap-sift-hardware-r2','gainsnap-sift-hardware-r3','gainsnap-sift-hardware-r4']);
  assert.equal(doc.width,200);assert.equal(doc.height,424);assert.equal(doc.styleguideId,'sift-hardware');assert.equal(await page.locator('#styleguide-picker').inputValue(),'sift-hardware');
  for(const state of Object.keys(doc.states)){
  await page.evaluate(state=>Frame.agent.setState('gainsnap-sift-hardware',state),state);

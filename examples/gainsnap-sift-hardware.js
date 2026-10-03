@@ -124,6 +124,39 @@
     // Reserve six units between the rail, controls and inward insert lip.
     Object.assign(control('bottom-insert'),{bounds:{x:51,y:416,width:98,height:8},points:[[0,8],[9,2],[14,0],[84,0],[89,2],[98,8]]});
     if(!Frame.revisions.list(d.id).some(r=>r.revisionId===compact.revisionId))Frame.agent.updateDocument(compact);
+    const lowerGain=JSON.parse(JSON.stringify(compact));
+    lowerGain.revisionId='gainsnap-sift-hardware-r4';
+    const finalNode=id=>lowerGain.elements.find(n=>n.id===id);
+    for(const id of ['knob-bed','knob-ring','knob-cap','gain-knob','knob-pointer','knob-pointer-matched'])finalNode(id).bounds.y+=84;
+    finalNode('gain-value').bounds.y=338;
+    Object.assign(finalNode('gain-label'),{text:'GAIN · dB',bounds:{x:116,y:257,width:68,height:14}});
+    finalNode('gain-label').style.fontSize=9;
+    finalNode('gain-unit').visible=false;
+    Object.assign(finalNode('output-label').bounds,{x:36,width:25});
+    finalNode('output-label').style.textAlign='center';
+    finalNode('status').bounds.y=150;
+    for(const state of ['default','manual','peak','held'])lowerGain.states[state].status={...lowerGain.states[state].status,visible:false};
+    for(const id of ['brand','title']){
+      finalNode(id).style.fontSize=9;
+      finalNode(id).bounds.y=24;finalNode(id).bounds.height=12.6;
+    }
+    Object.assign(finalNode('brand').bounds,{x:14,width:70});
+    Object.assign(finalNode('title').bounds,{x:102,width:82});
+    lowerGain.elements.push({id:'brand-slash',type:'text',bounds:{x:87,y:24,width:8,height:12.6},text:'/',style:{fontFamily:d.tokens.typography.family,fontSize:9,color:'muted'}});
+    // Product version verified against GainSnap's Cargo package, not an invented build ID.
+    lowerGain.elements.push({id:'version',type:'text',bounds:{x:156,y:5,width:32,height:8.4},text:'v0.1.3',style:{fontFamily:d.tokens.typography.family,fontSize:6,color:'muted',textAlign:'right'}});
+    // Scale labels sit outside both handles, with protected horizontal clearance.
+    for(const id of ['meter-bed','peak-bar','rms-bar','peak-bar-matched','rms-bar-matched','target-rule','target-arrow','gain-arrow','gain-arrow-matched','output-label'])finalNode(id).bounds.x+=14;
+    for(let i=0;i<6;i++){
+      Object.assign(finalNode('scale-'+i).bounds,{x:10,width:21});
+      finalNode('scale-'+i).style.textAlign='right';
+      Object.assign(finalNode('tick-'+i).bounds,{x:32,width:3});
+    }
+    Object.assign(finalNode('target-value').bounds,{x:34,width:56,height:24});
+    Object.assign(finalNode('gain-value').bounds,{x:128,y:322,width:48,height:24});
+    for(const id of ['target-value','gain-value'])Object.assign(finalNode(id).style,{fontSize:11,padding:4});
+    for(const id of ['target-label','gain-label','gain-unit'])finalNode(id).visible=false;
+    if(!Frame.revisions.list(d.id).some(r=>r.revisionId===lowerGain.revisionId))Frame.agent.updateDocument(lowerGain);
     const sync=()=>{if(document.getElementById('design-picker').value!==d.id)return;const picker=document.getElementById('styleguide-picker');if(picker.value!==d.styleguideId){picker.value=d.styleguideId;picker.dispatchEvent(new Event('change'));}};
     window.addEventListener('frame:design-selected',sync);sync();window.dispatchEvent(new Event('frame:designs-changed'));
   });
