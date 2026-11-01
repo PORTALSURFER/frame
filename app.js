@@ -60,6 +60,7 @@
   let activePointerId = null;
   let pointLimitReached = false;
   let zoom = 1, panX = 0, panY = 0, panDrag = null;
+  let paintGeneration = 0;
   let mode = "pen";
   let selectedLine = null;
   let notes = [];
@@ -502,6 +503,17 @@
     updateKeyboardCursor();
     updateControls();
   }
+  // Keep the raster backing sharp at the displayed zoom without unbounded canvases.
+  function canvasResolution() {
+    const styles = getComputedStyle(stage);
+    const usableWidth = Math.max(1, stage.clientWidth - parseFloat(styles.paddingLeft) - parseFloat(styles.paddingRight));
+    const usableHeight = Math.max(1, stage.clientHeight - parseFloat(styles.paddingTop) - parseFloat(styles.paddingBottom));
+    const displayScale = Math.min(1, usableWidth / design.width, usableHeight / design.height) * zoom;
+    const requested = Math.max(1, displayScale) * (window.devicePixelRatio || 1);
+    const density = Math.min(requested, 8192 / design.width, 8192 / design.height,
+      Math.sqrt(16777216 / (design.width * design.height)));
+    return {density, width: Math.max(1, Math.floor(design.width * density)), height: Math.max(1, Math.floor(design.height * density))};
+  }
   function fitBoard() {
     if (!designReady) return;
     const styles = getComputedStyle(stage);
@@ -512,16 +524,19 @@
     document.getElementById("zoom-value").textContent = Math.round(zoom * 100) + "%";
     board.style.width = `${design.width * Math.max(scale, 0.01)}px`;
     board.style.height = `${design.height * Math.max(scale, 0.01)}px`;
+    const resolution = canvasResolution();
+    if (designCanvas.width !== resolution.width || designCanvas.height !== resolution.height) paintDesign();
     redrawMarks();
   }
   function paintDesign() {
     try {
-      const dpr = Math.min(window.devicePixelRatio || 1, 2);
-      designCanvas.width = Math.round(design.width * dpr);
-      designCanvas.height = Math.round(design.height * dpr);
+      const {density, width, height} = canvasResolution();
+      const generation = ++paintGeneration;
+      designCanvas.width = width;
+      designCanvas.height = height;
       const context = designCanvas.getContext("2d");
       if (!context) throw new Error("Canvas drawing is unavailable in this browser");
-      context.setTransform(dpr, 0, 0, dpr, 0, 0);
+      context.setTransform(density, 0, 0, density, 0, 0);
       context.save();
       try { design.paint(context, {styleguide: Frame.activeStyleguide}); }
       finally { context.restore(); }
@@ -533,12 +548,12 @@
       const renderedId=design.id, renderedRevision=design.revisionId, doc=Frame.documents.get(design.id);
       const assetsReady=doc?FrameDocument.prepareAssets(doc):Promise.resolve();
       Frame.markRendering(Promise.all([assetsReady,document.fonts.ready]).then(()=>{
-        if(doc&&design.id===renderedId&&design.revisionId===renderedRevision) {
+        if(doc&&generation===paintGeneration&&design.id===renderedId&&design.revisionId===renderedRevision) {
           context.save();try {design.paint(context,{styleguide:Frame.activeStyleguide});}finally{context.restore();}
         }
         return new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));
       }).catch(error=>{
-        if(design.id===renderedId)showDesignStatus("Design assets could not be rendered","Check embedded assets, then retry.",error.message,true);
+        if(generation===paintGeneration&&design.id===renderedId)showDesignStatus("Design assets could not be rendered","Check embedded assets, then retry.",error.message,true);
         throw error;
       }));
     } catch (error) {

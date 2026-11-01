@@ -282,3 +282,17 @@ test('a new source revision starts a snapshot and subsequent reloads retain edit
  assert.equal(await page.evaluate(()=>Frame.agent.getDocument('instrument').elements.find(n=>n.id==='status').text),'NEW SOURCE DRAFT');
  assert.equal(await page.evaluate(()=>Frame.revisions.list('instrument').length),3);
 });
+
+test('zoom repaints the canvas at a bounded resolution while keeping design coordinates',async t=>{
+ const page=await pageFor(t);
+ const result=await page.evaluate(async()=>{
+  await Frame.agent.renderReady();const canvas=document.getElementById('design');const before={width:canvas.width,height:canvas.height};
+  const original=Frame.agent.inspect('instrument',{elementId:'run'})[0].bounds;
+  Frame.view.set({zoom:4,panX:0,panY:0});await Frame.agent.renderReady();const after={width:canvas.width,height:canvas.height};
+  Frame.view.set({zoom:8,panX:0,panY:0});await Frame.agent.renderReady();const max={width:canvas.width,height:canvas.height};
+  return {before,after,max,original,next:Frame.agent.inspect('instrument',{elementId:'run'})[0].bounds};
+ });
+ assert.ok(result.after.width>result.before.width);assert.ok(result.after.height>result.before.height);
+ assert.ok(result.max.width<=8192&&result.max.height<=8192&&result.max.width*result.max.height<=16777216);
+ assert.deepEqual(result.original,result.next);
+});
