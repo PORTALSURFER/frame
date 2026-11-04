@@ -80,6 +80,34 @@ test('live source failures and open dialogs preserve the design and stopping can
  const stopped=await page.evaluate(async()=>{const pending=live.poll();live.stop();await pending;return Frame.agent.getDocument('instrument').revisionId;});
  assert.equal(stopped,original.revisionId);
 });
+test('review context distinguishes anchors, geometry candidates and removed targets without resolving marks', async t => {
+ const page=await pageFor(t);
+ const result=await page.evaluate(()=>{
+  const design=Frame.designs.get('instrument'), target=Frame.agent.inspect('instrument',{elementId:'run'})[0];
+  const point=[target.bounds.x+2,target.bounds.y+2];
+  const anchored={...FrameFeedback.metadata('stroke',design),points:[point,[point[0]+4,point[1]+4]],elementAnchor:{elementId:'run',offset:[2,2]}};
+  const positional={...FrameFeedback.metadata('note',design),text:'review this',anchor:point};
+  Frame.projectBridge.importFeedback(FrameFeedback.document(design,[anchored],[positional]));
+  const before=Frame.agent.getFeedback(),context=Frame.agent.reviewContext();
+  Frame.view.set({zoom:2,panX:20,panY:15});
+  const zoomed=Frame.agent.reviewContext();
+  const unchanged=Frame.agent.getFeedback();
+  Frame.agent.applyEdits('instrument',[{op:'remove',id:'run'}]);
+  const removed=Frame.agent.reviewContext();
+  return {before,context,zoomed,unchanged,removed};
+ });
+ assert.deepEqual(result.before,result.unchanged);
+ assert.equal(result.context.annotations[0].target.id,'run');
+ assert.equal(result.context.annotations[0].match,'element-anchor');
+ assert.equal(result.context.annotations[0].originalDeclaration.id,'run');
+ assert.equal(result.context.annotations[1].needsReview,true);
+ assert.ok(result.context.annotations[1].candidateCount>0);
+ assert.deepEqual(result.context.annotations,result.zoomed.annotations);
+ assert.equal(result.removed.annotations[0].target,null);
+ assert.equal(result.removed.annotations[0].needsReview,true);
+ assert.equal(result.removed.annotations[0].mark.status,'open');
+ assert.equal(result.removed.annotations[0].originalDeclaration.id,'run');
+});
 test('agents inspect and edit stable elements while feedback survives refresh and PNG exports are sized',async t=>{
  const page=await pageFor(t);
  const board=await page.locator('#board').boundingBox();await page.mouse.move(board.x+100,board.y+100);await page.mouse.down();await page.mouse.move(board.x+150,board.y+150);await page.mouse.up();
