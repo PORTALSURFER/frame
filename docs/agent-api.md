@@ -51,6 +51,11 @@ records remain intact. IndexedDB is origin-specific and quota-limited too; keep
 portable exports. Failed writes retain the last committed snapshot and reject
 the promise. The existing 32 MB portable-project limit still applies.
 
+The Project menu offers Save checkpoint and Recover checkpoint. Recovery creates
+a separately named design, preserving both the checkpoint and current work.
+`await Frame.project.recoverDurable(savedId, unusedDesignId)` exposes the same
+operation to agents and preserves all archived revisions under the new identity.
+
 Frame.revisions.list(id), get(id,revisionId), restore(id,revisionId), and compare(id,before,after) preserve and inspect immutable snapshots. Comparisons list added/removed elements, changed fields, and document settings. Snapshot persistence failures remain recoverable through project download and Frame.revisions.retry().
 
 Frame.project.export(id) returns a versioned project object with the complete archive, feedback, selected guide, viewport/state/input values, and embedded assets. Frame.project.validate(object) validates dependencies without changing registries. Frame.project.import(object) adds a new design atomically after validation and protects existing IDs and conflicting guide definitions. Select a design before exporting its feedback.

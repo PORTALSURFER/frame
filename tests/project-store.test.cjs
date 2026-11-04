@@ -73,6 +73,26 @@ test('durable save remains available when localStorage quota is exhausted', asyn
   });
   assert.equal(result, true);
 });
+test('checkpoint UI recovers history as a new design without replacing current edits or saved data',async t=>{
+ const page=await pageFor(t);
+ await page.locator('.project-menu > summary').click();
+ await page.waitForFunction(()=>!document.getElementById('save-checkpoint').disabled);
+ await page.locator('#save-checkpoint').click();
+ await page.waitForFunction(()=>document.getElementById('checkpoint-status').textContent.startsWith('Checkpoint saved:'));
+ const saved=await page.evaluate(()=>Frame.project.readDurable('instrument'));
+ await page.evaluate(()=>Frame.agent.applyEdits('instrument',[{op:'update',id:'run',patch:{text:'newer unsaved work'}}]));
+ await page.locator('#recover-checkpoint').click();
+ await page.waitForFunction(()=>!document.getElementById('confirm-checkpoint-recovery').disabled);
+ await page.locator('#checkpoint-new-id').fill('recovered-copy');
+ await page.locator('#confirm-checkpoint-recovery').click();
+ await page.waitForFunction(()=>document.getElementById('design-picker').value==='recovered-copy');
+ const result=await page.evaluate(async()=>({original:Frame.agent.getDocument('instrument'),recovered:Frame.project.export('recovered-copy'),saved:await Frame.project.readDurable('instrument')}));
+ assert.equal(result.original.elements.find(node=>node.id==='run').text,'newer unsaved work');
+ assert.deepEqual(result.saved,saved);
+ assert.equal(result.recovered.archive.revisions.length,saved.project.archive.revisions.length);
+ assert.equal(result.recovered.feedback.design,'recovered-copy');
+ assert.ok(result.recovered.archive.revisions.every(revision=>revision.document.id==='recovered-copy'));
+});
 
 test('unavailable durable storage can be retried and malformed records cannot be overwritten', async t => {
   const page = await pageFor(t);

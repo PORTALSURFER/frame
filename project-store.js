@@ -86,4 +86,15 @@
   Frame.project.saveDurable = (id, expectedGeneration) => store.save(Frame.project.export(id), expectedGeneration);
   Frame.project.readDurable = id => store.read(id);
   Frame.project.listDurable = () => store.list();
+  Frame.project.recoverDurable = async (id, recoveredId) => {
+    if (typeof recoveredId !== 'string' || !/^[a-z0-9][a-z0-9_-]*$/i.test(recoveredId) || Frame.designs.has(recoveredId)) throw new Error('Choose a new, unused project ID');
+    const record = await store.read(id);
+    if (!record) throw new Error('Saved project not found');
+    const project = FrameDocument.clone(record.project);
+    project.archive.designId = recoveredId;
+    for (const revision of project.archive.revisions) revision.document.id = recoveredId;
+    project.feedback.design = recoveredId;
+    for (const mark of [...project.feedback.lines, ...project.feedback.notes]) mark.designId = recoveredId;
+    return Frame.project.import(project);
+  };
 })();
