@@ -197,6 +197,7 @@
       pendingFeedback.set(design.id, feedback);
     }
     updateControls();
+    window.dispatchEvent(new CustomEvent('frame:feedback-changed', {detail: {id: design.id}}));
   }
 
   // Finished strokes are immutable: retain point arrays rather than copying them.
@@ -583,6 +584,7 @@
     if (importDialog.open) importDialog.close();
     selectedLine = null;
     selectedNote = null;
+    if (design) window.dispatchEvent(new CustomEvent('frame:design-leaving', {detail: {id: design.id}}));
     design = Frame.designs.get(id);
     if (!design) return;
     picker.value = id;
@@ -994,6 +996,18 @@
     document.getElementById("feedback-revision-notice").textContent=[...lines.map(line=>lineMetadata.get(line)),...notes].filter(mark=>mark.needsReview).length+" marks need review after layout changes.";
   }
   Frame.projectBridge={
+    acknowledgeCheckpoint: data => {
+      const session = sessions.get(data.design), target = Frame.designs.get(data.design);
+      if (!session || !target) return false;
+      const latest = FrameFeedback.document(target,
+        session.feedback.lines.map(line => ({...lineMetadata.get(line), points: line})), session.feedback.notes);
+      if (JSON.stringify(latest) !== JSON.stringify(data)) return false;
+      session.feedback.unsaved = false;
+      session.feedback.notice = session.feedback.blocked ? 'New feedback is checkpointed. Existing unreadable browser data remains protected.' : '';
+      pendingFeedback.delete(data.design);
+      if (design?.id === data.design) updateControls();
+      return true;
+    },
     importFeedback: data=>{
       const imported=unpack(FrameFeedback.importDocument(data,design));
       const before=snapshot();lines=imported.lines;notes=imported.notes;feedback.blocked=false;

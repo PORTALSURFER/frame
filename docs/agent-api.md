@@ -114,6 +114,28 @@ a separately named design, preserving both the checkpoint and current work.
 `await Frame.project.recoverDurable(savedId, unusedDesignId)` exposes the same
 operation to agents and preserves all archived revisions under the new identity.
 
+Automatic checkpoints are an opt-in Project-menu setting for each design in the
+current tab. They coalesce changes for 500 ms, serialize writes and retain one
+superseding snapshot. Feedback, document, prototype state/input, viewport and
+styleguide changes are included. Switching designs captures pending work before
+selection changes. Save status remains pending until the captured snapshot is
+committed; an older receipt cannot acknowledge newer edits. Failed writes require
+Retry automatic checkpoint. Conflicts preserve the saved version and require
+comparison/recovery rather than an automatic overwrite.
+
+`Frame.project.automaticCheckpoints` provides `enable(id)`, `status(id)`, `flush(id)`,
+`retry(id)` and `disable(id)`; omitted IDs select the current design. Disabling
+captures pending changes for a final write. Unsaved work in any enabled or disabled
+queue still protects page unload. A successful matching checkpoint acknowledges
+the corresponding feedback/archive browser-save warning without rewriting protected
+legacy records. Enabling refuses a divergent existing checkpoint. Recover that
+checkpoint or explicitly compare/save the current project first.
+
+The setting resets on reload. Startup restoration, cross-origin migration and
+incremental history storage remain separate work. Recover checkpoint is the
+explicit reload-recovery path; automatic checkpoints do not silently replace
+the design loaded from source or legacy browser storage.
+
 Frame.revisions.list(id), get(id,revisionId), restore(id,revisionId), and compare(id,before,after) preserve and inspect immutable snapshots. Comparisons list added/removed elements, changed fields, and document settings. Snapshot persistence failures remain recoverable through project download and Frame.revisions.retry().
 
 Frame.project.export(id) returns a versioned project object with the complete archive, feedback, selected guide, viewport/state/input values, and embedded assets. Frame.project.validate(object) validates dependencies without changing registries. Frame.project.import(object) adds a new design atomically after validation and protects existing IDs and conflicting guide definitions. Select a design before exporting its feedback.

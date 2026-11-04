@@ -26,6 +26,104 @@ async function pageFor(t) {
   await page.goto(url); await page.locator('#design-picker').selectOption('instrument');
   return page;
 }
+test('automatic checkpoints retain feedback-only changes after quota failure and reload',async t=>{
+ const page=await pageFor(t);
+ const result=await page.evaluate(async()=>{
+  const auto=Frame.project.automaticCheckpoints;
+  await auto.enable('instrument');
+  Storage.prototype.setItem=()=>{throw new DOMException('Full','QuotaExceededError');};
+  Frame.agent.applyEdits('instrument',[{op:'update',id:'run',patch:{text:'durable after quota failure'}}]);
+  const feedback=Frame.agent.getFeedback();
+  feedback.lines.push({...FrameFeedback.metadata('stroke',Frame.designs.get('instrument')),points:[[10,10],[20,20]]});
+  Frame.projectBridge.importFeedback(feedback);
+  const pending=auto.status();const saved=await auto.flush();
+  const beforeUnload=new Event('beforeunload',{cancelable:true});window.dispatchEvent(beforeUnload);
+  return {pending,saved,prompt:beforeUnload.defaultPrevented,notice:document.getElementById('feedback-save-notice').textContent};
+ });
+ assert.equal(result.pending.pending,true);assert.equal(result.saved.pending,false);
+ assert.equal(result.prompt,false);assert.equal(result.notice,'');
+ await page.reload();
+ assert.equal(await page.evaluate(async()=>(await Frame.project.readDurable('instrument')).project.feedback.lines.length),1);
+});
+test('automatic checkpoints capture superseding edits before a design switch during a write',async t=>{
+ const page=await pageFor(t);
+ await page.evaluate(async()=>{
+  await Frame.project.automaticCheckpoints.enable('instrument');
+  const write=Frame.project.writeDurable;window.writes=[];
+  Frame.project.writeDurable=(snapshot,generation)=>new Promise((resolve,reject)=>writes.push(()=>write(snapshot,generation).then(resolve,reject)));
+  Frame.agent.applyEdits('instrument',[{op:'update',id:'run',patch:{text:'first'}}]);
+  window.saving=Frame.project.automaticCheckpoints.flush();
+ });
+ await page.waitForFunction(()=>writes.length===1);
+ await page.evaluate(()=>{
+  Frame.agent.applyEdits('instrument',[{op:'update',id:'run',patch:{text:'latest before switch'}}]);
+  Frame.agent.selectDesign('sift');writes[0]();
+ });
+ await page.waitForFunction(()=>writes.length===2);
+ const result=await page.evaluate(async()=>{
+  const pending=Frame.project.automaticCheckpoints.status('instrument').pending;
+  writes[1]();await saving;
+  const record=await Frame.project.readDurable('instrument');
+  const doc=record.project.archive.revisions.find(r=>r.revisionId===record.project.archive.currentRevisionId).document;
+  return {pending,final:Frame.project.automaticCheckpoints.status('instrument'),text:doc.elements.find(n=>n.id==='run').text};
+ });
+ assert.equal(result.pending,true);assert.equal(result.final.pending,false);assert.equal(result.text,'latest before switch');
+});
+test('automatic checkpoint failures remain unsaved until explicit retry and stale tabs cannot overwrite',async t=>{
+ const page=await pageFor(t);
+ await page.evaluate(async()=>{
+  const write=Frame.project.writeDurable;window.write=write;
+  Frame.project.writeDurable=async()=>{throw new Error('simulated failure');};
+  await Frame.project.automaticCheckpoints.enable('instrument');
+ });
+ assert.equal(await page.evaluate(()=>Frame.project.automaticCheckpoints.status().state),'error');
+ const saved=await page.evaluate(async()=>{Frame.project.writeDurable=write;return Frame.project.automaticCheckpoints.retry();});
+ assert.equal(saved.state,'saved');
+ const other=await page.context().newPage();await other.goto(url);await other.locator('#design-picker').selectOption('instrument');
+ await other.evaluate(()=>Frame.project.automaticCheckpoints.enable('instrument'));
+ const conflict=await page.evaluate(async()=>{
+  Frame.agent.applyEdits('instrument',[{op:'update',id:'run',patch:{text:'stale tab'}}]);
+  const status=await Frame.project.automaticCheckpoints.flush();
+  const record=await Frame.project.readDurable('instrument');
+  return {status,revision:record.project.archive.currentRevisionId,local:Frame.agent.getDocument('instrument').revisionId};
+ });
+ assert.equal(conflict.status.state,'conflict');assert.equal(conflict.status.pending,true);assert.notEqual(conflict.revision,conflict.local);
+ const restarted=await page.evaluate(async()=>{
+  const auto=Frame.project.automaticCheckpoints;await auto.disable();
+  const record=await Frame.project.readDurable('instrument');
+  await Frame.project.saveDurable('instrument',record.generation);
+  return auto.enable('instrument');
+ });
+ assert.equal(restarted.state,'saved');assert.equal(restarted.pending,false);
+});
+test('an older automatic receipt cannot clear newer unsaved feedback',async t=>{
+ const page=await pageFor(t);
+ await page.locator('.project-menu > summary').click();
+ await page.locator('#automatic-checkpoints').check();
+ await page.waitForFunction(()=>Frame.project.automaticCheckpoints.status()?.state==='saved');
+ await page.evaluate(()=>{
+  const write=Frame.project.writeDurable;window.writes=[];
+  Frame.project.writeDurable=(snapshot,generation)=>new Promise((resolve,reject)=>writes.push(()=>write(snapshot,generation).then(resolve,reject)));
+  Storage.prototype.setItem=()=>{throw new DOMException('Full','QuotaExceededError');};
+  window.addMark=()=>{
+   const data=Frame.agent.getFeedback();data.lines.push({...FrameFeedback.metadata('stroke',Frame.designs.get('instrument')),points:[[10,10],[20,20]]});Frame.projectBridge.importFeedback(data);
+  };
+  addMark();window.saving=Frame.project.automaticCheckpoints.flush();
+ });
+ await page.waitForFunction(()=>writes.length===1);
+ await page.evaluate(()=>{addMark();Frame.project.automaticCheckpoints.flush();writes[0]();});
+ await page.waitForFunction(()=>writes.length===2);
+ const before=await page.evaluate(()=>{
+  const event=new Event('beforeunload',{cancelable:true});window.dispatchEvent(event);
+  return {prompt:event.defaultPrevented,notice:document.getElementById('feedback-save-notice').textContent};
+ });
+ assert.equal(before.prompt,true);assert.match(before.notice,/unsaved/);
+ const after=await page.evaluate(async()=>{writes[1]();await saving;
+  const event=new Event('beforeunload',{cancelable:true});window.dispatchEvent(event);
+  return {prompt:event.defaultPrevented,count:(await Frame.project.readDurable('instrument')).project.feedback.lines.length};
+ });
+ assert.equal(after.prompt,false);assert.equal(after.count,2);
+});
 test('durable project round trip survives reload with feedback and protects legacy data', async t => {
   const page = await pageFor(t);
   const before = await page.evaluate(async () => {

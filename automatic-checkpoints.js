@@ -1,0 +1,69 @@
+// One acknowledged, bounded snapshot queue per enabled design. At most one write
+// and one superseding snapshot are retained; failed writes require an explicit retry.
+(function(root) {
+  function create({capture, read, write, acknowledge = () => {}, notify = () => {}, delay = 500}) {
+    let enabled = true, version = 1, saved = 0, captured = 0, generation, queued, running, timer, ready;
+    let error = null, capturing = false, initializing = true;
+    function status() {
+      return {enabled, generation, pending: saved < version || !!running || initializing || !!error,
+        state: error ? (error.name === 'ConflictError' ? 'conflict' : 'error') : initializing ? 'loading' : running ? 'saving' : saved < version ? 'pending' : 'saved',
+        error: error?.message || null};
+    }
+    function announce() { notify(status()); }
+    function snapshot() {
+      if (capturing || captured === version) return;
+      capturing = true;
+      try { queued = {project: capture(), version}; captured = version; }
+      catch (failure) { error = failure; }
+      finally { capturing = false; }
+    }
+    snapshot();
+    const initial = queued?.project;
+    function initialize() { initializing = true; return Promise.resolve().then(read).then(record => {
+      // Enabling never replaces a divergent checkpoint left by another session.
+      if (record && (!initial || record.project.archive.currentRevisionId !== initial.archive.currentRevisionId ||
+          JSON.stringify(record.project.feedback) !== JSON.stringify(initial.feedback))) {
+        const failure = new Error('Saved checkpoint differs from the open design. Recover it or explicitly save the current project before enabling automatic checkpoints.');
+        failure.name = 'ConflictError'; throw failure;
+      }
+      generation = record?.generation || 0;
+    }).catch(failure => { error = failure; }).finally(() => { initializing = false; announce(); }); }
+    ready = initialize();
+    function pump() {
+      if (running) return running;
+      if (initializing || error || !queued) return Promise.resolve();
+      const batch = queued; queued = null;
+      running = Promise.resolve().then(() => write(batch.project, generation)).then(receipt => {
+        generation = receipt.generation; saved = batch.version;
+        acknowledge(batch.project);
+      }).catch(failure => {
+        error = failure;
+        if (!queued) queued = batch;
+      }).finally(() => {
+        running = null; announce();
+        if (queued && !error) return pump();
+      });
+      announce(); return running;
+    }
+    function flush() {
+      clearTimeout(timer); snapshot();
+      return ready.then(pump).then(status);
+    }
+    return {
+      status, flush,
+      changed() {
+        if (!enabled || capturing) return;
+        version++; clearTimeout(timer); announce();
+        timer = setTimeout(flush, delay);
+      },
+      retry() {
+        if (error?.name !== 'ConflictError') { error = null; if (generation === undefined) ready = initialize(); }
+        return flush();
+      },
+      disable() { enabled = false; return flush(); }
+    };
+  }
+  const api = {create};
+  if (typeof module !== 'undefined') module.exports = api;
+  else root.FrameAutomaticCheckpoints = api;
+})(typeof window === 'undefined' ? globalThis : window);
