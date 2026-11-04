@@ -34,6 +34,19 @@ remain explicit. Available historical source declarations are labeled separately
 from current resolved bounds: old prototype state may be unknown. Calling this
 method does not resolve or move marks. Custom Canvas designs have no element targets.
 
+`Frame.componentInstances.define(id, {id, elements, variants?})` defines a shared
+component in a design. `instantiate(id, {id, componentId, x, y, variant?, overrides?})`
+creates stable `instance--part` IDs. Variants and instance overrides are maps keyed
+by local part ID; they may change text, style, bounds, visibility, disabled/value
+state and points. Instance overrides win over variant and master values. Updating
+a definition regenerates instances while preserving overrides and anchors; edits
+that orphan state overrides or children are refused. `override(id, instanceId,
+overrides)` replaces an instance's overrides. `publish(definition, designIds)`
+validates all named designs before updating them. Libraries are embedded in
+portable documents. Nested instances, arbitrary prototype behavior and automatic
+native-code generation are not supported. Direct edits to generated parts are
+replaced by regeneration; edit the definition or instance overrides instead.
+
 - Frame.registerDocument(document): validate/register a document; duplicate IDs return false.
 - Frame.agent.listDesigns(): IDs, sizes, revisions, and structured support.
 - getDocument(designId): independent serializable copy.
@@ -52,6 +65,15 @@ Feedback placed on structured elements includes an element anchor with the eleme
 The Instrument workstation example is a serializable design with responsive bounds and state overrides. Documents are data; custom paint callbacks remain code and cannot be serialized into portable documents.
 
 ## Review and prototypes
+
+Containers may opt into `flow: {kind: "row" | "column" | "wrap" | "grid", gap?,
+columns?}`. Children retain declared or responsive sizes; flow determines their
+positions. Grid requires a column count; wrapping starts a new row when necessary.
+Hidden children do not occupy slots. `flowGrow` shares remaining main-axis space
+among row/column children with zero growth basis. Gaps may name a nonnegative
+`document.tokens.spacing` entry. Layout is shared by rendering, hit testing and
+inspection. This model does not yet implement general flex shrink, min/max bounds,
+alignment, scrolling, text measurement or nested component instances.
 
 Viewport presets and Frame.agent.setViewport(id,{width,height}) recompute responsive bounds rather than shrink a fixed canvas. Elements can specify percentage responsive bounds and maxWidth breakpoints. Frame.agent.setState(id,state) applies named overrides; controls use accessible labels and declarative set-state actions.
 
