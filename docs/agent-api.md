@@ -6,6 +6,15 @@ A document is JSON with version 1, id, name, revisionId, positive integer width/
 
 ## Operations
 
+`Frame.agent.commit({requestId, designId, expectedRevisionId, operations})` applies
+one atomic edit batch only while the expected revision is current. Stale edits
+throw `ConflictError`. Exact retries return the original receipt; reusing a request
+ID with changed content fails. The last 100 successful requests are retained in
+the current page only. After reload or eviction an old expected revision still
+prevents replay against a newer document. Receipts identify both revisions; await
+`renderReady()` separately before visual verification. Use this operation for
+concurrent agent workflows; the older mutation methods remain available.
+
 - Frame.registerDocument(document): validate/register a document; duplicate IDs return false.
 - Frame.agent.listDesigns(): IDs, sizes, revisions, and structured support.
 - getDocument(designId): independent serializable copy.
