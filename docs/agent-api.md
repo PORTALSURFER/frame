@@ -57,7 +57,7 @@ replaced by regeneration; edit the definition or instance overrides instead.
 - updateDocument(document): refresh without reload; changed content needs a new revision ID.
 - refreshDesign(designId,{paint?,name?,width?,height?,revisionId?}): refresh a custom Canvas design.
 - getFeedback(): complete selected feedback, finishing gestures.
-- renderReady(): await fonts and two animation frames.
+- renderReady(): await fonts, any deferred zoom repaint, and two animation frames.
 - exportImage({designId?,feedback?,scale?}): PNG Blob and dimensions, scale, revision, and overlay flag. Select the design before exporting feedback. Scale is positive and at most 4; images above 64 million pixels are rejected.
 
 Feedback placed on structured elements includes an element anchor with the element ID and a positional offset. Marks retain the revision they were created against when a document changes.
@@ -84,6 +84,14 @@ the structural checks are clean or that native product behavior is implemented.
 Viewport presets and Frame.agent.setViewport(id,{width,height}) recompute responsive bounds rather than shrink a fixed canvas. Elements can specify percentage responsive bounds and maxWidth breakpoints. Frame.agent.setState(id,state) applies named overrides; controls use accessible labels and declarative set-state actions.
 
 Choose Interact to exercise real button/input elements with mouse or keyboard. Other modes annotate feedback. Pan (H) drags the view; zoom controls and Fit preserve design coordinates. Frame.view exposes get, set({zoom,panX,panY}), fit, and setMode.
+
+Wheel and toolbar zoom update geometry and view-change events immediately, then
+repaint the sharp canvas after 350 ms without another zoom event. The existing
+raster remains visible during the burst. `renderReady()` and PNG export wait for
+that repaint. Explicit `Frame.view.set()` still resizes the raster immediately.
+Canvas backing storage stays within 8192 pixels per axis and 16,777,216 pixels
+overall. Changing designs or returning to the existing resolution cancels stale
+zoom work without leaving readiness pending.
 
 Frame.review.check(id) reports text overflow, clipping, unexpected overlaps, spacingGroup inconsistencies, and contrast with element IDs. Element exceptions list check types or overlap:other-id; allowOverlapWith names intentionally overlapping elements. Checks describe declared bounds and Canvas text; custom Canvas-only screens cannot provide structural or semantic assertions.
 

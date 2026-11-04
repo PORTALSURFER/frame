@@ -18,6 +18,88 @@ async function pageFor(t){
  const page=await context.newPage();const errors=[];page.on('pageerror',e=>errors.push(e.message));t.after(()=>assert.deepEqual(errors,[]));
  await page.goto(url);await page.locator('#design-picker').selectOption('instrument');return page;
 }
+test('wheel zoom coalesces raster work and settles sharply without changing design coordinates',async t=>{
+ const page=await pageFor(t);
+ const result=await page.evaluate(async()=>{
+  await Frame.agent.renderReady();
+  const design=Frame.designs.get('instrument'),paint=design.paint,canvas=document.getElementById('design');
+  const original=Frame.agent.inspect('instrument',{elementId:'run'})[0].bounds;
+  let paints=0;design.paint=(...args)=>{paints++;return paint(...args);};
+  const before=canvas.width,stage=document.getElementById('stage'),box=stage.getBoundingClientRect();
+  for(let i=0;i<12;i++)stage.dispatchEvent(new WheelEvent('wheel',{deltaY:-80,clientX:box.x+box.width/2,clientY:box.y+box.height/2,bubbles:true,cancelable:true}));
+  const during={paints,width:canvas.width,zoom:Frame.view.get().zoom};
+  await Frame.agent.renderReady();
+  return {before,during,after:{paints,width:canvas.width,height:canvas.height},original,next:Frame.agent.inspect('instrument',{elementId:'run'})[0].bounds};
+ });
+ assert.equal(result.during.paints,0);assert.equal(result.during.width,result.before);assert.ok(result.during.zoom>1);
+ assert.ok(result.after.width>result.before);assert.ok(result.after.paints>0&&result.after.paints<=2);
+ assert.ok(result.after.width<=8192&&result.after.height<=8192&&result.after.width*result.after.height<=16777216);
+ assert.deepEqual(result.original,result.next);
+});
+test('button zoom remains immediate across a burst and checkpoints the final view',async t=>{
+ const page=await pageFor(t);
+ const result=await page.evaluate(async()=>{
+  await Frame.agent.renderReady();await Frame.project.automaticCheckpoints.enable();
+  const design=Frame.designs.get('instrument'),paint=design.paint;
+  let paints=0,events=0;design.paint=(...args)=>{paints++;return paint(...args);};
+  const epoch=Frame.projectBridge.restorationEpoch();window.addEventListener('frame:view-changed',()=>events++);
+  for(let i=0;i<3;i++){document.getElementById('zoom-in').click();await new Promise(r=>setTimeout(r,120));}
+  const during={paints,zoom:Frame.view.get().zoom,events,epoch:Frame.projectBridge.restorationEpoch()};
+  await Frame.agent.renderReady();await Frame.project.automaticCheckpoints.flush();
+  const saved=await Frame.project.readDurable('instrument');
+  return {during,paints,epoch,saved:saved.project.resume.view,view:Frame.view.get()};
+ });
+ assert.equal(result.during.paints,0);assert.equal(result.during.zoom,1.25**3);assert.equal(result.during.events,3);
+ assert.ok(result.during.epoch>result.epoch);assert.ok(result.paints>0&&result.paints<=2);assert.deepEqual(result.saved,result.view);
+});
+test('returning zoom to the existing resolution cancels the pending raster',async t=>{
+ const page=await pageFor(t);
+ const result=await page.evaluate(async()=>{
+  Frame.view.set({zoom:2,panX:0,panY:0});await Frame.agent.renderReady();const design=Frame.designs.get('instrument'),paint=design.paint;
+  let paints=0;design.paint=(...args)=>{paints++;return paint(...args);};
+  document.getElementById('zoom-in').click();const waiting=Frame.agent.renderReady();
+  document.getElementById('zoom-out').click();await waiting;
+  await new Promise(r=>setTimeout(r,400));
+  return {paints,view:Frame.view.get(),shadow:document.getElementById('board').classList.contains('zoomed')};
+ });
+ assert.equal(result.paints,0);assert.deepEqual(result.view,{zoom:2,panX:0,panY:0});assert.equal(result.shadow,true);
+});
+test('switching designs settles pending zoom and cannot repaint the old selection later',async t=>{
+ const page=await pageFor(t);
+ const result=await page.evaluate(async()=>{
+  Frame.view.set({zoom:2,panX:0,panY:0});await Frame.agent.renderReady();const design=Frame.designs.get('instrument'),paint=design.paint;
+  let oldPaints=0;design.paint=(...args)=>{oldPaints++;return paint(...args);};
+  document.getElementById('zoom-in').click();const waiting=Frame.agent.renderReady();
+  Frame.agent.selectDesign('starter');const ready=await waiting;
+  await new Promise(r=>setTimeout(r,400));
+  return {oldPaints,ready,view:Frame.view.get(),selected:document.getElementById('design-picker').value};
+ });
+ assert.equal(result.oldPaints,0);assert.equal(result.ready.designId,'starter');assert.equal(result.selected,'starter');assert.equal(result.view.zoom,1);
+});
+test('deferred raster failure releases renderReady and allows retry',async t=>{
+ const page=await pageFor(t);
+ const result=await page.evaluate(async()=>{
+  Frame.view.set({zoom:2,panX:0,panY:0});await Frame.agent.renderReady();const design=Frame.designs.get('instrument'),paint=design.paint;
+  design.paint=()=>{throw new Error('deferred paint failed');};
+  document.getElementById('zoom-in').click();
+  let error;try{await Frame.agent.renderReady();}catch(e){error=e.message;}
+  const details=document.getElementById('design-error-details').textContent;
+  design.paint=paint;document.getElementById('retry-render').click();const ready=await Frame.agent.renderReady();
+  return {error,details,ready};
+ });
+ assert.match(result.error,/not render-ready/);assert.match(result.details,/deferred paint failed/);assert.equal(result.ready.ready,true);
+});
+test('explicit agent zoom stays synchronous and caps canvas memory at maximum zoom',async t=>{
+ const page=await pageFor(t);
+ const result=await page.evaluate(async()=>{
+  await Frame.agent.renderReady();const canvas=document.getElementById('design'),before=canvas.width;
+  Frame.view.set({zoom:8,panX:0,panY:0});
+  const immediate={width:canvas.width,height:canvas.height};await Frame.agent.renderReady();
+  return {before,immediate,width:canvas.width,height:canvas.height};
+ });
+ assert.ok(result.immediate.width>result.before);assert.equal(result.width,result.immediate.width);
+ assert.equal(result.height,result.immediate.height);assert.ok(result.width<=8192&&result.height<=8192&&result.width*result.height<=16777216);
+});
 test('revision-checked agent commits are atomic, retryable and refuse stale or reused requests', async t => {
  const page = await pageFor(t);
  const result = await page.evaluate(() => {
