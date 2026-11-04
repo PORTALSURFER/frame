@@ -25,6 +25,35 @@ visible and retry. Source files must use new revision IDs for changed content.
 `Frame.agent.watchStatus(designId)` returns the current status without mutation.
 This is opt-in; it does not reload application code or connect external file paths.
 
+Use **Project → Source connection** to remember a source for the selected structured
+design. The first connection requires a JSON document that exactly matches the open
+document. Later revisions use the existing update path, retaining compatible state,
+viewport, zoom/pan and feedback. Finish open dialogs and gestures before connecting.
+
+`await Frame.sources.connect({designId?,url,interval:1000})` verifies and remembers
+the connection; a first-source mismatch returns a conflict without installing it.
+`settings(id?)` reads saved settings, `status(id?)` reports connection/error state,
+`poll(id?)` refreshes the active source and `disconnect(id?)` stops polling and saves
+the disabled preference. Omitted IDs select the current design. Settings use their
+own IndexedDB store with generation checks; failed reads and stale writes preserve
+existing records. A failed disconnect stays stopped in this tab but explicitly warns
+that refresh may reconnect if disabling could not be saved.
+
+`await Frame.sources.ready` waits for the selected source's reconnect attempt.
+Reconnect waits for checkpoint startup and verifies the remembered revision and
+SHA-256 document fingerprint. Divergent local edits, conflicting checkpoint startup,
+unreadable settings or interrupted selection pause reconnect without replacing the
+review. Only the selected design polls; selecting another design cancels pending
+work and attempts that design's saved connection. Sources require same-origin HTTP
+URLs without embedded credentials. Connections remain local to this browser origin:
+portable imports/exports do not carry or start source connections. Application-code
+updates still require serving the updated build and refreshing the same address.
+
+The lower-level watcher also accepts `requireInitialMatch`, an asynchronous
+`beforeApply()` guard, and `onApplied(document)` acknowledgement. Source sessions use
+these hooks for verified admission and transactional settings. `ConflictError` from
+either hook stops polling; other source errors remain visible and retry.
+
 `Frame.agent.reviewContext()` returns the selected design revision, viewport,
 prototype state, view transform and structured annotations. Each annotation retains
 its original mark metadata and geometry, its visible anchored target when present,
