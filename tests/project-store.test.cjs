@@ -102,6 +102,18 @@ test('startup does not interrupt feedback drawing begun during a delayed read',a
  assert.notEqual(await page.locator('#brush path').getAttribute('d'),before);
  await page.mouse.up();assert.equal(await page.locator('#brush path').count(),1);
 });
+test('startup does not end an active pan before its first movement',async t=>{
+ const page=await pageFor(t);await saveRestartFixture(page);
+ await page.route('**/project-store.js',async route=>{const response=await route.fetch();await route.fulfill({response,body:await response.text()+
+  '\nconst originalRead=Frame.project.readDurable;Frame.project.readDurable=id=>new Promise(resolve=>{window.releaseRead=()=>originalRead(id).then(resolve);});'});});
+ await page.reload();await page.waitForFunction(()=>typeof releaseRead==='function');
+ const board=await page.locator('#board').boundingBox();
+ await page.mouse.move(board.x+30,board.y+30);await page.mouse.down({button:'middle'});
+ const status=await page.evaluate(async()=>{releaseRead();return Frame.project.startup.ready;});
+ assert.equal(status.state,'conflict');await page.mouse.move(board.x+80,board.y+70);
+ assert.notEqual(await page.evaluate(()=>Frame.view.get().panX),0);
+ await page.mouse.up({button:'middle'});
+});
 test('startup reopens remembered runtime-created designs from their checkpoint',async t=>{
  const page=await pageFor(t);
  const legacy=await page.evaluate(async()=>{

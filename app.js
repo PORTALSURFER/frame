@@ -1003,7 +1003,7 @@
     document.getElementById("feedback-revision-notice").textContent=[...lines.map(line=>lineMetadata.get(line)),...notes].filter(mark=>mark.needsReview).length+" marks need review after layout changes.";
   }
   Frame.projectBridge={
-    canCheckpoint: () => !active && !noteDrag && !noteDraft,
+    canCheckpoint: () => !active && !noteDrag && !noteDraft && !panDrag,
     restorationEpoch: () => restorationEpoch,
     restoreCheckpointFeedback: data => {
       const imported=unpack(data), protectedOriginal=feedback.blocked;
