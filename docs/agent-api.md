@@ -6,6 +6,19 @@ A document is JSON with version 1, id, name, revisionId, positive integer width/
 
 ## Operations
 
+`Frame.componentInstances.define(id, {id, elements, variants?})` defines a shared
+component in a design. `instantiate(id, {id, componentId, x, y, variant?, overrides?})`
+creates stable `instance--part` IDs. Variants and instance overrides are maps keyed
+by local part ID; they may change text, style, bounds, visibility, disabled/value
+state and points. Instance overrides win over variant and master values. Updating
+a definition regenerates instances while preserving overrides and anchors; edits
+that orphan state overrides or children are refused. `override(id, instanceId,
+overrides)` replaces an instance's overrides. `publish(definition, designIds)`
+validates all named designs before updating them. Libraries are embedded in
+portable documents. Nested instances, arbitrary prototype behavior and automatic
+native-code generation are not supported. Direct edits to generated parts are
+replaced by regeneration; edit the definition or instance overrides instead.
+
 - Frame.registerDocument(document): validate/register a document; duplicate IDs return false.
 - Frame.agent.listDesigns(): IDs, sizes, revisions, and structured support.
 - getDocument(designId): independent serializable copy.
