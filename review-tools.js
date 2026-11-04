@@ -5,6 +5,7 @@
   const presets={desktop:{width:1000,height:700},tablet:{width:768,height:1024},phone:{width:360,height:740}};
   function structured(){return Frame.documents.has(designId);}
   function refresh() {
+    if(Frame.restoringProject)return;
     const id=document.getElementById("design-picker").value;
     if(id!==designId){designId=id;pins.clear();controls.replaceChildren();}
     const enabled=structured();viewportPicker.disabled=statePicker.disabled=!enabled;
@@ -109,6 +110,7 @@
   window.addEventListener("frame:feedback-mode",e=>{interaction=e.detail.mode==="interact";renderControls();});
   window.addEventListener("frame:design-selected",refresh);
   window.addEventListener("frame:design-updated",refresh);
+  window.addEventListener('frame:project-restored',refresh);
   new ResizeObserver(renderControls).observe(document.getElementById("board"));
   refresh();
 })();

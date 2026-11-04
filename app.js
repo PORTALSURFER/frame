@@ -79,6 +79,8 @@
   let strokeBefore = null;
   let history = {undo: [], redo: []};
   let previousElements = [];
+  let booting = true, restorationEpoch = 0, lastView = '1:0:0';
+  function edited() { if(!booting && !Frame.restoringProject)restorationEpoch++; }
 
   function markMetadata(type, anchor) {
     const metadata = FrameFeedback.metadata(type, design);
@@ -180,6 +182,7 @@
     renderFeedbackList();
   }
   function save() {
+    edited();
     feedback.lines = lines;
     feedback.notes = notes;
     try {
@@ -518,7 +521,10 @@
     return {density, width: Math.max(1, Math.floor(design.width * density)), height: Math.max(1, Math.floor(design.height * density))};
   }
   function fitBoard() {
+    if(Frame.restoringProject)return;
     if (!designReady) return;
+    const viewKey=zoom+':'+panX+':'+panY;
+    if(viewKey!==lastView){lastView=viewKey;edited();window.dispatchEvent(new Event('frame:view-changed'));}
     const styles = getComputedStyle(stage);
     const usableWidth = stage.clientWidth - parseFloat(styles.paddingLeft) - parseFloat(styles.paddingRight);
     const usableHeight = stage.clientHeight - parseFloat(styles.paddingTop) - parseFloat(styles.paddingBottom);
@@ -577,6 +583,7 @@
     updateControls();
   }
   function selectDesign(id) {
+    edited();
     if (active) finishLine();
     finishNoteDrag();
     closeNoteEditor();
@@ -603,7 +610,7 @@
     window.dispatchEvent(new CustomEvent("frame:design-selected", {detail: {design}}));
     paintDesign();
     fitBoard();
-    try { localStorage.setItem("frame-last-design", id); } catch { /* optional */ }
+    if(!booting && !Frame.restoringProject)try { localStorage.setItem("frame-last-design", id); } catch { /* optional */ }
   }
   function finishLine() {
     if (!active) return;
@@ -997,6 +1004,13 @@
   }
   Frame.projectBridge={
     canCheckpoint: () => !active && !noteDrag && !noteDraft,
+    restorationEpoch: () => restorationEpoch,
+    restoreCheckpointFeedback: data => {
+      const imported=unpack(data), protectedOriginal=feedback.blocked;
+      feedback={...imported,blocked:protectedOriginal,notice:protectedOriginal?'Checkpoint restored; unreadable legacy feedback remains protected.':''};
+      lines=feedback.lines;notes=feedback.notes;history={undo:[],redo:[]};
+      sessions.set(design.id,{feedback,history});pendingFeedback.delete(design.id);
+    },
     acknowledgeCheckpoint: data => {
       const session = sessions.get(data.design), target = Frame.designs.get(data.design);
       if (!session || !target) return false;
@@ -1022,21 +1036,30 @@
     feedback: () => { finishLine(); finishNoteDrag(); return currentDocument(); }
   });
   window.addEventListener("frame:design-updated", event => {
+    if(Frame.restoringProject)return;
     if (design?.id !== event.detail.id) return;
+    edited();
     carryFeedback();
     finishLine(); finishNoteDrag(); closeNoteEditor();
     sizeLabel.textContent = design.width + " × " + design.height;
     paintDesign(); fitBoard(); refreshDesigns();
   });
   window.addEventListener("frame:styleguide-selected", () => {
+    edited();if(Frame.restoringProject)return;
     finishLine();
     finishNoteDrag();
     closeNoteEditor();
     if (design) { paintDesign(); fitBoard(); }
   });
   window.addEventListener("frame:designs-changed", refreshDesigns);
+  window.addEventListener('frame:project-restored',()=>{
+    previousElements=Frame.agent.inspect(design.id);lastView=zoom+':'+panX+':'+panY;
+    selectedLine=null;selectedNote=null;sizeLabel.textContent=design.width+' × '+design.height;
+    refreshDesigns();paintDesign();fitBoard();redrawMarks();updateControls();
+  });
   setMode("pen");
   refreshDesigns();
+  booting = false;
   new ResizeObserver(fitBoard).observe(stage);
   window.addEventListener("resize", fitBoard);
 })();

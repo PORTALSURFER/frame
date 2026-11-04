@@ -26,6 +26,108 @@ async function pageFor(t) {
   await page.goto(url); await page.locator('#design-picker').selectOption('instrument');
   return page;
 }
+async function saveRestartFixture(page) {
+ return page.evaluate(async()=>{
+  await Frame.project.startup.ready;
+  Frame.agent.setViewport('instrument',{width:768,height:800});
+  Frame.agent.setState('instrument','error');Frame.agent.setValue('instrument','frequency','128');
+  Frame.view.set({zoom:1.5,panX:12,panY:14});
+  const guide=document.getElementById('styleguide-picker');guide.value='sift-hardware';guide.dispatchEvent(new Event('change'));
+  await Frame.project.automaticCheckpoints.enable('instrument');
+  const set=Storage.prototype.setItem;
+  Storage.prototype.setItem=()=>{throw new DOMException('Full','QuotaExceededError');};
+  Frame.agent.applyEdits('instrument',[{op:'update',id:'run',patch:{text:'restart fixture'}}]);
+  const feedback=Frame.agent.getFeedback();
+  feedback.notes.push({...FrameFeedback.metadata('note',Frame.designs.get('instrument')),text:'restored feedback',anchor:[30,30]});
+  Frame.projectBridge.importFeedback(feedback);
+  await Frame.project.automaticCheckpoints.flush();Storage.prototype.setItem=set;
+  return {legacy:Frame.project.startupEvidence.legacySnapshot('instrument'),revision:Frame.agent.getDocument('instrument').revisionId};
+ });
+}
+test('startup restores complete review state and preference without rewriting legacy records',async t=>{
+ const page=await pageFor(t);const before=await saveRestartFixture(page);
+ await page.reload();
+ const after=await page.evaluate(async()=>({startup:await Frame.project.startup.ready,view:Frame.view.get(),
+  project:Frame.project.export('instrument'),auto:Frame.project.automaticCheckpoints.status(),legacy:Frame.project.startupEvidence.legacySnapshot('instrument')}));
+ assert.equal(after.startup.state,'restored',after.startup.reason);assert.equal(after.project.archive.currentRevisionId,before.revision);
+ assert.equal(after.project.feedback.notes[0].text,'restored feedback');assert.equal(after.project.values.frequency,'128');
+ assert.deepEqual(after.project.viewport,{width:768,height:800});assert.equal(after.project.state,'error');
+ assert.equal(after.project.styleguide.id,'sift-hardware');
+ assert.deepEqual(after.view,{zoom:1.5,panX:12,panY:14});assert.equal(after.auto.enabled,true);
+ assert.equal(after.legacy,before.legacy);
+ await page.evaluate(()=>Frame.project.automaticCheckpoints.disable());
+ await page.reload();
+ const disabled=await page.evaluate(async()=>({startup:await Frame.project.startup.ready,auto:Frame.project.automaticCheckpoints.status()}));
+ assert.equal(disabled.startup.state,'restored');assert.equal(disabled.auto,null);
+});
+test('startup preserves edits and view changes made while a checkpoint read is delayed',async t=>{
+ const page=await pageFor(t);await saveRestartFixture(page);
+ await page.route('**/project-store.js',async route=>{
+  const response=await route.fetch();await route.fulfill({response,body:await response.text()+
+   '\nconst originalRead=Frame.project.readDurable;Frame.project.readDurable=id=>new Promise(resolve=>{window.releaseRead=()=>originalRead(id).then(resolve);});'});
+ });
+ await page.reload();await page.waitForFunction(()=>typeof releaseRead==='function');
+ const result=await page.evaluate(async()=>{
+  Storage.prototype.setItem=()=>{throw new DOMException('Full','QuotaExceededError');};
+  Frame.agent.setValue('instrument','frequency','777');Frame.view.set({zoom:2,panX:20,panY:20});
+  releaseRead();return {startup:await Frame.project.startup.ready,value:Frame.agent.getValues('instrument').frequency,view:Frame.view.get()};
+ });
+ assert.equal(result.startup.state,'conflict');assert.equal(result.value,'777');assert.equal(result.view.zoom,2);
+});
+test('startup preserves divergent legacy and changed source versions',async t=>{
+ const page=await pageFor(t);await saveRestartFixture(page);
+ await page.evaluate(()=>Frame.agent.setValue('instrument','frequency','newer legacy value'));
+ await page.reload();
+ const divergent=await page.evaluate(async()=>({startup:await Frame.project.startup.ready,value:Frame.agent.getValues('instrument').frequency}));
+ assert.equal(divergent.startup.state,'conflict');assert.equal(divergent.value,'newer legacy value');
+ // Restore the exact checkpoint baseline to isolate source identity protection.
+ await page.evaluate(async()=>{
+  const project=Frame.project.export('instrument');await Frame.project.saveDurable('instrument',(await Frame.project.readDurable('instrument')).generation);
+ });
+ await page.route('**/examples/instrument.js',async route=>{const response=await route.fetch();await route.fulfill({response,body:(await response.text()).replace('instrument-r1','instrument-new-source')});});
+ await page.reload();
+ const source=await page.evaluate(async()=>({startup:await Frame.project.startup.ready,revision:Frame.agent.getDocument('instrument').revisionId}));
+ assert.equal(source.startup.state,'conflict');assert.equal(source.revision,'instrument-new-source');
+});
+test('startup does not interrupt feedback drawing begun during a delayed read',async t=>{
+ const page=await pageFor(t);await saveRestartFixture(page);
+ await page.route('**/project-store.js',async route=>{const response=await route.fetch();await route.fulfill({response,body:await response.text()+
+  '\nconst originalRead=Frame.project.readDurable;Frame.project.readDurable=id=>new Promise(resolve=>{window.releaseRead=()=>originalRead(id).then(resolve);});'});});
+ await page.reload();await page.waitForFunction(()=>typeof releaseRead==='function');
+ const board=await page.locator('#board').boundingBox();
+ await page.mouse.move(board.x+30,board.y+30);await page.mouse.down();await page.mouse.move(board.x+60,board.y+60);
+ const before=await page.locator('#brush path').getAttribute('d');
+ const status=await page.evaluate(async()=>{releaseRead();return Frame.project.startup.ready;});
+ assert.equal(status.state,'conflict');await page.mouse.move(board.x+90,board.y+90);
+ assert.notEqual(await page.locator('#brush path').getAttribute('d'),before);
+ await page.mouse.up();assert.equal(await page.locator('#brush path').count(),1);
+});
+test('startup reopens remembered runtime-created designs from their checkpoint',async t=>{
+ const page=await pageFor(t);
+ await page.evaluate(async()=>{
+  await Frame.project.startup.ready;
+  const doc=Frame.agent.getDocument('instrument');doc.id='runtime-study';doc.revisionId='runtime-r1';
+  Frame.registerDocument(doc);Frame.agent.selectDesign(doc.id);Frame.view.set({zoom:1.25,panX:5,panY:7});
+  await Frame.project.saveDurable(doc.id,0);
+ });
+ await page.reload();
+ const result=await page.evaluate(async()=>({startup:await Frame.project.startup.ready,selected:document.getElementById('design-picker').value,view:Frame.view.get()}));
+ assert.equal(result.startup.state,'restored',result.startup.reason);assert.equal(result.selected,'runtime-study');assert.equal(result.view.zoom,1.25);
+});
+test('startup refuses checkpoints without provenance and malformed records',async t=>{
+ const page=await pageFor(t);
+ await page.evaluate(async()=>{
+  const project=Frame.project.export('instrument');delete project.resume;
+  const store=FrameProjectStore.create();await store.save(project,0);await store.close();
+ });
+ await page.reload();assert.equal(await page.evaluate(async()=>(await Frame.project.startup.ready).state),'conflict');
+ await page.evaluate(async()=>{
+  const db=await new Promise(resolve=>{const r=indexedDB.open('frame-projects-v1',1);r.onsuccess=()=>resolve(r.result);});
+  await new Promise(resolve=>{const tx=db.transaction('projects','readwrite');tx.objectStore('projects').put({id:'instrument',version:999});tx.oncomplete=resolve;});db.close();
+ });
+ await page.reload();assert.equal(await page.evaluate(async()=>(await Frame.project.startup.ready).state),'error');
+ assert.equal(await page.evaluate(()=>Frame.agent.getDocument('instrument').revisionId),'instrument-r1');
+});
 test('automatic checkpoints retain feedback-only changes after quota failure and reload',async t=>{
  const page=await pageFor(t);
  const result=await page.evaluate(async()=>{
@@ -150,7 +252,9 @@ test('durable project round trip survives reload with feedback and protects lega
   await page.reload();
   const after = await page.evaluate(async () => ({record: await Frame.project.readDurable('instrument'),
     legacy: localStorage.getItem('frame-project-v1:instrument'), list: await Frame.project.listDurable()}));
-  assert.deepEqual(after.record.project, before.project);
+  assert.match(after.record.project.resume.legacyDigest,/^[a-f0-9]{64}$/);
+  const restored=structuredClone(after.record.project);delete restored.resume.legacyDigest;
+  assert.deepEqual(restored, before.project);
   assert.equal(after.legacy, before.legacy);
   assert.equal(before.receipt.generation, 1);
   assert.equal(after.list[0].generation, 1);

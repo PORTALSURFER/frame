@@ -66,6 +66,7 @@
     try { localStorage.setItem(key(), picker.value); } catch { /* still usable in this session */ }
     window.dispatchEvent(new Event("frame:styleguide-selected"));
   });
+  Frame.restoreStyleguide = id => { select(id); selections.set(key(),id); };
   view.addEventListener("click", () => { renderGuide(); dialog.showModal(); });
   document.getElementById("close-styleguide").addEventListener("click", () => dialog.close());
   document.getElementById("copy-styleguide-prompt").addEventListener("click", async () => {

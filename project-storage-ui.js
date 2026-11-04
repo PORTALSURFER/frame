@@ -38,6 +38,7 @@
     catch(error){recovery.textContent=error.message;}finally{confirm.disabled=false;recovering=false;}
   });
   window.addEventListener('frame:design-selected',refresh);
+  window.addEventListener('frame:project-restored',refresh);
   window.addEventListener('frame:automatic-checkpoint-status',event=>{
     if(event.detail.generation!==undefined)generations.set(event.detail.designId,event.detail.generation);
   });
