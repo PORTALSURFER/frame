@@ -37,6 +37,20 @@ Frame.review.approve(id,name) records an in-session raster baseline for a viewpo
 
 ## Revisions and handoff
 
+`await Frame.project.saveDurable(designId, expectedGeneration)` stores a complete
+portable project, including history and feedback, in IndexedDB. Use generation
+zero only for an absent record. A successful transaction returns the next generation;
+stale writers receive `ConflictError` and must read and compare before retrying.
+`await Frame.project.readDurable(id)` returns the saved record (or null), and
+`await Frame.project.listDurable()` lists saved project identities and generations.
+The returned project can be validated and imported through the existing portable
+project API. Saving requires the design to be selected so its feedback is included.
+These operations are explicit checkpoints; automatic startup restoration and
+feedback autosave are not connected to this store yet. Original localStorage
+records remain intact. IndexedDB is origin-specific and quota-limited too; keep
+portable exports. Failed writes retain the last committed snapshot and reject
+the promise. The existing 32 MB portable-project limit still applies.
+
 Frame.revisions.list(id), get(id,revisionId), restore(id,revisionId), and compare(id,before,after) preserve and inspect immutable snapshots. Comparisons list added/removed elements, changed fields, and document settings. Snapshot persistence failures remain recoverable through project download and Frame.revisions.retry().
 
 Frame.project.export(id) returns a versioned project object with the complete archive, feedback, selected guide, viewport/state/input values, and embedded assets. Frame.project.validate(object) validates dependencies without changing registries. Frame.project.import(object) adds a new design atomically after validation and protects existing IDs and conflicting guide definitions. Select a design before exporting its feedback.
