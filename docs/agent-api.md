@@ -15,6 +15,16 @@ prevents replay against a newer document. Receipts identify both revisions; awai
 `renderReady()` separately before visual verification. Use this operation for
 concurrent agent workflows; the older mutation methods remain available.
 
+`Frame.agent.watchDocument({designId, url, interval: 1000})` watches a same-origin
+HTTP JSON document and applies new revisions to the existing design. It returns
+`poll()`, `status()` and `stop()` methods. Updates preserve zoom/pan and compatible
+prototype state; open dialogs pause updates. Local edits since the last installed
+revision cause an explicit conflict and stop automatic polling. Compare the source
+before restarting. HTTP validators reduce unchanged transfers; errors remain
+visible and retry. Source files must use new revision IDs for changed content.
+`Frame.agent.watchStatus(designId)` returns the current status without mutation.
+This is opt-in; it does not reload application code or connect external file paths.
+
 - Frame.registerDocument(document): validate/register a document; duplicate IDs return false.
 - Frame.agent.listDesigns(): IDs, sizes, revisions, and structured support.
 - getDocument(designId): independent serializable copy.
