@@ -105,7 +105,7 @@
         (design.id === "sift" ? localStorage.getItem("sift-ui-feedback-v1") : null);
       return unpack(FrameFeedback.read(JSON.parse(saved || "[]"), design));
     } catch {
-      return {lines: [], notes: [], unsaved: false, blocked: !!saved,
+      return {lines: [], notes: [], unsaved: false, blocked: true,
         notice: "Saved feedback could not be loaded. Drawing and download still work. Existing saved data will not be overwritten."};
     }
   }
@@ -191,7 +191,9 @@
     } catch (error) {
       feedback.unsaved = true;
       const reason = feedback.blocked ? "existing unreadable data is protected" : error?.name === "QuotaExceededError" ? "browser storage is full" : "browser storage is unavailable";
-      feedback.notice = `Feedback is unsaved: ${reason}. Download feedback before closing or reloading, or retry saving.`;
+      feedback.notice = feedback.blocked
+        ? `Feedback is unsaved: ${reason}. Download your new feedback, then reload to recover the existing data.`
+        : `Feedback is unsaved: ${reason}. Download feedback before closing or reloading, or retry saving.`;
       pendingFeedback.set(design.id, feedback);
     }
     updateControls();
