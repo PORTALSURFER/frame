@@ -4,6 +4,7 @@
   const copy=FrameDocument.clone;
   const originalRegister=Frame.registerDocument;
   const key=id=>"frame-project-v1:"+id;
+  const maxProjectBytes = 128 * 1024 * 1024;
   function notify() {
     const status=document.getElementById("project-save-notice");
     if(status)status.textContent=unsaved.size?(blocked.size?"Unreadable saved project data is protected. Download the project before closing.":"Project changes are unsaved. Download the project before closing or reloading, or retry project saving."):"";
@@ -38,7 +39,7 @@
   }
   Frame.registerDocument=input=>{
     let archive=null;
-    try {const saved=localStorage.getItem(key(input.id));if(saved)archive=copy(validateArchive(JSON.parse(saved)));}
+    try {const saved=localStorage.getItem(key(input.id));if(saved)archive=copy(validateArchive(FrameArchiveCodec.unpack(JSON.parse(FrameArchiveCodec.decompress(saved)))));}
     catch {blocked.add(input.id);}
     if(archive)archives.set(input.id,archive);
     const document=archive?.sourceRevisionId===input.revisionId?archive.revisions.find(r=>r.revisionId===archive.currentRevisionId).document:input;
@@ -75,7 +76,7 @@
       viewport:Frame.currentViewport(id),state:Frame.currentState(id),values:Frame.agent.getValues?.(id)||{},assets:copy(doc.assets||[])};
   }
   function validateProject(project) {
-    if(JSON.stringify(project).length>32*1024*1024)throw new Error("Project exceeds the 32 MB import limit");
+    if(new TextEncoder().encode(JSON.stringify(project)).byteLength>maxProjectBytes)throw new Error("Project exceeds the 128 MB import limit");
     if(project?.format!=="frame-project"||project.version!==1)throw new Error("Unsupported project format");
     validateArchive(project.archive);
     const doc=project.archive.revisions.find(r=>r.revisionId===project.archive.currentRevisionId).document;
@@ -156,7 +157,7 @@
     document.getElementById("import-project").addEventListener("click",()=>{request++;draft=null;file.value="";confirm.disabled=true;status.textContent="";document.getElementById("project-dialog").showModal();});
     file.addEventListener("change",async()=>{
       const current=++request;confirm.disabled=true;draft=null;
-      try {if(!file.files[0])return;if(file.files[0].size>32*1024*1024)throw new Error("Project exceeds the 32 MB import limit");
+      try {if(!file.files[0])return;if(file.files[0].size>maxProjectBytes)throw new Error("Project exceeds the 128 MB import limit");
         const input=validateProject(JSON.parse(await file.files[0].text()));if(current!==request)return;
         draft=input;status.textContent="Project "+input.archive.designId+" · "+input.archive.revisions.length+" revisions. Import adds a new design.";confirm.disabled=false;
       }catch(error){if(current===request)status.textContent="Import cancelled: "+error.message;}

@@ -18,6 +18,68 @@ async function pageFor(t){
  const page=await context.newPage();const errors=[];page.on('pageerror',e=>errors.push(e.message));t.after(()=>assert.deepEqual(errors,[]));
  await page.goto(url);await page.locator('#design-picker').selectOption('instrument');return page;
 }
+test('revision-checked agent commits are atomic, retryable and refuse stale or reused requests', async t => {
+ const page = await pageFor(t);
+ const result = await page.evaluate(() => {
+  const before = Frame.agent.getDocument('instrument');
+  const request = {requestId:'first-edit', designId:'instrument', expectedRevisionId:before.revisionId,
+    operations:[{op:'update',id:'run',patch:{text:'updated'}}]};
+  const receipt = Frame.agent.commit(request), retry = Frame.agent.commit(request);
+  const after = Frame.agent.getDocument('instrument');
+  const failures = [];
+  for (const next of [{...request,requestId:'stale-edit'}, {...request,operations:[{op:'remove',id:'run'}]},
+    {...request,requestId:'invalid-batch',expectedRevisionId:after.revisionId,operations:[{op:'update',id:'run',patch:{text:'bad'}},{op:'update',id:'missing',patch:{text:'bad'}}]}]) {
+   try { Frame.agent.commit(next); } catch(error) { failures.push(error.name); }
+  }
+  return {receipt,retry,after,final:Frame.agent.getDocument('instrument'),failures};
+ });
+ assert.deepEqual(result.receipt,result.retry);
+ assert.deepEqual(result.final,result.after);
+ assert.equal(result.after.elements.find(node=>node.id==='run').text,'updated');
+ assert.deepEqual(result.failures,['ConflictError','Error','Error']);
+});
+test('live source updates preserve the current view and refuse to overwrite local edits', async t => {
+ const page = await pageFor(t);
+ let doc = await page.evaluate(()=>Frame.agent.getDocument('instrument'));
+ doc.revisionId = 'live-r2'; doc.elements.find(node=>node.id==='run').text='live update';
+ await page.route('**/live.json', route=>route.fulfill({json:doc}));
+ const result = await page.evaluate(async()=>{
+  Frame.view.set({zoom:1.5,panX:12,panY:15});
+  Frame.agent.setState('instrument','error');
+  window.live = Frame.agent.watchDocument({designId:'instrument',url:'/live.json',interval:60000});
+  await live.poll();
+  return {view:Frame.view.get(),state:Frame.currentState('instrument'),doc:Frame.agent.getDocument('instrument'),status:live.status()};
+ });
+ assert.deepEqual(result.view,{zoom:1.5,panX:12,panY:15});
+ assert.equal(result.state,'error'); assert.equal(result.doc.revisionId,'live-r2');
+ assert.equal(result.status.state,'watching');
+ await page.evaluate(()=>Frame.agent.applyEdits('instrument',[{op:'update',id:'run',patch:{text:'local edit'}}]));
+ doc.revisionId='live-r3';
+ const conflict=await page.evaluate(async()=>({status:await live.poll(),doc:Frame.agent.getDocument('instrument')}));
+ assert.equal(conflict.status.state,'conflict');
+ assert.equal(conflict.doc.elements.find(node=>node.id==='run').text,'local edit');
+ await page.evaluate(()=>live.stop());
+});
+test('live source failures and open dialogs preserve the design and stopping cancels pending updates', async t => {
+ const page=await pageFor(t);
+ let body='invalid json';
+ await page.route('**/live.json', route=>route.fulfill({body}));
+ const original=await page.evaluate(()=>Frame.agent.getDocument('instrument'));
+ const failed=await page.evaluate(async()=>{
+  window.live=Frame.agent.watchDocument({designId:'instrument',url:'/live.json',interval:60000});
+  return live.poll();
+ });
+ assert.equal(failed.state,'error');
+ assert.deepEqual(await page.evaluate(()=>Frame.agent.getDocument('instrument')),original);
+ body=JSON.stringify({...original,revisionId:'live-r2'});
+ await page.evaluate(()=>document.getElementById('import-dialog').showModal());
+ assert.equal((await page.evaluate(()=>live.poll())).state,'paused');
+ assert.equal(await page.evaluate(()=>Frame.agent.getDocument('instrument').revisionId),original.revisionId);
+ await page.evaluate(()=>document.getElementById('import-dialog').close());
+ await page.route('**/live.json', async route=>{await new Promise(resolve=>setTimeout(resolve,100));await route.fulfill({body});});
+ const stopped=await page.evaluate(async()=>{const pending=live.poll();live.stop();await pending;return Frame.agent.getDocument('instrument').revisionId;});
+ assert.equal(stopped,original.revisionId);
+});
 test('review context distinguishes anchors, geometry candidates and removed targets without resolving marks', async t => {
  const page=await pageFor(t);
  const result=await page.evaluate(()=>{
