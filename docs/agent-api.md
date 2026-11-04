@@ -6,6 +6,15 @@ A document is JSON with version 1, id, name, revisionId, positive integer width/
 
 ## Operations
 
+`Frame.agent.commit({requestId, designId, expectedRevisionId, operations})` applies
+one atomic edit batch only while the expected revision is current. Stale edits
+throw `ConflictError`. Exact retries return the original receipt; reusing a request
+ID with changed content fails. The last 100 successful requests are retained in
+the current page only. After reload or eviction an old expected revision still
+prevents replay against a newer document. Receipts identify both revisions; await
+`renderReady()` separately before visual verification. Use this operation for
+concurrent agent workflows; the older mutation methods remain available.
+
 `Frame.agent.watchDocument({designId, url, interval: 1000})` watches a same-origin
 HTTP JSON document and applies new revisions to the existing design. It returns
 `poll()`, `status()` and `stop()` methods. Updates preserve zoom/pan and compatible
@@ -46,6 +55,27 @@ Frame.review.checkAccessibility() checks actual interactive controls' names, foc
 Frame.review.approve(id,name) records an in-session raster baseline for a viewport/state. compare(id,{name,channelTolerance,maxChangedRatio}) returns changed pixels and a tolerance verdict. Missing baselines are errors, not passes. Frame.review.run(id,scenarios) tests declared click/input actions across viewport/state cases and expectedState; it restores the initial view, state, and input values afterward. These checks can be called from Playwright or the browser console.
 
 ## Revisions and handoff
+
+`await Frame.project.saveDurable(designId, expectedGeneration)` stores a complete
+portable project, including history and feedback, in IndexedDB. Use generation
+zero only for an absent record. A successful transaction returns the next generation;
+stale writers receive `ConflictError` and must read and compare before retrying.
+`await Frame.project.readDurable(id)` returns the saved record (or null), and
+`await Frame.project.listDurable()` lists saved project identities and generations.
+The returned project can be validated and imported through the existing portable
+project API. Saving requires the design to be selected so its feedback is included.
+These operations are explicit checkpoints; automatic startup restoration and
+feedback autosave are not connected to this store yet. Original localStorage
+records remain intact. IndexedDB is origin-specific and quota-limited too; keep
+portable exports. Failed writes retain the last committed snapshot and reject
+the promise. Portable projects have a 128 MB UTF-8 limit. The loader also reads
+the existing compressed/deduplicated browser archive encoding used by older
+Frame sessions; it retains original bytes if loading or saving fails.
+
+The Project menu offers Save checkpoint and Recover checkpoint. Recovery creates
+a separately named design, preserving both the checkpoint and current work.
+`await Frame.project.recoverDurable(savedId, unusedDesignId)` exposes the same
+operation to agents and preserves all archived revisions under the new identity.
 
 Frame.revisions.list(id), get(id,revisionId), restore(id,revisionId), and compare(id,before,after) preserve and inspect immutable snapshots. Comparisons list added/removed elements, changed fields, and document settings. Snapshot persistence failures remain recoverable through project download and Frame.revisions.retry().
 

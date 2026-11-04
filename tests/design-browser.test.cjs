@@ -18,6 +18,26 @@ async function pageFor(t){
  const page=await context.newPage();const errors=[];page.on('pageerror',e=>errors.push(e.message));t.after(()=>assert.deepEqual(errors,[]));
  await page.goto(url);await page.locator('#design-picker').selectOption('instrument');return page;
 }
+test('revision-checked agent commits are atomic, retryable and refuse stale or reused requests', async t => {
+ const page = await pageFor(t);
+ const result = await page.evaluate(() => {
+  const before = Frame.agent.getDocument('instrument');
+  const request = {requestId:'first-edit', designId:'instrument', expectedRevisionId:before.revisionId,
+    operations:[{op:'update',id:'run',patch:{text:'updated'}}]};
+  const receipt = Frame.agent.commit(request), retry = Frame.agent.commit(request);
+  const after = Frame.agent.getDocument('instrument');
+  const failures = [];
+  for (const next of [{...request,requestId:'stale-edit'}, {...request,operations:[{op:'remove',id:'run'}]},
+    {...request,requestId:'invalid-batch',expectedRevisionId:after.revisionId,operations:[{op:'update',id:'run',patch:{text:'bad'}},{op:'update',id:'missing',patch:{text:'bad'}}]}]) {
+   try { Frame.agent.commit(next); } catch(error) { failures.push(error.name); }
+  }
+  return {receipt,retry,after,final:Frame.agent.getDocument('instrument'),failures};
+ });
+ assert.deepEqual(result.receipt,result.retry);
+ assert.deepEqual(result.final,result.after);
+ assert.equal(result.after.elements.find(node=>node.id==='run').text,'updated');
+ assert.deepEqual(result.failures,['ConflictError','Error','Error']);
+});
 test('live source updates preserve the current view and refuse to overwrite local edits', async t => {
  const page = await pageFor(t);
  let doc = await page.evaluate(()=>Frame.agent.getDocument('instrument'));

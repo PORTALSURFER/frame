@@ -424,6 +424,27 @@ test('unavailable localStorage at startup reports a load failure while drawing/e
   assert.deepEqual((await exportFeedback(page)).lines, exported.lines);
 });
 
+test('a failed initial read never overwrites previously saved feedback after storage recovers', async t => {
+  const page = await openPage(t, {setup: page => page.addInitScript(() => {
+    const originalGet = Storage.prototype.getItem;
+    localStorage.setItem('frame-feedback-v3:starter', JSON.stringify([[[10, 10], [20, 20]]]));
+    Storage.prototype.getItem = function (key) {
+      if (key === 'frame-feedback-v3:starter') throw new DOMException('Unavailable', 'SecurityError');
+      return originalGet.call(this, key);
+    };
+    window.restoreFeedbackReads = () => { Storage.prototype.getItem = originalGet; };
+  })});
+  await page.evaluate(() => window.restoreFeedbackReads());
+  const original = await page.evaluate(() => localStorage.getItem('frame-feedback-v3:starter'));
+  await beginMouse(page);
+  await page.mouse.up();
+  assert.match(await page.locator('#feedback-save-notice').textContent(), /unsaved/);
+  assert.equal(await page.evaluate(() => localStorage.getItem('frame-feedback-v3:starter')), original);
+  assert.equal((await exportFeedback(page)).lines.length, 1);
+  await page.locator('#retry-save').click();
+  assert.equal(await page.evaluate(() => localStorage.getItem('frame-feedback-v3:starter')), original);
+});
+
 test('invalid and duplicate registrations report errors while retaining working designs', async t => {
   const page = await openPage(t);
   const result = await page.evaluate(() => {
