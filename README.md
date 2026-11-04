@@ -47,6 +47,14 @@ The original Canvas examples are visual mockups. Instrument workstation adds a s
 
 ## Run locally
 
+Run `npm start`, then keep using <http://127.0.0.1:8765/> in the same tab. The
+launcher binds only to loopback and fails clearly if that port is already in use;
+it never chooses another port or opens extra tabs. It serves revalidated files so
+refreshing loads edits. JSON source watchers can use its ETags for unchanged files.
+`localhost`, `127.0.0.1` and different ports are distinct browser-storage origins.
+Changing addresses does not migrate saved projects or feedback. Export from each
+old address before consolidating work; keep the originals until recovery is verified.
+
 Open `index.html` in a browser, or serve this folder:
 
 ```sh

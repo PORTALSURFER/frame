@@ -1,0 +1,24 @@
+const {test}=require('node:test'),assert=require('node:assert/strict');
+const fs=require('node:fs/promises'),os=require('node:os'),path=require('node:path');
+const {createServer}=require('../scripts/serve.cjs');
+test('stable server revalidates updates and refuses private, external or mutating requests',async t=>{
+ const root=await fs.mkdtemp(path.join(os.tmpdir(),'frame-server-'));
+ t.after(()=>fs.rm(root,{recursive:true,force:true}));
+ await fs.mkdir(path.join(root,'public'));
+ const base=path.join(root,'public');await fs.writeFile(path.join(base,'index.html'),'frame');
+ await fs.writeFile(path.join(base,'design.json'),'{}');
+ await fs.writeFile(path.join(root,'private.json'),'private');
+ await fs.symlink(path.join(root,'private.json'),path.join(base,'outside.json'));
+ const server=createServer(base);await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
+ t.after(()=>new Promise(resolve=>server.close(resolve)));
+ const url='http://127.0.0.1:'+server.address().port;
+ const first=await fetch(url+'/design.json'),etag=first.headers.get('etag');assert.equal(first.status,200);await first.text();
+ assert.equal((await fetch(url+'/design.json',{headers:{'If-None-Match':etag}})).status,304);
+ await fs.writeFile(path.join(base,'design.json'),'{"revision":2}');
+ const updated=await fetch(url+'/design.json',{headers:{'If-None-Match':etag}});
+ assert.equal(updated.status,200);assert.deepEqual(await updated.json(),{revision:2});
+ assert.equal((await fetch(url+'/outside.json')).status,403);
+ assert.equal((await fetch(url+'/.git/config')).status,403);
+ assert.equal((await fetch(url+'/',{method:'POST'})).status,405);
+ assert.equal(await (await fetch(url+'/',{method:'HEAD'})).text(),'');
+});
