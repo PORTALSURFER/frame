@@ -55,19 +55,19 @@ test('button zoom remains immediate across a burst and checkpoints the final vie
 test('returning zoom to the existing resolution cancels the pending raster',async t=>{
  const page=await pageFor(t);
  const result=await page.evaluate(async()=>{
-  await Frame.agent.renderReady();const design=Frame.designs.get('instrument'),paint=design.paint;
+  Frame.view.set({zoom:2,panX:0,panY:0});await Frame.agent.renderReady();const design=Frame.designs.get('instrument'),paint=design.paint;
   let paints=0;design.paint=(...args)=>{paints++;return paint(...args);};
   document.getElementById('zoom-in').click();const waiting=Frame.agent.renderReady();
   document.getElementById('zoom-out').click();await waiting;
   await new Promise(r=>setTimeout(r,400));
   return {paints,view:Frame.view.get(),shadow:document.getElementById('board').classList.contains('zoomed')};
  });
- assert.equal(result.paints,0);assert.deepEqual(result.view,{zoom:1,panX:0,panY:0});assert.equal(result.shadow,false);
+ assert.equal(result.paints,0);assert.deepEqual(result.view,{zoom:2,panX:0,panY:0});assert.equal(result.shadow,true);
 });
 test('switching designs settles pending zoom and cannot repaint the old selection later',async t=>{
  const page=await pageFor(t);
  const result=await page.evaluate(async()=>{
-  await Frame.agent.renderReady();const design=Frame.designs.get('instrument'),paint=design.paint;
+  Frame.view.set({zoom:2,panX:0,panY:0});await Frame.agent.renderReady();const design=Frame.designs.get('instrument'),paint=design.paint;
   let oldPaints=0;design.paint=(...args)=>{oldPaints++;return paint(...args);};
   document.getElementById('zoom-in').click();const waiting=Frame.agent.renderReady();
   Frame.agent.selectDesign('starter');const ready=await waiting;
