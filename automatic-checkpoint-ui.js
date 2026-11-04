@@ -8,7 +8,7 @@
   }
   toggle.addEventListener('change',()=>{
     try {const promise=toggle.checked?api.enable():api.disable();promise.then(refresh);refresh();}
-    catch(error){output.textContent=error.message;refresh();}
+    catch(error){refresh();output.textContent=error.message;}
   });
   retry.addEventListener('click',()=>api.retry().then(refresh));
   window.addEventListener('frame:design-selected',refresh);

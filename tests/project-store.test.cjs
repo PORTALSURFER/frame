@@ -124,6 +124,21 @@ test('an older automatic receipt cannot clear newer unsaved feedback',async t=>{
  });
  assert.equal(after.prompt,false);assert.equal(after.count,2);
 });
+test('background checkpoint capture never finishes an active feedback gesture',async t=>{
+ const page=await pageFor(t);
+ await page.evaluate(()=>Frame.project.automaticCheckpoints.enable());
+ await page.evaluate(()=>Frame.agent.applyEdits('instrument',[{op:'update',id:'run',patch:{text:'pending before drawing'}}]));
+ const board=await page.locator('#board').boundingBox();
+ await page.mouse.move(board.x+30,board.y+30);await page.mouse.down();await page.mouse.move(board.x+60,board.y+60);
+ const before=await page.locator('#brush path').getAttribute('d');
+ const pending=await page.evaluate(async()=>{await Frame.project.automaticCheckpoints.flush();return Frame.project.automaticCheckpoints.status().pending;});
+ assert.equal(pending,true);
+ await page.mouse.move(board.x+90,board.y+90);
+ assert.notEqual(await page.locator('#brush path').getAttribute('d'),before);
+ await page.mouse.up();await page.evaluate(()=>Frame.project.automaticCheckpoints.flush());
+ assert.equal(await page.locator('#brush path').count(),1);
+ assert.equal(await page.evaluate(async()=>(await Frame.project.readDurable('instrument')).project.feedback.lines.length),1);
+});
 test('durable project round trip survives reload with feedback and protects legacy data', async t => {
   const page = await pageFor(t);
   const before = await page.evaluate(async () => {

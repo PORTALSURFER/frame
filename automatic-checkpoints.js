@@ -1,7 +1,7 @@
 // One acknowledged, bounded snapshot queue per enabled design. At most one write
 // and one superseding snapshot are retained; failed writes require an explicit retry.
 (function(root) {
-  function create({capture, read, write, acknowledge = () => {}, notify = () => {}, delay = 500}) {
+  function create({capture, read, write, canCapture = () => true, acknowledge = () => {}, notify = () => {}, delay = 500}) {
     let enabled = true, version = 1, saved = 0, captured = 0, generation, queued, running, timer, ready;
     let error = null, capturing = false, initializing = true;
     function status() {
@@ -12,6 +12,7 @@
     function announce() { notify(status()); }
     function snapshot() {
       if (capturing || captured === version) return;
+      if (!canCapture()) { clearTimeout(timer); timer = setTimeout(flush, delay); return; }
       capturing = true;
       try { queued = {project: capture(), version}; captured = version; }
       catch (failure) { error = failure; }

@@ -9,10 +9,12 @@
   Frame.project.automaticCheckpoints = {
     enable(id=current()) {
       if (id!==current() || !Frame.documents.has(id)) throw new Error('Select a structured design before enabling automatic checkpoints');
+      if (!Frame.projectBridge.canCheckpoint()) throw new Error('Finish editing feedback before enabling automatic checkpoints');
       const previous=controllers.get(id);
       if(previous?.status().enabled || (previous?.status().pending && !['error','conflict'].includes(previous.status().state)))return previous.flush();
       const controller=FrameAutomaticCheckpoints.create({
         capture:()=>Frame.project.export(id), read:()=>Frame.project.readDurable(id),
+        canCapture:()=>id===current() && Frame.projectBridge.canCheckpoint(),
         write:(snapshot,generation)=>Frame.project.writeDurable(snapshot,generation),
         acknowledge:snapshot=>{
           Frame.projectBridge.acknowledgeCheckpoint(snapshot.feedback);

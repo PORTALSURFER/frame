@@ -996,6 +996,7 @@
     document.getElementById("feedback-revision-notice").textContent=[...lines.map(line=>lineMetadata.get(line)),...notes].filter(mark=>mark.needsReview).length+" marks need review after layout changes.";
   }
   Frame.projectBridge={
+    canCheckpoint: () => !active && !noteDrag && !noteDraft,
     acknowledgeCheckpoint: data => {
       const session = sessions.get(data.design), target = Frame.designs.get(data.design);
       if (!session || !target) return false;
