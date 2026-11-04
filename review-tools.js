@@ -82,10 +82,13 @@
       const results=[],oldViewport=Frame.currentViewport(id),oldState=Frame.currentState(id),oldValues=Frame.agent.getValues(id);
       try {for(const scenario of scenarios) {
         Frame.agent.setValues(id,oldValues);
-        if(scenario.viewport)Frame.agent.setViewport(id,scenario.viewport);Frame.agent.setState(id,scenario.state||"default");
-        for(const action of scenario.actions||[]) {if(action.type==="click"){const node=Frame.agent.inspect(id,{elementId:action.elementId})[0];if(!node||node.type!=="button"||node.disabled||!node.action)throw new Error("Button cannot be activated: "+action.elementId);Frame.agent.setState(id,node.action.state);}
-          else if(action.type==="input")Frame.agent.setValue(id,action.elementId,action.value);else throw new Error("Unknown prototype action");}
-        results.push({name:scenario.name||"scenario",state:Frame.currentState(id),passed:!scenario.expectedState||Frame.currentState(id)===scenario.expectedState,visual:checks(id)});
+        Frame.agent.setViewport(id,scenario.viewport||oldViewport);Frame.agent.setState(id,scenario.state||"default");
+        for(const action of scenario.actions||[]) {
+          const node=Frame.agent.inspect(id,{elementId:action.elementId})[0];
+          if(!node||node.visible===false||node.disabled)throw new Error("Control is unavailable: "+action.elementId);
+          if(action.type==="click"){if(node.type!=="button"||!node.action)throw new Error("Button cannot be activated: "+action.elementId);Frame.agent.setState(id,node.action.state);}
+          else if(action.type==="input"){if(node.type!=="input")throw new Error("Not an input: "+action.elementId);Frame.agent.setValue(id,action.elementId,action.value);}else throw new Error("Unknown prototype action");}
+        results.push({name:scenario.name||"scenario",revisionId:Frame.agent.getDocument(id).revisionId,viewport:Frame.currentViewport(id),interactionModel:"declarative prototype actions",state:Frame.currentState(id),passed:!scenario.expectedState||Frame.currentState(id)===scenario.expectedState,visual:checks(id)});
       }}finally{Frame.agent.setValues(id,oldValues);Frame.agent.setViewport(id,oldViewport);Frame.agent.setState(id,oldState);}
       return results;
     }

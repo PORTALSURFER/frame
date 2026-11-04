@@ -9,6 +9,9 @@
   <script src="frame.js" defer></script>
   <script src="design-document.js" defer></script>
   <script src="design-tools.js" defer></script>
+  <script src="component-instances.js" defer></script>
+  <script src="feedback-context.js" defer></script>
+  <script src="live-document.js" defer></script>
   <script src="design-review.js" defer></script>
   <script src="archive-codec.js" defer></script>
   <script src="revision-tools.js?v=2" defer></script>
@@ -46,6 +49,7 @@
         <button id="import-project" type="button">Import project</button>
         <button id="restore-revision" type="button">Restore revision</button></div></details>
       <button id="retry-project-save" type="button" hidden>Retry project save</button>
+      <output id="live-document-status" role="status"></output>
       <output id="checkpoint-status" role="status"></output>
     </header>
     <div class="review-toolbar" role="group" aria-label="Design review">
