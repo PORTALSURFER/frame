@@ -5,6 +5,7 @@
     "node": ">=20"
   },
   "scripts": {
+    "start": "node scripts/serve.cjs",
     "ci": "node scripts/ci.cjs",
     "test": "node --test tests/*.test.cjs",
     "example": "node examples/review-workflow.cjs"
