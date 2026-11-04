@@ -104,15 +104,23 @@ test('startup does not interrupt feedback drawing begun during a delayed read',a
 });
 test('startup reopens remembered runtime-created designs from their checkpoint',async t=>{
  const page=await pageFor(t);
- await page.evaluate(async()=>{
+ const legacy=await page.evaluate(async()=>{
   await Frame.project.startup.ready;
   const doc=Frame.agent.getDocument('instrument');doc.id='runtime-study';doc.revisionId='runtime-r1';
   Frame.registerDocument(doc);Frame.agent.selectDesign(doc.id);Frame.view.set({zoom:1.25,panX:5,panY:7});
+  const picker=document.getElementById('styleguide-picker');picker.value='sift-hardware';picker.dispatchEvent(new Event('change'));
   await Frame.project.saveDurable(doc.id,0);
+  return Frame.project.startupEvidence.legacySnapshot(doc.id);
  });
+ await page.addInitScript(()=>window.addEventListener('frame:design-selected',event=>{
+  if(event.detail.design.id==='runtime-study'){
+   const picker=document.getElementById('styleguide-picker');picker.value='technical-futurist';picker.dispatchEvent(new Event('change'));
+  }
+ }));
  await page.reload();
- const result=await page.evaluate(async()=>({startup:await Frame.project.startup.ready,selected:document.getElementById('design-picker').value,view:Frame.view.get()}));
+ const result=await page.evaluate(async()=>({startup:await Frame.project.startup.ready,selected:document.getElementById('design-picker').value,view:Frame.view.get(),guide:Frame.activeStyleguide.id,legacy:Frame.project.startupEvidence.legacySnapshot('runtime-study')}));
  assert.equal(result.startup.state,'restored',result.startup.reason);assert.equal(result.selected,'runtime-study');assert.equal(result.view.zoom,1.25);
+ assert.equal(result.guide,'sift-hardware');assert.equal(result.legacy,legacy);
 });
 test('startup refuses checkpoints without provenance and malformed records',async t=>{
  const page=await pageFor(t);

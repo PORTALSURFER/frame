@@ -63,7 +63,7 @@
   picker.addEventListener("change", () => {
     select(picker.value);
     selections.set(key(), picker.value);
-    try { localStorage.setItem(key(), picker.value); } catch { /* still usable in this session */ }
+    if(!Frame.restoringProject)try { localStorage.setItem(key(), picker.value); } catch { /* still usable in this session */ }
     window.dispatchEvent(new Event("frame:styleguide-selected"));
   });
   Frame.restoreStyleguide = id => { select(id); selections.set(key(),id); };
