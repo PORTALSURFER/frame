@@ -81,10 +81,32 @@
   }
   window.FrameProjectStore = {create};
   const store = create();
-  // Saving is explicit until startup migration and feedback autosave share an
-  // acknowledged durable owner. No legacy keys are removed or overwritten here.
-  Frame.project.saveDurable = (id, expectedGeneration) => store.save(Frame.project.export(id), expectedGeneration);
-  Frame.project.writeDurable = (snapshot, expectedGeneration) => store.save(snapshot, expectedGeneration);
+  const baselines = new WeakMap();
+  let rememberedId = null;
+  try { rememberedId = localStorage.getItem('frame-last-design'); } catch { /* startup remains conservative when storage is unavailable */ }
+  function legacySnapshot(id) {
+    const keys = ['frame-project-v1:'+id, 'frame-feedback-v3:'+id, 'frame-feedback-v2:'+id,
+      'frame-feedback-v1:'+id, 'frame-styleguide:'+id, 'frame-last-design'];
+    if (id === 'sift') keys.push('sift-ui-feedback-v1');
+    return JSON.stringify(keys.map(key => [key, localStorage.getItem(key)]));
+  }
+  async function digest(value) {
+    const bytes = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(value));
+    return Array.from(new Uint8Array(bytes), byte => byte.toString(16).padStart(2,'0')).join('');
+  }
+  Frame.project.captureResume = project => {
+    project.resume = {version:1, view:Frame.view?.get() || {zoom:1,panX:0,panY:0},
+      automaticCheckpoints:!!Frame.project.automaticCheckpoints?.status(project.archive.designId)?.enabled};
+    try { baselines.set(project, legacySnapshot(project.archive.designId)); } catch { baselines.set(project, null); }
+  };
+  async function write(project, expectedGeneration) {
+    const snapshot = FrameDocument.clone(project), baseline = baselines.get(project);
+    if (snapshot.resume) snapshot.resume.legacyDigest = typeof baseline === 'string' ? await digest(baseline) : null;
+    return store.save(snapshot, expectedGeneration);
+  }
+  Frame.project.startupEvidence = {rememberedId, legacySnapshot, digest};
+  Frame.project.saveDurable = (id, expectedGeneration) => write(Frame.project.export(id), expectedGeneration);
+  Frame.project.writeDurable = write;
   Frame.project.readDurable = id => store.read(id);
   Frame.project.listDurable = () => store.list();
   Frame.project.recoverDurable = async (id, recoveredId) => {

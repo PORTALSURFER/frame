@@ -101,9 +101,8 @@ stale writers receive `ConflictError` and must read and compare before retrying.
 `await Frame.project.listDurable()` lists saved project identities and generations.
 The returned project can be validated and imported through the existing portable
 project API. Saving requires the design to be selected so its feedback is included.
-These operations are explicit checkpoints; automatic startup restoration and
-feedback autosave are not connected to this store yet. Original localStorage
-records remain intact. IndexedDB is origin-specific and quota-limited too; keep
+These operations also serve automatic checkpoint queues. Original localStorage
+records remain intact during restoration. IndexedDB is origin-specific and quota-limited too; keep
 portable exports. Failed writes retain the last committed snapshot and reject
 the promise. Portable projects have a 128 MB UTF-8 limit. The loader also reads
 the existing compressed/deduplicated browser archive encoding used by older
@@ -131,10 +130,25 @@ the corresponding feedback/archive browser-save warning without rewriting protec
 legacy records. Enabling refuses a divergent existing checkpoint. Recover that
 checkpoint or explicitly compare/save the current project first.
 
-The setting resets on reload. Startup restoration, cross-origin migration and
-incremental history storage remain separate work. Recover checkpoint is the
-explicit reload-recovery path; automatic checkpoints do not silently replace
-the design loaded from source or legacy browser storage.
+New checkpoints include optional version-1 `resume` metadata: pan/zoom, the
+automatic-checkpoint preference and a SHA-256 digest of legacy records observed
+when that snapshot was captured. Exported JSON exposes no raw legacy records;
+durable writes add the digest from a private capture-time baseline. Exports copied
+outside the capture path may lack that proof and still support explicit recovery.
+
+At startup, `await Frame.project.startup.ready` returns `none`, `restored`,
+`conflict` or `error`; `startup.status()` reports the same outcome. The remembered
+project may be restored even if it was created at runtime and has no source script.
+Matching checkpoints restore history, feedback, viewport/state/inputs/styleguide,
+pan/zoom and the automatic-saving preference. Legacy records must still match
+their capture-time digest, source revisions and shared immutable revisions must
+agree, and the active review must be untouched. Active gestures and edits during
+the asynchronous read prevent replacement. Installation suppresses normal carry
+and persistence handlers and emits one `frame:project-restored` event afterward.
+
+Older checkpoints without proof, divergent records and malformed data are retained
+for explicit Recover checkpoint review. Startup does not rewrite their legacy keys.
+Cross-origin migration and incremental history storage remain separate work.
 
 Frame.revisions.list(id), get(id,revisionId), restore(id,revisionId), and compare(id,before,after) preserve and inspect immutable snapshots. Comparisons list added/removed elements, changed fields, and document settings. Snapshot persistence failures remain recoverable through project download and Frame.revisions.retry().
 

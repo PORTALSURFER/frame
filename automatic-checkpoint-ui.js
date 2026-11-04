@@ -12,6 +12,7 @@
   });
   retry.addEventListener('click',()=>api.retry().then(refresh));
   window.addEventListener('frame:design-selected',refresh);
+  window.addEventListener('frame:project-restored',refresh);
   window.addEventListener('frame:automatic-checkpoint-status',event=>{
     if(event.detail.designId===current())refresh();
     else if(event.detail.error)output.textContent=event.detail.designId+' · automatic checkpoint '+event.detail.state+': '+event.detail.error;
