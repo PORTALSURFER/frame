@@ -4,7 +4,7 @@ const http = require('node:http');
 const fs = require('node:fs/promises');
 const path = require('node:path');
 const {chromium} = require('playwright');
-let server, browser, url;
+let server, transferServer, browser, url, transferURL;
 before(async () => {
   const root = path.resolve(__dirname, '..');
   server = http.createServer(async (req, res) => {
@@ -15,9 +15,12 @@ before(async () => {
   });
   await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
   url = 'http://127.0.0.1:' + server.address().port;
+  transferServer=http.createServer(server.listeners('request')[0]);
+  await new Promise(resolve=>transferServer.listen(0,'127.0.0.1',resolve));
+  transferURL='http://127.0.0.1:'+transferServer.address().port;
   browser = await chromium.launch({executablePath: process.env.FRAME_BROWSER_PATH || undefined});
 });
-after(async () => { await browser?.close(); if (server) await new Promise(resolve => server.close(resolve)); });
+after(async () => { await browser?.close(); if (server) await new Promise(resolve => server.close(resolve));if(transferServer)await new Promise(resolve=>transferServer.close(resolve)); });
 async function pageFor(t) {
   const context = await browser.newContext(); t.after(() => context.close());
   const page = await context.newPage();
@@ -44,6 +47,130 @@ async function saveRestartFixture(page) {
   return {legacy:Frame.project.startupEvidence.legacySnapshot('instrument'),revision:Frame.agent.getDocument('instrument').revisionId};
  });
 }
+test('portable transfer copies history and feedback between origins with guide remapping and restart',async t=>{
+ const source=await pageFor(t);await saveRestartFixture(source);
+ await source.evaluate(async()=>{
+  const canvas=document.createElement('canvas');canvas.width=canvas.height=1;canvas.getContext('2d').fillRect(0,0,1,1);
+  const doc=Frame.agent.getDocument('instrument');doc.revisionId='transfer-with-asset';
+  doc.assets=[{id:'pixel',data:canvas.toDataURL('image/png')}];
+  doc.elements.push({id:'pixel-preview',type:'image',assetId:'pixel',bounds:{x:0,y:0,width:1,height:1}});
+  Frame.agent.updateDocument(doc);await Frame.project.automaticCheckpoints.flush();
+ });
+ const sourceOriginal=await source.evaluate(()=>JSON.stringify(Frame.project.export('instrument')));
+ const portable=JSON.parse(sourceOriginal);portable.extension={source:'preserve opaque metadata'};portable.resume.extension='preserve resume metadata';
+ const original=JSON.stringify(portable);
+ const destination=await source.context().newPage();await destination.goto(transferURL);await destination.locator('#design-picker').selectOption('instrument');
+ const result=await destination.evaluate(async input=>{
+  await Frame.project.startup.ready;
+  Frame.styleguides.set('sift-hardware',{...Frame.styleguides.get('sift-hardware'),prompt:'destination guide'});
+  const before={doc:Frame.agent.getDocument('instrument'),legacy:localStorage.getItem('frame-project-v1:instrument')};
+  const candidate=await Frame.project.prepareTransfer(JSON.parse(input));
+  const receipt=await Frame.project.transfer(candidate.project);
+  return {summary:candidate.summary,receipt,before,original:Frame.agent.getDocument('instrument'),legacy:localStorage.getItem('frame-project-v1:instrument'),
+   project:Frame.project.export(receipt.id),view:Frame.view.get(),auto:Frame.project.automaticCheckpoints.status(receipt.id),guide:Frame.styleguides.get('sift-hardware').prompt,
+   record:await Frame.project.readDurable(receipt.id)};
+ },original);
+ assert.equal(result.receipt.resumeReady,true);assert.equal(result.summary.targetId,'instrument-imported');
+ assert.equal(result.summary.targetGuide,'instrument-imported-guide');assert.equal(result.guide,'destination guide');
+ assert.deepEqual(result.original,result.before.doc);assert.equal(result.legacy,result.before.legacy);
+ assert.equal(result.project.archive.revisions.length,JSON.parse(original).archive.revisions.length);
+ assert.deepEqual(result.project.assets,JSON.parse(original).assets);assert.equal(result.summary.assetCount,1);
+ assert.equal(result.project.feedback.notes[0].text,'restored feedback');assert.equal(result.project.feedback.notes[0].designId,'instrument-imported');
+ assert.equal(result.project.values.frequency,'128');assert.equal(result.auto.enabled,true);assert.equal(result.view.zoom,1.5);
+ assert.equal(result.receipt.generation,result.record.generation);assert.match(result.record.project.resume.legacyDigest,/^[a-f0-9]{64}$/);
+ assert.deepEqual(result.project.extension,portable.extension);assert.equal(result.project.resume.extension,portable.resume.extension);
+ assert.equal(await source.evaluate(()=>JSON.stringify(Frame.project.export('instrument'))),sourceOriginal);
+ await destination.reload();
+ const restarted=await destination.evaluate(async()=>({startup:await Frame.project.startup.ready,id:document.getElementById('design-picker').value,guide:Frame.activeStyleguide.id,notes:Frame.agent.getFeedback().notes.length,project:Frame.project.export()}));
+ assert.equal(restarted.startup.state,'restored');assert.equal(restarted.id,'instrument-imported');assert.equal(restarted.guide,'instrument-imported-guide');assert.equal(restarted.notes,1);
+ assert.deepEqual(restarted.project.extension,portable.extension);assert.equal(restarted.project.resume.extension,portable.resume.extension);
+});
+test('transfer rejects occupied targets and a stale preview without changing existing records',async t=>{
+ const page=await pageFor(t);
+ const result=await page.evaluate(async()=>{
+  const input=Frame.project.export('instrument');const before=JSON.stringify(input);
+  localStorage.setItem('frame-feedback-v1:reserved','[]');
+  let legacyError;
+  try{await Frame.project.prepareTransfer(input,{designId:'reserved'});}catch(error){legacyError=error.message;}
+  const durable=await Frame.project.prepareTransfer(input,{designId:'durable-reserved'});await Frame.project.writeDurable(durable.project,0);
+  const saved=JSON.stringify(await Frame.project.readDurable('durable-reserved'));let durableError;
+  try{await Frame.project.prepareTransfer(input,{designId:'durable-reserved'});}catch(error){durableError=error.message;}
+  const prepared=await Frame.project.prepareTransfer(input,{designId:'transfer-copy'});
+  const doc=Frame.agent.getDocument('instrument');doc.id='transfer-copy';Frame.registerDocument(doc);
+  let staleError;try{await Frame.project.transfer(prepared.project);}catch(error){staleError=error.message;}
+  return {before,after:JSON.stringify(input),legacyError,durableError,saved,unchanged:JSON.stringify(await Frame.project.readDurable('durable-reserved')),staleError,raw:localStorage.getItem('frame-feedback-v1:reserved'),record:await Frame.project.readDurable('transfer-copy')};
+ });
+ assert.equal(result.after,result.before);assert.match(result.legacyError,/Legacy/);assert.match(result.staleError,/already open/);
+ assert.match(result.durableError,/checkpoint/);assert.equal(result.saved,result.unchanged);
+ assert.equal(result.raw,'[]');assert.equal(result.record,null);
+});
+test('transfer failures preserve the original and retain a durable receipt after publication',async t=>{
+ const page=await pageFor(t);
+ const result=await page.evaluate(async()=>{
+  const input=Frame.project.export('instrument'),first=await Frame.project.prepareTransfer(input,{designId:'failed-copy'});
+  const write=Frame.project.writeDurable;
+  Frame.project.writeDurable=async()=>{throw new Error('storage failed');};
+  let failed;try{await Frame.project.transfer(first.project);}catch(error){failed=error.message;}
+  const absent=!Frame.designs.has('failed-copy')&&!(await Frame.project.readDurable('failed-copy'));
+  const second=await Frame.project.prepareTransfer(input,{designId:'partial-copy'});let count=0;
+  Frame.project.writeDurable=(project,generation)=>++count===1?write(project,generation):Promise.reject(new Error('resume failed'));
+  const receipt=await Frame.project.transfer(second.project);Frame.project.writeDurable=write;
+  return {failed,absent,receipt,stored:await Frame.project.readDurable('partial-copy'),original:Frame.agent.getDocument('instrument').revisionId,expected:input.archive.currentRevisionId};
+ });
+ assert.match(result.failed,/storage failed/);assert.equal(result.absent,true);
+ assert.equal(result.receipt.saved,true);assert.equal(result.receipt.resumeReady,false);assert.match(result.receipt.error,/resume failed/);
+ assert.equal(result.stored.generation,1);assert.equal(result.original,result.expected);
+ assert.equal(result.stored.project.resume.legacyDigest,null);
+});
+test('legacy portable projects without resume metadata or an assets field still transfer',async t=>{
+ const page=await pageFor(t);
+ const result=await page.evaluate(async()=>{
+  const input=Frame.project.export('instrument');delete input.resume;delete input.assets;
+  const candidate=await Frame.project.prepareTransfer(input,{designId:'legacy-copy'});
+  return {summary:candidate.summary,receipt:await Frame.project.transfer(candidate.project)};
+ });
+ assert.equal(result.summary.assetCount,0);assert.equal(result.receipt.resumeReady,true);
+});
+test('import dialog previews destination changes and invalidates edited previews',async t=>{
+ const page=await pageFor(t);const input=await page.evaluate(()=>Frame.project.export('instrument'));
+ await page.locator('.project-menu > summary').click();await page.locator('#import-project').click();
+ await page.locator('#project-file').setInputFiles({name:'portable.frame.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify(input))});
+ await page.waitForFunction(()=>!document.getElementById('confirm-project').disabled);
+ assert.match(await page.locator('#project-import-status').textContent(),/instrument → instrument-imported/);
+ await page.locator('#project-target-id').fill('reviewed-copy');assert.equal(await page.locator('#confirm-project').isDisabled(),true);
+ await page.locator('#preview-project').click();await page.waitForFunction(()=>!document.getElementById('confirm-project').disabled);
+ await page.locator('#confirm-project').click();await page.waitForFunction(()=>!document.getElementById('project-dialog').open);
+ assert.equal(await page.locator('#design-picker').inputValue(),'reviewed-copy');
+ assert.ok(await page.evaluate(()=>Frame.project.readDurable('reviewed-copy')));
+});
+test('closing import while preview is loading cannot install its late result',async t=>{
+ const page=await pageFor(t);const input=await page.evaluate(()=>Frame.project.export('instrument'));
+ await page.evaluate(()=>{const prepare=Frame.project.prepareTransfer;Frame.project.prepareTransfer=(...args)=>new Promise(resolve=>{window.releasePreview=()=>prepare(...args).then(resolve);});});
+ await page.locator('.project-menu > summary').click();await page.locator('#import-project').click();
+ await page.locator('#project-file').setInputFiles({name:'portable.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify(input))});
+ await page.waitForFunction(()=>typeof releasePreview==='function');await page.locator('#cancel-project').click();
+ await page.evaluate(()=>releasePreview());
+ await page.locator('#import-project').click();
+ assert.equal(await page.locator('#confirm-project').isDisabled(),true);
+ assert.equal(await page.locator('#design-picker').inputValue(),'instrument');
+ assert.equal(await page.evaluate(()=>Frame.designs.has('instrument-imported')),false);
+});
+test('an admitted import stays open until its durable write completes',async t=>{
+ const page=await pageFor(t);const input=await page.evaluate(()=>Frame.project.export('instrument'));
+ await page.locator('.project-menu > summary').click();await page.locator('#import-project').click();
+ await page.locator('#project-file').setInputFiles({name:'portable.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify(input))});
+ await page.waitForFunction(()=>!document.getElementById('confirm-project').disabled);
+ await page.evaluate(()=>{const write=Frame.project.writeDurable;let first=true;
+  Frame.project.writeDurable=(project,generation)=>{if(!first)return write(project,generation);first=false;
+   return new Promise((resolve,reject)=>{window.releaseImport=()=>write(project,generation).then(resolve,reject);});};
+ });
+ await page.locator('#confirm-project').click();await page.waitForFunction(()=>typeof releaseImport==='function');
+ assert.equal(await page.locator('#cancel-project').isDisabled(),true);await page.keyboard.press('Escape');
+ assert.equal(await page.locator('#project-dialog').isVisible(),true);
+ assert.equal(await page.evaluate(()=>Frame.designs.has('instrument-imported')),false);
+ await page.evaluate(()=>releaseImport());await page.waitForFunction(()=>!document.getElementById('project-dialog').open);
+ assert.equal(await page.locator('#design-picker').inputValue(),'instrument-imported');
+});
 test('startup restores complete review state and preference without rewriting legacy records',async t=>{
  const page=await pageFor(t);const before=await saveRestartFixture(page);
  await page.reload();

@@ -95,8 +95,9 @@
     return Array.from(new Uint8Array(bytes), byte => byte.toString(16).padStart(2,'0')).join('');
   }
   Frame.project.captureResume = project => {
-    project.resume = {version:1, view:Frame.view?.get() || {zoom:1,panX:0,panY:0},
+    project.resume = {...project.resume,version:1, view:Frame.view?.get() || {zoom:1,panX:0,panY:0},
       automaticCheckpoints:!!Frame.project.automaticCheckpoints?.status(project.archive.designId)?.enabled};
+    delete project.resume.legacyDigest;
     try { baselines.set(project, legacySnapshot(project.archive.designId)); } catch { baselines.set(project, null); }
   };
   async function write(project, expectedGeneration) {
