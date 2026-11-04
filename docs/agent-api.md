@@ -6,6 +6,15 @@ A document is JSON with version 1, id, name, revisionId, positive integer width/
 
 ## Operations
 
+`Frame.agent.reviewContext()` returns the selected design revision, viewport,
+prototype state, view transform and structured annotations. Each annotation retains
+its original mark metadata and geometry, its visible anchored target when present,
+and up to ten overlapping geometry candidates with a total count. Geometry matches
+always require review. Missing or hidden anchors and existing stale-mark warnings
+remain explicit. Available historical source declarations are labeled separately
+from current resolved bounds: old prototype state may be unknown. Calling this
+method does not resolve or move marks. Custom Canvas designs have no element targets.
+
 - Frame.registerDocument(document): validate/register a document; duplicate IDs return false.
 - Frame.agent.listDesigns(): IDs, sizes, revisions, and structured support.
 - getDocument(designId): independent serializable copy.
