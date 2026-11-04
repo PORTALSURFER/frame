@@ -18,6 +18,25 @@ async function pageFor(t){
  const page=await context.newPage();const errors=[];page.on('pageerror',e=>errors.push(e.message));t.after(()=>assert.deepEqual(errors,[]));
  await page.goto(url);await page.locator('#design-picker').selectOption('instrument');return page;
 }
+test('review scenarios isolate viewports and refuse hidden or disabled controls while restoring context',async t=>{
+ const page=await pageFor(t);
+ const result=await page.evaluate(async()=>{
+  const original=Frame.currentViewport('instrument');
+  const scenarios=await Frame.review.run('instrument',[{viewport:{width:360,height:740}},{}]);
+  const doc=Frame.agent.getDocument('instrument');doc.revisionId='unavailable-controls';
+  doc.states.unavailable={run:{visible:false},frequency:{disabled:true}};Frame.agent.updateDocument(doc);
+  Frame.agent.setState('instrument','error');
+  const failures=[];
+  for(const action of [{type:'click',elementId:'run'},{type:'input',elementId:'frequency',value:'bad'}]){
+   try{await Frame.review.run('instrument',[{state:'unavailable',viewport:{width:360,height:740},actions:[action]}]);}catch(error){failures.push(error.message);}
+  }
+  return {original,scenarios,failures,state:Frame.currentState('instrument'),viewport:Frame.currentViewport('instrument'),values:Frame.agent.getValues('instrument')};
+ });
+ assert.equal(result.scenarios[0].viewport.width,360);
+ assert.deepEqual(result.scenarios[1].viewport,result.original);
+ assert.equal(result.failures.length,2);assert.ok(result.failures.every(message=>/unavailable/.test(message)));
+ assert.equal(result.state,'error');assert.deepEqual(result.viewport,result.original);assert.deepEqual(result.values,{});
+});
 test('agents inspect and edit stable elements while feedback survives refresh and PNG exports are sized',async t=>{
  const page=await pageFor(t);
  const board=await page.locator('#board').boundingBox();await page.mouse.move(board.x+100,board.y+100);await page.mouse.down();await page.mouse.move(board.x+150,board.y+150);await page.mouse.up();

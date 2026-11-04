@@ -25,6 +25,12 @@ The Instrument workstation example is a serializable design with responsive boun
 
 ## Review and prototypes
 
+Review scenarios start independently from the initial viewport and input values.
+Hidden or disabled controls cannot be activated through scenario actions. Results
+include revision, viewport and the declarative interaction model so they remain
+attributable to their tested context. A passing action/state result does not imply
+the structural checks are clean or that native product behavior is implemented.
+
 Viewport presets and Frame.agent.setViewport(id,{width,height}) recompute responsive bounds rather than shrink a fixed canvas. Elements can specify percentage responsive bounds and maxWidth breakpoints. Frame.agent.setState(id,state) applies named overrides; controls use accessible labels and declarative set-state actions.
 
 Choose Interact to exercise real button/input elements with mouse or keyboard. Other modes annotate feedback. Pan (H) drags the view; zoom controls and Fit preserve design coordinates. Frame.view exposes get, set({zoom,panX,panY}), fit, and setMode.
