@@ -143,6 +143,7 @@
     const conflict=message=>{const error=new Error(message);error.name='ConflictError';throw error;};
     const project=copy(validateProject(input)),id=project.archive.designId,old=archives.get(id);
     if(currentId()!==expectedSelection || Frame.projectBridge.restorationEpoch()!==0 || !Frame.projectBridge.canCheckpoint()) conflict('The open review changed while loading; recover the checkpoint as a separate design.');
+    if(Frame.designs.has(id) && !Frame.documents.has(id))conflict('A different source design uses this project ID; both versions are preserved.');
     if(old && (old.sourceRevisionId!==project.archive.sourceRevisionId || !project.archive.revisions.some(r=>r.revisionId===Frame.agent.getDocument(id).revisionId))) conflict('Source and checkpoint have diverged; both versions are preserved.');
     const revisions=new Map(project.archive.revisions.map(r=>[r.revisionId,r]));
     for(const r of old?.revisions||[]) {

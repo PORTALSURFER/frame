@@ -136,6 +136,17 @@ test('startup refuses checkpoints without provenance and malformed records',asyn
  await page.reload();assert.equal(await page.evaluate(async()=>(await Frame.project.startup.ready).state),'error');
  assert.equal(await page.evaluate(()=>Frame.agent.getDocument('instrument').revisionId),'instrument-r1');
 });
+test('startup refuses a runtime checkpoint when a different Canvas source now owns its ID',async t=>{
+ const page=await pageFor(t);
+ await page.evaluate(async()=>{
+  await Frame.project.startup.ready;const doc=Frame.agent.getDocument('instrument');doc.id='runtime-study';
+  Frame.registerDocument(doc);Frame.agent.selectDesign(doc.id);await Frame.project.saveDurable(doc.id,0);
+ });
+ await page.route('**/examples/instrument.js',async route=>{const response=await route.fetch();await route.fulfill({response,body:await response.text()+
+  '\nFrame.register({id:"runtime-study",name:"different canvas source",width:100,height:100,paint(ctx){ctx.fillRect(0,0,100,100);}});'});});
+ await page.reload();const result=await page.evaluate(async()=>({startup:await Frame.project.startup.ready,name:Frame.designs.get('runtime-study').name,errors:Frame.errors}));
+ assert.equal(result.startup.state,'conflict');assert.equal(result.name,'different canvas source');assert.deepEqual(result.errors,[]);
+});
 test('automatic checkpoints retain feedback-only changes after quota failure and reload',async t=>{
  const page=await pageFor(t);
  const result=await page.evaluate(async()=>{
