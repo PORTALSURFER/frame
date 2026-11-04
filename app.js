@@ -61,6 +61,7 @@
   let pointLimitReached = false;
   let zoom = 1, panX = 0, panY = 0, panDrag = null;
   let paintGeneration = 0;
+  let pendingZoomPaint = null;
   let mode = "pen";
   let selectedLine = null;
   let notes = [];
@@ -520,7 +521,7 @@
       Math.sqrt(16777216 / (design.width * design.height)));
     return {density, width: Math.max(1, Math.floor(design.width * density)), height: Math.max(1, Math.floor(design.height * density))};
   }
-  function fitBoard() {
+  function fitBoard(deferPaint = false) {
     if(Frame.restoringProject)return;
     if (!designReady) return;
     const viewKey=zoom+':'+panX+':'+panY;
@@ -530,14 +531,35 @@
     const usableHeight = stage.clientHeight - parseFloat(styles.paddingTop) - parseFloat(styles.paddingBottom);
     const scale = Math.min(1, usableWidth / design.width, usableHeight / design.height) * zoom;
     board.style.transform = "translate(" + panX + "px, " + panY + "px)";
+    board.classList.toggle("zoomed", zoom > 1);
     document.getElementById("zoom-value").textContent = Math.round(zoom * 100) + "%";
     board.style.width = `${design.width * Math.max(scale, 0.01)}px`;
     board.style.height = `${design.height * Math.max(scale, 0.01)}px`;
     const resolution = canvasResolution();
-    if (designCanvas.width !== resolution.width || designCanvas.height !== resolution.height) paintDesign();
+    if (designCanvas.width !== resolution.width || designCanvas.height !== resolution.height) {
+      if (deferPaint === true) scheduleZoomPaint();
+      else paintDesign();
+    } else if (pendingZoomPaint) {
+      clearTimeout(pendingZoomPaint.timer);
+      pendingZoomPaint.resolve();
+      pendingZoomPaint = null;
+    }
     redrawMarks();
   }
+  function scheduleZoomPaint() {
+    if (pendingZoomPaint) clearTimeout(pendingZoomPaint.timer);
+    else {
+      let resolve;
+      const ready = new Promise(done => { resolve = done; });
+      pendingZoomPaint = {resolve, timer: null};
+      Frame.markRendering(ready);
+    }
+    // View geometry changes immediately; retain the raster during a zoom burst.
+    pendingZoomPaint.timer = setTimeout(paintDesign, 350);
+  }
   function paintDesign() {
+    const pending = pendingZoomPaint;
+    if (pending) { clearTimeout(pending.timer); pendingZoomPaint = null; }
     try {
       const {density, width, height} = canvasResolution();
       const generation = ++paintGeneration;
@@ -556,7 +578,7 @@
       designStatus.hidden = true;
       const renderedId=design.id, renderedRevision=design.revisionId, doc=Frame.documents.get(design.id);
       const assetsReady=doc?FrameDocument.prepareAssets(doc):Promise.resolve();
-      Frame.markRendering(Promise.all([assetsReady,document.fonts.ready]).then(()=>{
+      const ready = Promise.all([assetsReady,document.fonts.ready]).then(()=>{
         if(doc&&generation===paintGeneration&&design.id===renderedId&&design.revisionId===renderedRevision) {
           context.save();try {design.paint(context,{styleguide:Frame.activeStyleguide});}finally{context.restore();}
         }
@@ -564,8 +586,11 @@
       }).catch(error=>{
         if(generation===paintGeneration&&design.id===renderedId)showDesignStatus("Design assets could not be rendered","Check embedded assets, then retry.",error.message,true);
         throw error;
-      }));
+      });
+      Frame.markRendering(ready);
+      if (pending) ready.then(pending.resolve, pending.resolve);
     } catch (error) {
+      if (pending) pending.resolve();
       showDesignStatus("Design could not be rendered", "Retry rendering or choose another design. Your feedback is still available for download.", error instanceof Error ? error.message : String(error), true);
     }
   }
@@ -673,7 +698,7 @@
     // Keep the design point beneath the cursor stationary while scaling.
     panX += (event.clientX - bounds.x - bounds.width / 2) * (1 - ratio);
     panY += (event.clientY - bounds.y - bounds.height / 2) * (1 - ratio);
-    zoom = nextZoom; fitBoard();
+    zoom = nextZoom; fitBoard(true);
   }, {passive:false});
   function setSidebarCollapsed(collapsed) {
     const hadFocus = document.activeElement === sidebarToggle;
@@ -967,8 +992,13 @@
     fit: () => { finishLine(); finishNoteDrag(); finishPan(); zoom=1;panX=panY=0;fitBoard(); },
     setMode
   };
-  document.getElementById("zoom-in").addEventListener("click", () => Frame.view.set({zoom:Math.min(8,zoom*1.25),panX,panY}));
-  document.getElementById("zoom-out").addEventListener("click", () => Frame.view.set({zoom:Math.max(0.25,zoom/1.25),panX,panY}));
+  function zoomByButton(nextZoom) {
+    finishLine(); finishNoteDrag(); finishPan();
+    zoom = nextZoom;
+    fitBoard(true);
+  }
+  document.getElementById("zoom-in").addEventListener("click", () => zoomByButton(Math.min(8,zoom*1.25)));
+  document.getElementById("zoom-out").addEventListener("click", () => zoomByButton(Math.max(0.25,zoom/1.25)));
   document.getElementById("fit-view").addEventListener("click", Frame.view.fit);
   function carryFeedback() {
     if (!Frame.documents.has(design?.id)) return;
