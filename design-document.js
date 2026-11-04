@@ -18,6 +18,13 @@
       ids.add(node.id);
       if (!node.bounds || !["x", "y", "width", "height"].every(key => finite(node.bounds[key])) || node.bounds.width < 0 || node.bounds.height < 0) fail(node.id + ": invalid bounds");
       if (node.text !== undefined && typeof node.text !== "string") fail(node.id + ": text must be a string");
+      if (node.flowGrow !== undefined && (!finite(node.flowGrow) || node.flowGrow < 0)) fail(node.id + ": invalid flowGrow");
+      if (node.flow !== undefined) {
+        const f=node.flow;
+        if (node.type !== "container" || !f || !["row","column","wrap","grid"].includes(f.kind) ||
+            (f.gap !== undefined && !(finite(f.gap) && f.gap >= 0) && !(typeof f.gap === "string" && finite(doc.tokens?.spacing?.[f.gap]) && doc.tokens.spacing[f.gap] >= 0)) ||
+            (f.kind === "grid" && (!Number.isInteger(f.columns) || f.columns < 1 || f.columns > 128))) fail(node.id + ": invalid flow");
+      }
       if (node.style && (typeof node.style !== "object" || Array.isArray(node.style))) fail(node.id + ": invalid style");
       for (const key of ["fontSize", "lineWidth", "radius", "cutCorner", "opacity"]) if (node.style?.[key] !== undefined && !finite(node.style[key])) fail(node.id + ": invalid " + key);
       if (node.points && (!Array.isArray(node.points) || !node.points.every(point => Array.isArray(point) && point.length === 2 && point.every(finite)))) fail(node.id + ": invalid points");
@@ -30,6 +37,7 @@
     }
     const byId = new Map(doc.elements.map(node => [node.id, node]));
     for (const node of doc.elements) {
+      if (node.flowGrow && !["row", "column"].includes(byId.get(node.parentId)?.flow?.kind)) fail(node.id + ": flowGrow requires a row or column parent");
       let parent = node.parentId;
       const seen = new Set([node.id]);
       while (parent !== undefined && parent !== null) {
@@ -73,6 +81,41 @@
     if (![width, height].every(value => Number.isInteger(value) && value > 0)) fail("Viewport needs positive integer dimensions");
     const resolved = new Map();
     const byId = new Map(doc.elements.map(node => [node.id, node]));
+    const childrenByParent = new Map();
+    for (const node of doc.elements) if (node.parentId) { const siblings = childrenByParent.get(node.parentId) || []; siblings.push(node); childrenByParent.set(node.parentId, siblings); }
+    const flowCache = new Map();
+    function slots(parent, frame) {
+      if (flowCache.has(parent.id)) return flowCache.get(parent.id);
+      const flow=parent.flow, gap=typeof flow.gap === "string" ? doc.tokens.spacing[flow.gap] : (flow.gap ?? 4);
+      const children=(childrenByParent.get(parent.id)||[]).filter(n=>n.visible!==false && (doc.states||{})[state]?.[n.id]?.visible!==false);
+      const size=(n,reference=frame)=>{
+        const b={...n.bounds}, patch={...n.responsive};
+        for(const bp of [...(n.breakpoints||[])].sort((a,b)=>b.maxWidth-a.maxWidth)) if(width<=bp.maxWidth)Object.assign(patch,bp.bounds);
+        for(const [k,v] of Object.entries(patch)) b[k]=typeof v==='string'?parseFloat(v)/100*reference[["x","width"].includes(k)?"width":"height"]:v;
+        return b;
+      };
+      const out=new Map();let x=0,y=0,lineHeight=0;
+      if(flow.kind==='grid'){
+        const cw=Math.max(0,(frame.width-gap*(flow.columns-1))/flow.columns);
+        for(let start=0;start<children.length;start+=flow.columns){
+          const row=children.slice(start,start+flow.columns), sizes=row.map(n=>size(n,{...frame,width:cw})), rh=Math.max(0,...sizes.map(b=>b.height));
+          row.forEach((n,i)=>out.set(n.id,{x:i*(cw+gap),y,width:sizes[i].width,height:sizes[i].height}));y+=rh+gap;
+        }
+      } else {
+       const vertical=flow.kind==='column', axis=vertical?'height':'width';
+       const maxGrow=Math.max(0,...children.map(n=>n.flowGrow||0));
+       const totalGrow=children.reduce((sum,n)=>sum+(maxGrow?(n.flowGrow||0)/maxGrow:0),0);
+       const fixed=children.reduce((sum,n)=>sum+(n.flowGrow?0:size(n)[axis]),0);
+       const free=Math.max(0,frame[axis]-fixed-gap*Math.max(0,children.length-1));
+       for(const child of children){
+        const b=size(child);if(child.flowGrow)b[axis]=free*(child.flowGrow/maxGrow)/totalGrow;
+        if(flow.kind==='wrap' && x>0 && x+b.width>frame.width){x=0;y+=lineHeight+gap;lineHeight=0;}
+        out.set(child.id,{x,y,width:b.width,height:b.height});
+        if(flow.kind==='column')y+=b.height+gap;else {x+=b.width+gap;lineHeight=Math.max(lineHeight,b.height);}
+       }
+      }
+      flowCache.set(parent.id,out);return out;
+    }
     function resolve(node) {
       if (resolved.has(node.id)) return resolved.get(node.id);
       const parent = node.parentId ? resolve(byId.get(node.parentId)) : null;
@@ -82,6 +125,7 @@
       for (const breakpoint of [...(node.breakpoints || [])].sort((a, b) => b.maxWidth - a.maxWidth)) if (width <= breakpoint.maxWidth) Object.assign(patch, breakpoint.bounds);
       const bounds = {...node.bounds};
       for (const [key, value] of Object.entries(patch)) bounds[key] = typeof value === "string" ? parseFloat(value) / 100 * frame[["x", "width"].includes(key) ? "width" : "height"] : value;
+      if (node.parentId && byId.get(node.parentId)?.flow) Object.assign(bounds, slots(byId.get(node.parentId), frame).get(node.id) || {});
       bounds.x += frame.x; bounds.y += frame.y;
       const result = {...node, ...overrides, style: {...node.style, ...overrides.style}, bounds,
         visible: node.visible !== false && overrides.visible !== false && (!parent || parent.visible)};
@@ -124,6 +168,7 @@
   const components = Object.fromEntries([...types].map(type => [type, (id, bounds, options) => component(type, id, bounds, options)]));
   function render(ctx, doc, options = {}) {
     const elements = layout(doc, options.viewport, options.state);
+    const sources = new Map(doc.elements.map(node => [node.id, node]));
     const palette = {...colors, ...doc.tokens?.colors};
     ctx.fillStyle = doc.background || palette.background;
     ctx.fillRect(0, 0, options.viewport?.width || doc.width, options.viewport?.height || doc.height);
@@ -163,7 +208,10 @@
       if (["line", "chart"].includes(node.type)) {
         ctx.beginPath();
         const points = node.points || [[0, 0], [b.width, b.height]];
-        points.forEach(([x, y], i) => ctx[i ? "lineTo" : "moveTo"](b.x + x * (node.type === "chart" ? b.width / (doc.elements.find(source => source.id === node.id).bounds.width || 1) : 1), b.y + y * (node.type === "chart" ? b.height / (doc.elements.find(source => source.id === node.id).bounds.height || 1) : 1))); ctx.stroke();
+        const source = sources.get(node.id).bounds;
+        const scaleX = node.type === "chart" ? b.width / (source.width || 1) : 1;
+        const scaleY = node.type === "chart" ? b.height / (source.height || 1) : 1;
+        points.forEach(([x, y], i) => ctx[i ? "lineTo" : "moveTo"](b.x + x * scaleX, b.y + y * scaleY)); ctx.stroke();
       }
       if (node.text !== undefined || node.type === "input") {
         ctx.fillStyle = palette[s.color] || s.color || palette.text;
@@ -186,7 +234,15 @@
     }
     return elements;
   }
-  function inspect(doc, viewport, state) { return layout(doc, viewport, state).map(node => ({...node, children: doc.elements.filter(child => child.parentId === node.id).map(child => child.id)})); }
+  function inspect(doc, viewport, state) {
+    const children = new Map();
+    for (const node of doc.elements) {
+      if (!node.parentId) continue;
+      if (!children.has(node.parentId)) children.set(node.parentId, []);
+      children.get(node.parentId).push(node.id);
+    }
+    return layout(doc, viewport, state).map(node => ({...node, children: children.get(node.id) || []}));
+  }
   const api = {prepareAssets, validate, layout, hitTest, edit, render, inspect, components, tokens, clone};
   if (typeof module !== "undefined") module.exports = api; else root.FrameDocument = api;
 })(typeof window === "undefined" ? globalThis : window);

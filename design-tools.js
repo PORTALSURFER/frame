@@ -1,6 +1,7 @@
 // Browser-facing operations on serializable design documents.
 (() => {
   const documents=new Map(), viewports=new Map(), states=new Map(), values=new Map();
+  const commits = new Map();
   const copy=FrameDocument.clone;
   let bridge=null, renderPromise=Promise.resolve();
   function requireDocument(id) {const doc=documents.get(id);if(!doc) throw new Error("No structured document for design: "+id);return doc;}
@@ -64,6 +65,28 @@
   function requireBridge() {if(!bridge) throw new Error("Frame UI is not ready");return bridge;}
   Frame.documents=documents;Frame.components=FrameDocument.components;Frame.tokens=FrameDocument.tokens;Frame.registerDocument=registerDocument;
   Frame.agent={
+    commit: request => {
+      if (!request || typeof request.requestId !== 'string' || !request.requestId.trim() ||
+          request.requestId.length > 200 || typeof request.expectedRevisionId !== 'string' ||
+          !Array.isArray(request.operations) || !request.operations.length || request.operations.length > 10000) {
+        throw new Error('Commit requires a requestId, expectedRevisionId and 1 to 10,000 operations');
+      }
+      const payload = JSON.stringify(request), previous = commits.get(request.requestId);
+      if (previous) {
+        if (previous.payload !== payload) throw new Error('Request ID already used with different content');
+        return copy(previous.receipt);
+      }
+      const current = requireDocument(request.designId);
+      if (current.revisionId !== request.expectedRevisionId) {
+        const error = new Error('Design revision changed; inspect the current document before editing');
+        error.name = 'ConflictError'; throw error;
+      }
+      const next = updateDocument(FrameDocument.edit(current, request.operations));
+      const receipt = {requestId: request.requestId, designId: current.id, previousRevisionId: current.revisionId, revisionId: next.revisionId};
+      commits.set(request.requestId, {payload, receipt});
+      if (commits.size > 100) commits.delete(commits.keys().next().value);
+      return copy(receipt);
+    },
     listDesigns:()=>[...Frame.designs.values()].map(({id,name,width,height,revisionId})=>({id,name,width,height,revisionId:revisionId??null,structured:documents.has(id)})),
     getDocument:id=>copy(requireDocument(id)),
     selectDesign:id=>{if(!Frame.designs.has(id)) throw new Error("Unknown design");requireBridge().selectDesign(id);return id;},
