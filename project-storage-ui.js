@@ -10,12 +10,14 @@
     const token=++request,id=current();save.disabled=true;
     if(!Frame.documents.has(id))return;
     try{const record=await Frame.project.readDurable(id);if(token!==request)return;
-      generations.set(id,record?.generation||0);save.disabled=saving;
+      generations.set(id,Frame.project.automaticCheckpoints?.status(id)?.generation??record?.generation??0);save.disabled=saving;
     }catch(error){if(token===request)status.textContent='Checkpoint storage unavailable: '+error.message;}
   }
   save.addEventListener('click',async()=>{
     const id=current();if(saving||!generations.has(id))return;saving=true;save.disabled=true;
-    try{const receipt=await Frame.project.saveDurable(id,generations.get(id));generations.set(id,receipt.generation);
+    try{const automatic=Frame.project.automaticCheckpoints;
+      const receipt=automatic?.status(id)?.enabled?await automatic.flush(id):await Frame.project.saveDurable(id,generations.get(id));
+      if(receipt.error)throw new Error(receipt.error);generations.set(id,receipt.generation);
       status.textContent='Checkpoint saved: '+id+' · generation '+receipt.generation;
     }catch(error){status.textContent='Checkpoint not saved: '+error.message+' Download the project to keep a portable backup.';}
     finally{saving=false;save.disabled=!Frame.documents.has(current())||!generations.has(current());}
@@ -36,6 +38,9 @@
     catch(error){recovery.textContent=error.message;}finally{confirm.disabled=false;recovering=false;}
   });
   window.addEventListener('frame:design-selected',refresh);
+  window.addEventListener('frame:automatic-checkpoint-status',event=>{
+    if(event.detail.generation!==undefined)generations.set(event.detail.designId,event.detail.generation);
+  });
   window.addEventListener('beforeunload',event=>{if(saving){event.preventDefault();event.returnValue='';}});
   refresh();
 })();

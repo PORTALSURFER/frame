@@ -84,6 +84,7 @@
   // Saving is explicit until startup migration and feedback autosave share an
   // acknowledged durable owner. No legacy keys are removed or overwritten here.
   Frame.project.saveDurable = (id, expectedGeneration) => store.save(Frame.project.export(id), expectedGeneration);
+  Frame.project.writeDurable = (snapshot, expectedGeneration) => store.save(snapshot, expectedGeneration);
   Frame.project.readDurable = id => store.read(id);
   Frame.project.listDurable = () => store.list();
   Frame.project.recoverDurable = async (id, recoveredId) => {

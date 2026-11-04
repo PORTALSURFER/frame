@@ -7,7 +7,7 @@
   const maxProjectBytes = 128 * 1024 * 1024;
   function notify() {
     const status=document.getElementById("project-save-notice");
-    if(status)status.textContent=unsaved.size?(blocked.size?"Unreadable saved project data is protected. Download the project before closing.":"Project changes are unsaved. Download the project before closing or reloading, or retry project saving."):"";
+    if(status)status.textContent=blocked.size?"Unreadable saved project data is protected. New checkpoints do not replace that original.":unsaved.size?"Project changes are unsaved. Download the project before closing or reloading, or retry project saving.":"";
     const retry=document.getElementById("retry-project-save");if(retry)retry.hidden=!unsaved.size;
   }
   function persist(id) {
@@ -116,6 +116,10 @@
     if(existing&&JSON.stringify(existing.document)!==JSON.stringify(doc))throw new Error("A revision ID cannot identify two different documents");
   };
   Frame.revisions={
+    acknowledgeCheckpoint: archive => {
+      if (JSON.stringify(archives.get(archive.designId)) !== JSON.stringify(archive)) return false;
+      unsaved.delete(archive.designId); notify(); return true;
+    },
     list:id=>copy((archives.get(id)?.revisions||[]).map(({revisionId,capturedAt,parentRevisionId,document})=>({revisionId,capturedAt,parentRevisionId,elementCount:document.elements.length}))),
     get:(id,revisionId)=>copy(revision(id,revisionId).document),
     restore:(id,revisionId)=>Frame.agent.updateDocument(copy(revision(id,revisionId).document)),
