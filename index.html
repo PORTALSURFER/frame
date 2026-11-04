@@ -37,6 +37,9 @@
   <script src="startup-restore.js" defer></script>
   <script src="project-transfer.js" defer></script>
   <script src="project-transfer-ui.js" defer></script>
+  <script src="source-store.js" defer></script>
+  <script src="source-sessions.js" defer></script>
+  <script src="source-session-ui.js" defer></script>
 </head>
 <body>
   <main class="app">
@@ -55,6 +58,7 @@
         <button id="retry-automatic-checkpoint" type="button" hidden>Retry automatic checkpoint</button>
         <button id="recover-checkpoint" type="button">Recover checkpoint</button>
         <button id="import-project" type="button">Import project</button>
+        <button id="source-settings" type="button">Source connection</button>
         <button id="restore-revision" type="button">Restore revision</button></div></details>
       <button id="retry-project-save" type="button" hidden>Retry project save</button>
       <output id="live-document-status" role="status"></output>
@@ -168,6 +172,13 @@
         <button id="note-delete" type="button" hidden>Delete note</button>
       </div>
     </form>
+  </dialog>
+  <dialog id="source-dialog" aria-labelledby="source-title" data-text-editor>
+    <h2 id="source-title">Source connection</h2>
+    <label>Document URL <input id="source-url" type="url" placeholder="/projects/hex.json"></label>
+    <label>Poll interval (ms) <input id="source-interval" type="number" min="250" max="60000" step="250" value="1000"></label>
+    <p id="source-message" role="status"></p>
+    <div class="dialog-actions"><button id="connect-source" type="button">Connect source</button><button id="disconnect-source" type="button">Disconnect source</button><button id="cancel-source" type="button">Cancel</button></div>
   </dialog>
   <dialog id="checkpoint-dialog" aria-labelledby="checkpoint-title">
     <h2 id="checkpoint-title">Recover checkpoint</h2>
