@@ -42,6 +42,30 @@ test('durable project round trip survives reload with feedback and protects lega
   assert.equal(before.receipt.generation, 1);
   assert.equal(after.list[0].generation, 1);
 });
+test('compressed session history loads and can be checkpointed without changing its revisions',async t=>{
+ const page=await pageFor(t);
+ const expected=await page.evaluate(()=>{
+  Frame.agent.applyEdits('instrument',[{op:'update',id:'run',patch:{text:'old compressed session'}}]);
+  const archive=Frame.project.export('instrument').archive;
+  localStorage.setItem('frame-project-v1:instrument',FrameArchiveCodec.compress(JSON.stringify(FrameArchiveCodec.pack(archive))));
+  return archive;
+ });
+ await page.reload();await page.locator('#design-picker').selectOption('instrument');
+ const saved=await page.evaluate(async()=>{await Frame.project.saveDurable('instrument',0);return (await Frame.project.readDurable('instrument')).project.archive;});
+ assert.deepEqual(saved,expected);
+});
+test('durable checkpoints accept histories beyond the former 32 MB limit',async t=>{
+ const page=await pageFor(t);
+ const result=await page.evaluate(async()=>{
+  const project=Frame.project.export('instrument');
+  project.archive.revisions[0].document.elements[0].text='x'.repeat(33*1024*1024);
+  const store=FrameProjectStore.create({name:'large-history-test'});
+  await store.save(project,0);
+  const saved=await store.read('instrument');await store.close();
+  return saved.project.archive.revisions[0].document.elements[0].text.length;
+ });
+ assert.equal(result,33*1024*1024);
+});
 test('concurrent stale writes are refused and transaction failure preserves the last good project', async t => {
   const page = await pageFor(t);
   const result = await page.evaluate(async () => {

@@ -49,7 +49,9 @@ These operations are explicit checkpoints; automatic startup restoration and
 feedback autosave are not connected to this store yet. Original localStorage
 records remain intact. IndexedDB is origin-specific and quota-limited too; keep
 portable exports. Failed writes retain the last committed snapshot and reject
-the promise. The existing 32 MB portable-project limit still applies.
+the promise. Portable projects have a 128 MB UTF-8 limit. The loader also reads
+the existing compressed/deduplicated browser archive encoding used by older
+Frame sessions; it retains original bytes if loading or saving fails.
 
 The Project menu offers Save checkpoint and Recover checkpoint. Recovery creates
 a separately named design, preserving both the checkpoint and current work.
