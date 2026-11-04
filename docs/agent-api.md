@@ -38,6 +38,15 @@ The Instrument workstation example is a serializable design with responsive boun
 
 ## Review and prototypes
 
+Containers may opt into `flow: {kind: "row" | "column" | "wrap" | "grid", gap?,
+columns?}`. Children retain declared or responsive sizes; flow determines their
+positions. Grid requires a column count; wrapping starts a new row when necessary.
+Hidden children do not occupy slots. `flowGrow` shares remaining main-axis space
+among row/column children with zero growth basis. Gaps may name a nonnegative
+`document.tokens.spacing` entry. Layout is shared by rendering, hit testing and
+inspection. This model does not yet implement general flex shrink, min/max bounds,
+alignment, scrolling, text measurement or nested component instances.
+
 Viewport presets and Frame.agent.setViewport(id,{width,height}) recompute responsive bounds rather than shrink a fixed canvas. Elements can specify percentage responsive bounds and maxWidth breakpoints. Frame.agent.setState(id,state) applies named overrides; controls use accessible labels and declarative set-state actions.
 
 Choose Interact to exercise real button/input elements with mouse or keyboard. Other modes annotate feedback. Pan (H) drags the view; zoom controls and Fit preserve design coordinates. Frame.view exposes get, set({zoom,panX,panY}), fit, and setMode.
