@@ -124,6 +124,7 @@
   const components = Object.fromEntries([...types].map(type => [type, (id, bounds, options) => component(type, id, bounds, options)]));
   function render(ctx, doc, options = {}) {
     const elements = layout(doc, options.viewport, options.state);
+    const sources = new Map(doc.elements.map(node => [node.id, node]));
     const palette = {...colors, ...doc.tokens?.colors};
     ctx.fillStyle = doc.background || palette.background;
     ctx.fillRect(0, 0, options.viewport?.width || doc.width, options.viewport?.height || doc.height);
@@ -163,7 +164,10 @@
       if (["line", "chart"].includes(node.type)) {
         ctx.beginPath();
         const points = node.points || [[0, 0], [b.width, b.height]];
-        points.forEach(([x, y], i) => ctx[i ? "lineTo" : "moveTo"](b.x + x * (node.type === "chart" ? b.width / (doc.elements.find(source => source.id === node.id).bounds.width || 1) : 1), b.y + y * (node.type === "chart" ? b.height / (doc.elements.find(source => source.id === node.id).bounds.height || 1) : 1))); ctx.stroke();
+        const source = sources.get(node.id).bounds;
+        const scaleX = node.type === "chart" ? b.width / (source.width || 1) : 1;
+        const scaleY = node.type === "chart" ? b.height / (source.height || 1) : 1;
+        points.forEach(([x, y], i) => ctx[i ? "lineTo" : "moveTo"](b.x + x * scaleX, b.y + y * scaleY)); ctx.stroke();
       }
       if (node.text !== undefined || node.type === "input") {
         ctx.fillStyle = palette[s.color] || s.color || palette.text;
@@ -186,7 +190,15 @@
     }
     return elements;
   }
-  function inspect(doc, viewport, state) { return layout(doc, viewport, state).map(node => ({...node, children: doc.elements.filter(child => child.parentId === node.id).map(child => child.id)})); }
+  function inspect(doc, viewport, state) {
+    const children = new Map();
+    for (const node of doc.elements) {
+      if (!node.parentId) continue;
+      if (!children.has(node.parentId)) children.set(node.parentId, []);
+      children.get(node.parentId).push(node.id);
+    }
+    return layout(doc, viewport, state).map(node => ({...node, children: children.get(node.id) || []}));
+  }
   const api = {prepareAssets, validate, layout, hitTest, edit, render, inspect, components, tokens, clone};
   if (typeof module !== "undefined") module.exports = api; else root.FrameDocument = api;
 })(typeof window === "undefined" ? globalThis : window);
