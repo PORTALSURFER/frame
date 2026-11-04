@@ -1,6 +1,17 @@
 const {test} = require('node:test');
 const assert = require('node:assert/strict');
 const model = require('../design-document.js');
+test('inspection preserves ordered children and chart commands honor resized bounds',()=>{
+ const chart={version:1,id:'chart',name:'chart',revisionId:'r1',width:100,height:100,elements:[
+  {id:'parent',type:'container',bounds:{x:0,y:0,width:100,height:100},style:{fill:'none',stroke:'none'}},
+  {id:'curve',parentId:'parent',type:'chart',bounds:{x:0,y:0,width:10,height:10},responsive:{width:'50%',height:'50%'},points:[[0,0],[10,10]]},
+  {id:'line',parentId:'parent',type:'line',bounds:{x:1,y:1,width:10,height:10},points:[[0,0],[10,10]]}]};
+ assert.deepEqual(model.inspect(chart)[0].children,['curve','line']);
+ const points=[];
+ const context=new Proxy({}, {get:(_,key)=>['moveTo','lineTo'].includes(key)?(...args)=>points.push([key,...args]):()=>{},set:()=>true});
+ model.render(context,chart);
+ assert.deepEqual(points,[['moveTo',0,0],['lineTo',50,50],['moveTo',1,1],['lineTo',11,11]]);
+});
 const doc = {version:1,id:'demo',name:'Demo',revisionId:'r1',width:800,height:600,states:{default:{},loading:{label:{text:'Loading'}}},elements:[
  model.components.container('panel',{x:20,y:20,width:600,height:300},{responsive:{width:'90%'}}),
  model.components.text('label',{x:10,y:10,width:100,height:30},{parentId:'panel',text:'Ready'}),
