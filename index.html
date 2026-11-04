@@ -35,6 +35,8 @@
   <script src="automatic-checkpoint-tools.js" defer></script>
   <script src="automatic-checkpoint-ui.js" defer></script>
   <script src="startup-restore.js" defer></script>
+  <script src="project-transfer.js" defer></script>
+  <script src="project-transfer-ui.js" defer></script>
 </head>
 <body>
   <main class="app">
@@ -129,7 +131,9 @@
     <div id="revision-canvases"><canvas id="revision-before" role="img"></canvas><canvas id="revision-after" role="img"></canvas></div><button id="close-compare" type="button">Close</button>
   </dialog>
   <dialog id="project-dialog" aria-labelledby="project-title" data-text-editor><h2 id="project-title">Import project</h2>
-    <p>Import a portable project as a new design. Existing design IDs are protected.</p><label for="project-file">Project JSON</label><input id="project-file" type="file" accept=".json,application/json">
+    <p>Export from the old Frame address, then choose that portable project here. Preview a separate copy before importing.</p><label for="project-file">Project JSON</label><input id="project-file" type="file" accept=".json,application/json">
+    <label for="project-target-id">Destination project id</label><input id="project-target-id" autocomplete="off">
+    <button id="preview-project" type="button">Preview import</button>
     <p id="project-import-status" role="status"></p><button id="confirm-project" type="button" disabled>Import project</button><button id="cancel-project" type="button">Cancel</button>
   </dialog>
   <dialog id="import-dialog" aria-labelledby="import-title" data-text-editor>

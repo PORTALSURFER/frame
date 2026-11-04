@@ -1,6 +1,11 @@
 // Revision snapshots and portable structured projects. Canvas callbacks remain code.
 (() => {
   const archives=new Map(),unsaved=new Set(),blocked=new Set();
+  const projectExtras=new Map();
+  function rememberExtras(project){
+    const known=new Set(['format','version','archive','feedback','styleguide','viewport','state','values','assets']);
+    projectExtras.set(project.archive.designId,FrameDocument.clone(Object.fromEntries(Object.entries(project).filter(([key])=>!known.has(key)))));
+  }
   const copy=FrameDocument.clone;
   const originalRegister=Frame.registerDocument;
   const key=id=>"frame-project-v1:"+id;
@@ -78,7 +83,7 @@
     if(!Frame.documents.has(id))throw new Error("Portable export requires a structured design; custom Canvas code stays in its source files");
     if(currentId()!==id)throw new Error("Select the design before exporting its feedback");
     const doc=Frame.agent.getDocument(id),guide=Frame.activeStyleguide;
-    const project = {format:"frame-project",version:1,archive:copy(archives.get(id)),feedback:Frame.agent.getFeedback(),styleguide:guide?copy(guide):null,
+    const project = {...copy(projectExtras.get(id)||{}),format:"frame-project",version:1,archive:copy(archives.get(id)),feedback:Frame.agent.getFeedback(),styleguide:guide?copy(guide):null,
       viewport:Frame.currentViewport(id),state:Frame.currentState(id),values:Frame.agent.getValues?.(id)||{},assets:copy(doc.assets||[])};
     Frame.project.captureResume?.(project); return project;
   }
@@ -107,21 +112,31 @@
     if(JSON.stringify(project.assets||[])!==JSON.stringify(doc.assets||[]))throw new Error("Bundled assets differ from the current document");
     return project;
   }
-  function importProject(input) {
+  function importProject(input, {preserveLegacy = false} = {}) {
     const project=copy(validateProject(input)),id=project.archive.designId;
-    if(Frame.designs.has(id))throw new Error("Project ID already exists; import into a fresh browser or rename the project first");
-    // Validate every dependency before changing any registry.
+    if(Frame.designs.has(id))throw new Error("Project ID already exists; choose an unused ID");
     if(project.styleguide&&Frame.styleguides.has(project.styleguide.id)&&JSON.stringify(Frame.styleguides.get(project.styleguide.id))!==JSON.stringify(project.styleguide))throw new Error("Bundled styleguide conflicts with an existing guide");
-    if(project.styleguide&&!Frame.styleguides.has(project.styleguide.id))Frame.registerStyleguide(project.styleguide);
-    archives.set(id,project.archive);blocked.delete(id);
-    const doc=project.archive.revisions.find(r=>r.revisionId===project.archive.currentRevisionId).document;
-    if(!originalRegister(doc))throw new Error("Project could not be registered");
-    persist(id);Frame.agent.selectDesign(id);
-    Frame.agent.setViewport(id,project.viewport);Frame.agent.setState(id,project.state);Frame.agent.setValues?.(id,project.values);
-    Frame.projectBridge.importFeedback(project.feedback);
-    if(project.styleguide) {
-      const picker=document.getElementById("styleguide-picker");picker.value=project.styleguide.id;picker.dispatchEvent(new Event("change",{bubbles:true}));
-    }
+    const previousRestore=Frame.restoringProject;
+    if(preserveLegacy)Frame.restoringProject=id;
+    try {
+      if(project.styleguide&&!Frame.styleguides.has(project.styleguide.id)&&!Frame.registerStyleguide(project.styleguide))throw new Error("Bundled styleguide could not be registered");
+      if(Frame.designs.has(id))throw new Error("Project ID became occupied during import");
+      rememberExtras(project);
+      archives.set(id,project.archive);blocked.delete(id);
+      const doc=project.archive.revisions.find(r=>r.revisionId===project.archive.currentRevisionId).document;
+      if(!originalRegister(doc))throw new Error("Project could not be registered");
+      if(!preserveLegacy)persist(id);
+      Frame.agent.selectDesign(id);
+      Frame.agent.setViewport(id,project.viewport);Frame.agent.setState(id,project.state);Frame.agent.setValues?.(id,project.values);
+      if(preserveLegacy)Frame.projectBridge.restoreCheckpointFeedback(project.feedback);
+      else Frame.projectBridge.importFeedback(project.feedback);
+      if(project.styleguide) {
+        if(preserveLegacy)Frame.restoreStyleguide(project.styleguide.id);
+        else {const picker=document.getElementById("styleguide-picker");picker.value=project.styleguide.id;picker.dispatchEvent(new Event("change",{bubbles:true}));}
+      }
+      if(preserveLegacy&&project.resume)Frame.view.set(project.resume.view);
+    } finally { if(preserveLegacy)Frame.restoringProject=previousRestore; }
+    if(preserveLegacy)window.dispatchEvent(new CustomEvent('frame:project-restored',{detail:{id}}));
     refresh();return id;
   }
   Frame.validateRevision=doc=>{
@@ -155,6 +170,7 @@
     Frame.restoringProject=id;
     try {
       if(project.styleguide&&!Frame.styleguides.has(project.styleguide.id)&&!Frame.registerStyleguide(project.styleguide))throw new Error('Checkpoint styleguide could not be registered');
+      rememberExtras(project);
       if(!Frame.documents.has(id)){if(!originalRegister(doc))throw new Error('Checkpoint design could not be registered');}
       else Frame.agent.updateDocument(doc);
       if(currentId()!==id)Frame.agent.selectDesign(id);
@@ -197,19 +213,7 @@
     document.getElementById("close-compare").addEventListener("click",()=>document.getElementById("compare-dialog").close());
     document.getElementById("download-project").addEventListener("click",()=>download(JSON.stringify(exportProject(),null,2),currentId()+".frame.json","application/json"));
     document.getElementById("retry-project-save").addEventListener("click",Frame.revisions.retry);
-    const file=document.getElementById("project-file"),confirm=document.getElementById("confirm-project"),status=document.getElementById("project-import-status");
-    let draft=null,request=0;
-    document.getElementById("import-project").addEventListener("click",()=>{request++;draft=null;file.value="";confirm.disabled=true;status.textContent="";document.getElementById("project-dialog").showModal();});
-    file.addEventListener("change",async()=>{
-      const current=++request;confirm.disabled=true;draft=null;
-      try {if(!file.files[0])return;if(file.files[0].size>maxProjectBytes)throw new Error("Project exceeds the 128 MB import limit");
-        const input=validateProject(JSON.parse(await file.files[0].text()));if(current!==request)return;
-        draft=input;status.textContent="Project "+input.archive.designId+" · "+input.archive.revisions.length+" revisions. Import adds a new design.";confirm.disabled=false;
-      }catch(error){if(current===request)status.textContent="Import cancelled: "+error.message;}
-    });
-    confirm.addEventListener("click",()=>{try{if(draft){importProject(draft);document.getElementById("project-dialog").close();}}catch(error){status.textContent="Import cancelled: "+error.message;}});
-    document.getElementById("cancel-project").addEventListener("click",()=>document.getElementById("project-dialog").close());
-    document.getElementById("project-dialog").addEventListener("close",()=>{draft=null;request++;});
+
   }
   function showComparison() {
     const id=currentId(),before=document.getElementById("compare-before").value,after=document.getElementById("compare-after").value,result=compare(id,before,after);

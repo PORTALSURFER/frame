@@ -154,6 +154,30 @@ Frame.revisions.list(id), get(id,revisionId), restore(id,revisionId), and compar
 
 Frame.project.export(id) returns a versioned project object with the complete archive, feedback, selected guide, viewport/state/input values, and embedded assets. Frame.project.validate(object) validates dependencies without changing registries. Frame.project.import(object) adds a new design atomically after validation and protects existing IDs and conflicting guide definitions. Select a design before exporting its feedback.
 
+For explicit transfer between addresses, export a portable project at the source,
+then choose Import project at the destination. Preview shows a separate project
+ID, history/feedback/asset counts and any styleguide copy. Editing the destination
+invalidates confirmation until previewed again. Existing live designs, legacy
+records and durable checkpoints cannot be overwritten by this workflow.
+
+`await Frame.project.prepareTransfer(input, {designId?})` validates and prepares a
+copy without changing registries. A conflicting source ID gets an `-imported`
+proposal; occupied proposals require another ID. Conflicting guides use the new
+project ID plus `-guide`. Known design/feedback/guide references are remapped;
+opaque extension data, archived revisions and asset bytes are retained. Source
+startup provenance is removed because it cannot authorize another origin.
+
+`await Frame.project.transfer(prepared.project)` rechecks destination occupancy,
+reserves a durable checkpoint at generation zero, then installs the copy without
+writing project/feedback legacy records. Explicit selection changes the last-design
+preference. A second durable write records destination resume evidence, and the
+saved automatic-checkpoint preference is applied. A receipt identifies the saved
+generation and `opened`/`resumeReady` status. Failure before publication throws
+without registering a design; later failure returns a saved recovery receipt and
+error rather than deleting the checkpoint. Unknown project/resume extension fields
+survive later exports and automatic checkpoints. Cross-origin access is never
+scraped or inferred; the source file and origin remain unchanged.
+
 Marked element IDs and reviewed revisions persist through edits. Surviving bound marks move with their targets; missing/hidden targets and position-only feedback are marked needsReview with a reason. Restoring a snapshot can bring surviving anchors back into position. Review original geometry using the archived document and each mark's reviewedViewport.
 
 Revision snapshots and projects describe structured designs; custom paint functions are code, not serializable project data. Visual comparison baselines remain in-session, while revision and feedback data are portable.
