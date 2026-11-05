@@ -9,6 +9,7 @@ body { background:var(--ui-bg); color:var(--ui-ink); font-family:"Helvetica Neue
 .tools label:nth-child(2) { flex:1.4 1 240px; max-width:320px; }
 .app label { color:var(--ui-muted); font-size:10px; letter-spacing:0; }
 .tools label { display:grid; gap:5px; flex:1 1 150px; max-width:240px; min-width:0; }
+.tools button { flex-shrink:0; white-space:nowrap; }
 .app select { background-color:#302f2e; border-color:var(--ui-line); color:var(--ui-ink); font:12px "Helvetica Neue",Arial,system-ui,sans-serif; height:32px; padding:0 30px 0 10px; max-width:100%; min-width:0; border-radius:4px; }
 .app button:not(.prototype-control):not(.note-pin),dialog button { background:linear-gradient(#424140,#333230); border:1px solid #51504e; border-radius:4px; color:var(--ui-ink); padding:7px 10px; min-height:32px; font:11px "Helvetica Neue",Arial,system-ui,sans-serif; }
 .app button:not(.prototype-control):not(.note-pin):hover:not(:disabled),dialog button:hover:not(:disabled) { border-color:var(--ui-accent); background:#484745; }
@@ -17,8 +18,13 @@ body { background:var(--ui-bg); color:var(--ui-ink); font-family:"Helvetica Neue
 .project-menu { position:relative; flex-shrink:0; align-self:end; }
 .project-menu summary { list-style:none; border:1px solid var(--ui-line); padding:8px 14px; font-size:12px; cursor:pointer; min-height:32px; display:flex; gap:20px; align-items:center; }
 .project-menu summary::-webkit-details-marker { display:none; }
-.project-actions { position:absolute; z-index:20; right:0; top:calc(100% + 8px); width:200px; padding:12px; display:grid; gap:10px; background:linear-gradient(#424140,#333230); border:1px solid var(--ui-accent); box-shadow:0 16px 40px #0008; }
+.project-actions { position:absolute; z-index:20; right:0; top:calc(100% + 8px); width:min(260px, calc(100vw - 24px)); max-height:72dvh; overflow:auto; padding:12px; display:grid; gap:10px; background:linear-gradient(#424140,#333230); border:1px solid var(--ui-accent); box-shadow:0 16px 40px #0008; }
 .project-menu:not([open]) .project-actions { display:none; }
+.project-warning { display:none; color:#efc94f; font-size:10px; }
+.project-menu:has([data-warning]) .project-warning { display:inline; }
+.project-statuses { display:grid; gap:6px; padding-top:8px; border-top:1px solid var(--ui-line); color:var(--ui-muted); font-size:11px; overflow-wrap:anywhere; }
+.project-statuses output:empty, .project-statuses:not(:has(output:not(:empty))) { display:none; }
+.project-statuses [data-warning] { color:#efc94f; }
 .review-toolbar { grid-column:2/-1; display:flex; flex-wrap:wrap; padding:0; border:0; background:transparent; gap:12px; align-items:center; min-width:0; }
 .review-toolbar label { display:flex; align-items:center; gap:8px; min-width:0; }
 .review-toolbar select { max-width:190px; }

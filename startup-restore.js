@@ -6,7 +6,11 @@
   const initialSelection=selected(), id=evidence.rememberedId||initialSelection;
   const output=document.getElementById('startup-restore-status');
   let status={designId:id,state:'loading',reason:null};
-  function report(state,reason=null){status={designId:id,state,reason};output.textContent=reason|| (state==='restored'?'Restored checkpoint: '+id:'');return {...status};}
+  function report(state,reason=null){
+    status={designId:id,state,reason};
+    Frame.setProjectStatus(output,reason||(state==='restored'?'Restored checkpoint: '+id:''),!!reason);
+    return {...status};
+  }
   async function run(){
     try {
       const record=await Frame.project.readDurable(id);
