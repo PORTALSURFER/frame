@@ -73,8 +73,4 @@
     watches.set(designId, handle); notify(); poll(); return handle;
   };
   Frame.agent.watchStatus = designId => watches.get(designId)?.status() || null;
-  window.addEventListener('frame:watch-status', event => {
-    const output = document.getElementById('live-document-status');
-    if (output) output.textContent = event.detail.designId + ' · ' + event.detail.revisionId + ' · ' + (event.detail.error || event.detail.state);
-  });
 })();

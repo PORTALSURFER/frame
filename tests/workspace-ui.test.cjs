@@ -30,18 +30,37 @@ test('live workspace feedback cards select, resolve, filter, undo, delete and pe
  const note=page.locator('.feedback-card').filter({hasText:'Keep this control clear'});await note.dblclick();
  assert.equal(await page.locator('#note-dialog').isVisible(),true);assert.equal(await page.locator('#note-text').inputValue(),'Keep this control clear');await page.locator('#note-cancel').click();
 });
-for(const width of [320,768,1280,1600])test(`workspace controls and canvas remain separated at ${width}px`,async t=>{
+for(const width of [320,768,912,1280,1600])test(`workspace controls and canvas remain separated at ${width}px`,async t=>{
  const context=await browser.newContext({viewport:{width,height:900}});t.after(()=>context.close());const page=await context.newPage();await page.goto(url);
  await page.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))));
+ const topbar=await page.locator('.topbar').boundingBox();
+ await page.evaluate(()=>{
+  const id='hex-yield-workstation-recovered';
+  document.getElementById('live-document-status').textContent=id+' · source watching';
+  document.getElementById('automatic-checkpoint-status').textContent=id+' · automatic checkpoint saved';
+  document.getElementById('startup-restore-status').textContent='Restored checkpoint: '+id;
+ });
+ assert.deepEqual(await page.locator('.topbar').boundingBox(),topbar,'routine status must not resize the header');
+ assert.equal(await page.locator('#live-document-status').isVisible(),false);
+ const controls=await page.locator('.topbar select, #view-styleguide, .project-menu summary').evaluateAll(nodes=>nodes.map(node=>{
+  const {x,y,width,height}=node.getBoundingClientRect();
+  return {x,y,width,height};
+ }));
+ const separate=(a,b)=>a.x+a.width<=b.x||b.x+b.width<=a.x||a.y+a.height<=b.y||b.y+b.height<=a.y;
+ assert.ok(controls.slice(0,3).every(control=>control.width>=100),'design, revision and styleguide selectors remain readable');
+ for(const [i,control] of controls.entries())assert.ok(controls.slice(i+1).every(other=>separate(control,other)),'toolbar controls do not overlap');
  assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true,'no horizontal page overflow');
  const stage=await page.locator('#stage').boundingBox(),panel=await page.locator('.feedback-panel').boundingBox(),rail=await page.locator('.tool-rail').boundingBox();
  assert.ok(stage.width>150&&stage.height>=300,'usable canvas');
- const separate=(a,b)=>a.x+a.width<=b.x||b.x+b.width<=a.x||a.y+a.height<=b.y||b.y+b.height<=a.y;
  assert.ok(separate(stage,panel)&&separate(stage,rail),'panel and rail do not overlap the canvas');
  await fs.mkdir(path.join(root,'artifacts/workspace-ui'),{recursive:true});
  await page.screenshot({path:path.join(root,`artifacts/workspace-ui/workspace-${width}.png`),fullPage:true});
  if(width===1280){await page.locator('#design-picker').selectOption('sift-style-studies');await page.screenshot({path:path.join(root,'artifacts/workspace-ui/sift-workspace.png'),fullPage:true});}
- await page.locator('.project-menu summary').click();await page.locator('#import-project').click();assert.equal(await page.locator('#project-dialog').isVisible(),true);
+ await page.evaluate(()=>Frame.setProjectStatus(document.getElementById('checkpoint-status'),'Checkpoint storage unavailable',true));
+ assert.equal(await page.locator('.project-warning').isVisible(),true);
+ await page.locator('.project-menu summary').click();
+ assert.equal(await page.locator('#checkpoint-status').isVisible(),true);
+ await page.locator('#import-project').click();assert.equal(await page.locator('#project-dialog').isVisible(),true);
 });
 test('Zebra Modular guide is complete, downloadable, and styles the host independently of canvas guides',async t=>{
  const context=await browser.newContext({viewport:{width:1280,height:900},acceptDownloads:true});t.after(()=>context.close());const page=await context.newPage();await page.goto(url);

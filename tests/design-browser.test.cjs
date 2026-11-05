@@ -426,7 +426,9 @@ test('project save failures retain revisions for export and retry persists the b
  await page.locator('#design-picker').selectOption('instrument');
  assert.equal(await page.evaluate(()=>Frame.agent.getDocument('instrument').elements.find(n=>n.id==='status').text),'RECOVERABLE DRAFT');
  await page.evaluate(()=>{Storage.prototype.setItem=window.originalProjectSave;});
- await page.locator('#retry-project-save').click();
+ assert.equal(await page.locator('.project-warning').isVisible(),true);
+ await page.locator('.project-menu summary').click({timeout:5000});
+ await page.locator('#retry-project-save').click({timeout:5000});
  assert.equal(await page.locator('#project-save-notice').textContent(),'');
  await page.reload();await page.locator('#design-picker').selectOption('instrument');
  assert.equal(await page.evaluate(()=>Frame.agent.getDocument('instrument').elements.find(n=>n.id==='status').text),'RECOVERABLE DRAFT');
@@ -436,7 +438,8 @@ test('unreadable saved project archives are protected while in-memory edits rema
  await page.evaluate(()=>localStorage.setItem('frame-project-v1:instrument','unreadable backup'));
  await page.reload();await page.locator('#design-picker').selectOption('instrument');
  await page.evaluate(()=>Frame.agent.applyEdits('instrument',[{op:'update',id:'status',patch:{text:'IN MEMORY'}}]));
- await page.locator('#retry-project-save').click();
+ await page.locator('.project-menu summary').click({timeout:5000});
+ await page.locator('#retry-project-save').click({timeout:5000});
  assert.match(await page.locator('#project-save-notice').textContent(),/protected/);
  const result=await page.evaluate(()=>({backup:localStorage.getItem('frame-project-v1:instrument'),project:Frame.project.export('instrument')}));
  assert.equal(result.backup,'unreadable backup');assert.equal(result.project.archive.revisions.length,2);

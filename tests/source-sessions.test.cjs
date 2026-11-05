@@ -96,6 +96,14 @@ test('source connection controls connect a verified document and disconnect it d
  await page.locator('.project-menu summary').click();await page.locator('#source-settings').click();
  await page.locator('#source-url').fill('/source.json');await page.locator('#source-interval').fill('60000');await page.locator('#connect-source').click();
  await page.waitForFunction(()=>Frame.sources.status().state==='watching');assert.match(await page.locator('#live-document-status').textContent(),/watching/);
+ const statusChanges=await page.evaluate(async()=>{
+  let changes=0;
+  const observer=new MutationObserver(records=>{changes+=records.length;});
+  observer.observe(document.getElementById('live-document-status'),{childList:true,subtree:true});
+  try{await Frame.sources.poll();await Frame.sources.poll();return changes+observer.takeRecords().length;}
+  finally{observer.disconnect();}
+ });
+ assert.equal(statusChanges,0,'unchanged source polls do not repeat the status');
  await page.locator('#source-settings').click();await page.locator('#disconnect-source').click();
  await page.waitForFunction(()=>Frame.sources.status().state==='disconnected');assert.equal((await page.evaluate(()=>Frame.sources.settings())).enabled,false);
 });

@@ -1,5 +1,9 @@
 // Explicit checkpoints; original legacy records and recovery sources are retained.
 (() => {
+  const showStatus = Frame.setProjectStatus = (output, message, warning = false) => {
+    if (output.textContent !== message) output.textContent = message;
+    output.toggleAttribute('data-warning', warning);
+  };
   const save=document.getElementById('save-checkpoint'), dialog=document.getElementById('checkpoint-dialog');
   const choices=document.getElementById('checkpoint-picker'), name=document.getElementById('checkpoint-new-id');
   const status=document.getElementById('checkpoint-status'), recovery=document.getElementById('checkpoint-recovery-status');
@@ -11,15 +15,15 @@
     if(!Frame.documents.has(id))return;
     try{const record=await Frame.project.readDurable(id);if(token!==request)return;
       generations.set(id,Frame.project.automaticCheckpoints?.status(id)?.generation??record?.generation??0);save.disabled=saving;
-    }catch(error){if(token===request)status.textContent='Checkpoint storage unavailable: '+error.message;}
+    }catch(error){if(token===request)showStatus(status,'Checkpoint storage unavailable: '+error.message,true);}
   }
   save.addEventListener('click',async()=>{
     const id=current();if(saving||!generations.has(id))return;saving=true;save.disabled=true;
     try{const automatic=Frame.project.automaticCheckpoints;
       const receipt=automatic?.status(id)?.enabled?await automatic.flush(id):await Frame.project.saveDurable(id,generations.get(id));
       if(receipt.error)throw new Error(receipt.error);generations.set(id,receipt.generation);
-      status.textContent='Checkpoint saved: '+id+' · generation '+receipt.generation;
-    }catch(error){status.textContent='Checkpoint not saved: '+error.message+' Download the project to keep a portable backup.';}
+      showStatus(status,'Checkpoint saved: '+id+' · generation '+receipt.generation);
+    }catch(error){showStatus(status,'Checkpoint not saved: '+error.message+' Download the project to keep a portable backup.',true);}
     finally{saving=false;save.disabled=!Frame.documents.has(current())||!generations.has(current());}
   });
   document.getElementById('recover-checkpoint').addEventListener('click',async()=>{

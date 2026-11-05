@@ -6,9 +6,14 @@
   const current=()=>document.getElementById('design-picker').value;
   let request=0,designId;
   function refresh(){
-    button.disabled=!Frame.documents.has(current());
-    const status=Frame.sources.status();
-    output.textContent=status.state==='disconnected'?'':status.designId+' · source '+(status.error||status.state);
+    const id=current();
+    button.disabled=!Frame.documents.has(id);
+    let status=Frame.sources.status(id);
+    if(status.state==='disconnected'){
+      const watch=Frame.agent.watchStatus(id);
+      if(watch&&watch.state!=='stopped')status=watch;
+    }
+    Frame.setProjectStatus(output,status.state==='disconnected'?'':id+' · source '+(status.error||status.state),!!status.error);
   }
   button.addEventListener('click',async()=>{
     const token=++request;designId=current();connect.disabled=disconnect.disabled=url.disabled=interval.disabled=true;
@@ -27,14 +32,14 @@
   connect.addEventListener('click',async()=>{
     const options={designId,url:url.value.trim(),interval:Number(interval.value)};
     close();
-    try{await Frame.sources.connect(options);refresh();}catch(error){refresh();if(options.designId===current())output.textContent='Source not connected: '+error.message;}
+    try{await Frame.sources.connect(options);refresh();}catch(error){refresh();if(options.designId===current())Frame.setProjectStatus(output,'Source not connected: '+error.message,true);}
   });
   disconnect.addEventListener('click',async()=>{
     const id=designId;close();
-    try{await Frame.sources.disconnect(id);}catch(error){output.textContent=error.message;}
-    refresh();
+    try{await Frame.sources.disconnect(id);refresh();}catch(error){if(id===current())Frame.setProjectStatus(output,error.message,true);}
   });
   for(const event of ['frame:design-selected','frame:project-restored'])window.addEventListener(event,()=>{if(dialog.open)close();refresh();});
   window.addEventListener('frame:source-session-status',refresh);
+  window.addEventListener('frame:watch-status',event=>{if(event.detail.designId===current())refresh();});
   refresh();
 })();
