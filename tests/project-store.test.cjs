@@ -269,7 +269,7 @@ test('startup refuses checkpoints without provenance and malformed records',asyn
  });
  await page.reload();assert.equal(await page.evaluate(async()=>(await Frame.project.startup.ready).state),'conflict');
  await page.evaluate(async()=>{
-  const db=await new Promise(resolve=>{const r=indexedDB.open('frame-projects-v1',1);r.onsuccess=()=>resolve(r.result);});
+  const db=await new Promise(resolve=>{const r=indexedDB.open('frame-projects-v1');r.onsuccess=()=>resolve(r.result);});
   await new Promise(resolve=>{const tx=db.transaction('projects','readwrite');tx.objectStore('projects').put({id:'instrument',version:999});tx.oncomplete=resolve;});db.close();
  });
  await page.reload();assert.equal(await page.evaluate(async()=>(await Frame.project.startup.ready).state),'error');
@@ -504,7 +504,7 @@ test('unavailable durable storage can be retried and malformed records cannot be
     blocked = false;
     const empty = await store.read('instrument');
     const db = await new Promise((resolve, reject) => {
-      const request = indexedDB.open('recovery-test', 1);
+      const request = indexedDB.open('recovery-test');
       request.onsuccess = () => resolve(request.result); request.onerror = () => reject(request.error);
     });
     await new Promise((resolve, reject) => {
@@ -524,4 +524,122 @@ test('unavailable durable storage can be retried and malformed records cannot be
   assert.equal(result.empty, null);
   assert.match(result.refused, /protected/);
   assert.deepEqual(result.raw, {id: 'instrument', version: 999});
+});
+
+test('legacy checkpoint migration commits atomically and later saves write only changed revisions', async t => {
+  const page = await pageFor(t);
+  const result = await page.evaluate(async () => {
+    const name = 'legacy-checkpoint-test';
+    const id = 'instrument';
+    const project = Frame.project.export(id);
+    const legacy = {version: 1, id, generation: 3, updatedAt: new Date().toISOString(), project};
+    const open = version => new Promise((resolve, reject) => {
+      const request = indexedDB.open(name, version);
+      request.onupgradeneeded = () => request.result.createObjectStore('projects', {keyPath: 'id'});
+      request.onsuccess = () => resolve(request.result);
+      request.onerror = () => reject(request.error);
+    });
+    const old = await open(1);
+    await new Promise((resolve, reject) => {
+      const tx = old.transaction('projects', 'readwrite');
+      tx.objectStore('projects').put(legacy);
+      tx.oncomplete = resolve;
+      tx.onabort = () => reject(tx.error);
+    });
+    const store = FrameProjectStore.create({name});
+    let blocked;
+    try { await store.read(id); } catch (error) { blocked = error.message; }
+    old.close();
+    const opened = await store.read(id);
+    const db = await open(2);
+    const raw = () => new Promise((resolve, reject) => {
+      const tx = db.transaction(['projects', 'revisions']);
+      const root = tx.objectStore('projects').get(id);
+      const count = tx.objectStore('revisions').count();
+      tx.oncomplete = () => resolve({root: root.result, bodies: count.result});
+      tx.onabort = () => reject(tx.error);
+    });
+    const put = IDBObjectStore.prototype.put;
+    const add = IDBObjectStore.prototype.add;
+    const writes = [];
+    let failure;
+    try {
+      IDBObjectStore.prototype.put = () => { throw new DOMException('Full', 'QuotaExceededError'); };
+      try { await store.save(project, 3); } catch (error) { failure = error.name; }
+    } finally { IDBObjectStore.prototype.put = put; }
+    const afterFailure = await raw();
+    const migrated = await store.save(project, 3);
+    let edited;
+    try {
+      for (const [method, original] of [['add', add], ['put', put]]) {
+        IDBObjectStore.prototype[method] = function (...args) {
+          writes.push(this.name);
+          return original.apply(this, args);
+        };
+      }
+      Frame.agent.applyEdits(id, [{op: 'update', id: 'run', patch: {text: 'small edit'}}]);
+      edited = Frame.project.export(id);
+      await store.save(edited, migrated.generation);
+      await store.save({...edited, resume: {...edited.resume, view: {zoom: 2, panX: 3, panY: 4}}}, 5);
+    } finally {
+      IDBObjectStore.prototype.add = add;
+      IDBObjectStore.prototype.put = put;
+    }
+    const saved = await store.read(id);
+    const final = await raw();
+    db.close();
+    await store.close();
+    return {legacy, blocked, opened, failure, afterFailure, writes, saved, edited, final};
+  });
+  assert.match(result.blocked, /upgrade is blocked/);
+  assert.deepEqual(result.opened, result.legacy);
+  assert.equal(result.failure, 'QuotaExceededError');
+  assert.deepEqual(result.afterFailure, {root: result.legacy, bodies: 0});
+  assert.deepEqual(result.writes, ['revisions', 'projects', 'projects']);
+  assert.equal(result.final.bodies, 2);
+  assert.equal(result.saved.generation, 6);
+  assert.deepEqual(result.saved.project.archive, result.edited.archive);
+  assert.deepEqual(result.saved.project.resume.view, {zoom: 2, panX: 3, panY: 4});
+});
+
+test('damaged revision records fail closed and keep the last manifest', async t => {
+  const page = await pageFor(t);
+  const result = await page.evaluate(async () => {
+    const name = 'damaged-revision-test';
+    const id = 'instrument';
+    const store = FrameProjectStore.create({name});
+    const project = Frame.project.export(id);
+    await store.save(project, 0);
+    const db = await new Promise((resolve, reject) => {
+      const request = indexedDB.open(name);
+      request.onsuccess = () => resolve(request.result);
+      request.onerror = () => reject(request.error);
+    });
+    const manifest = () => new Promise(resolve => {
+      const request = db.transaction('projects').objectStore('projects').get(id);
+      request.onsuccess = () => resolve(request.result);
+    });
+    const original = await manifest();
+    const key = [id, original.project.archive.revisions[0].document];
+    const damage = action => new Promise((resolve, reject) => {
+      const tx = db.transaction('revisions', 'readwrite');
+      action(tx.objectStore('revisions'));
+      tx.oncomplete = resolve;
+      tx.onabort = () => reject(tx.error);
+    });
+    const refusals = [];
+    for (const action of [revisions => revisions.put('{}', key), revisions => revisions.delete(key)]) {
+      await damage(action);
+      for (const operation of [() => store.read(id), () => store.save(project, 1)]) {
+        try { await operation(); } catch (error) { refusals.push(error.message); }
+      }
+    }
+    const remaining = await manifest();
+    db.close();
+    await store.close();
+    return {original, remaining, refusals};
+  });
+  assert.equal(result.refusals.length, 4);
+  assert.ok(result.refusals.every(message => /protected/.test(message)));
+  assert.deepEqual(result.remaining, result.original);
 });
