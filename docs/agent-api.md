@@ -145,6 +145,13 @@ the promise. Portable projects have a 128 MB UTF-8 limit. The loader also reads
 the existing compressed/deduplicated browser archive encoding used by older
 Frame sessions; it retains original bytes if loading or saving fails.
 
+Incremental checkpoints store revision documents by content within each project.
+A feedback or view change writes the checkpoint manifest alone. A design edit
+adds its new revision document in the same transaction. The first successful
+save of a legacy checkpoint converts it to this format. Opening the upgraded
+IndexedDB database requires the updated Frame build. Portable exports keep their
+existing format.
+
 The Project menu offers Save checkpoint and Recover checkpoint. Recovery creates
 a separately named design, preserving both the checkpoint and current work.
 `await Frame.project.recoverDurable(savedId, unusedDesignId)` exposes the same
