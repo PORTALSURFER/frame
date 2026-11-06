@@ -13,14 +13,16 @@
   async function refresh(){
     const token=++request,id=current();save.disabled=true;
     if(!Frame.documents.has(id))return;
-    try{const record=await Frame.project.readDurable(id);if(token!==request)return;
+    try{const record=await Frame.project.readCheckpointHead(id);if(token!==request)return;
       generations.set(id,Frame.project.automaticCheckpoints?.status(id)?.generation??record?.generation??0);save.disabled=saving;
     }catch(error){if(token===request)showStatus(status,'Checkpoint storage unavailable: '+error.message,true);}
   }
   save.addEventListener('click',async()=>{
     const id=current();if(saving||!generations.has(id))return;saving=true;save.disabled=true;
     try{const automatic=Frame.project.automaticCheckpoints;
-      const receipt=automatic?.status(id)?.enabled?await automatic.flush(id):await Frame.project.saveDurable(id,generations.get(id));
+      const automaticStatus=automatic?.status(id);
+      const receipt=automaticStatus?.state==='conflict'?await automatic.retry(id):
+        automaticStatus?.enabled?await automatic.flush(id):await Frame.project.saveDurable(id,generations.get(id));
       if(receipt.error)throw new Error(receipt.error);generations.set(id,receipt.generation);
       showStatus(status,'Checkpoint saved: '+id+' · generation '+receipt.generation);
     }catch(error){showStatus(status,'Checkpoint not saved: '+error.message+' Download the design to keep a portable backup.',true);}

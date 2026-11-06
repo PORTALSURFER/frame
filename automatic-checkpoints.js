@@ -1,7 +1,9 @@
 // One acknowledged, bounded snapshot queue per enabled design. At most one write
 // and one superseding snapshot are retained; failed writes require an explicit retry.
 (function(root) {
-  function create({capture, read, write, canCapture = () => true, acknowledge = () => {}, notify = () => {}, delay = 500}) {
+  function create({capture, read, write, canCapture = () => true, acknowledge = () => {}, notify = () => {}, delay = 500,
+    sameFeedback = (saved, current) => JSON.stringify(saved.feedback) === JSON.stringify(current.feedback),
+    canRetryConflict}) {
     let enabled = true, version = 1, saved = 0, captured = 0, generation, queued, running, timer, ready;
     let error = null, capturing = false, initializing = true;
     function status() {
@@ -23,7 +25,7 @@
     function initialize() { initializing = true; return Promise.resolve().then(read).then(record => {
       // Enabling never replaces a divergent checkpoint left by another session.
       if (record && (!initial || record.project.archive.currentRevisionId !== initial.archive.currentRevisionId ||
-          JSON.stringify(record.project.feedback) !== JSON.stringify(initial.feedback))) {
+          !sameFeedback(record.project, initial))) {
         const failure = new Error('Saved checkpoint differs from the open design. Recover it or explicitly save the current project before enabling automatic checkpoints.');
         failure.name = 'ConflictError'; throw failure;
       }
@@ -58,7 +60,22 @@
         timer = setTimeout(flush, delay);
       },
       retry() {
-        if (error?.name !== 'ConflictError') { error = null; if (generation === undefined) ready = initialize(); }
+        if (error?.name === 'ConflictError' && canRetryConflict && !initializing) {
+          snapshot();
+          const batch = queued;
+          if (batch && canCapture()) {
+            initializing = true;
+            ready = Promise.resolve().then(read).then(async record => {
+              if (!record || !await canRetryConflict(record.project, batch.project) ||
+                  version !== batch.version || queued !== batch || !canCapture()) return;
+              generation = record.generation;
+              error = null;
+            }).catch(failure => { error = failure; }).finally(() => { initializing = false; announce(); });
+          }
+        } else if (error?.name !== 'ConflictError') {
+          error = null;
+          if (generation === undefined) ready = initialize();
+        }
         return flush();
       },
       disable() { enabled = false; return flush(); }

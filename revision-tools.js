@@ -59,6 +59,9 @@
     const retry=document.getElementById("retry-project-save");if(retry)retry.hidden=!unsaved.size;
   }
   function persist(id) {
+    if (Frame.disk) {
+      unsaved.add(id); notify(); return;
+    }
     try {if(blocked.has(id))throw new Error("Saved project is unreadable and protected");localStorage.setItem(key(id),JSON.stringify(archives.get(id)));unsaved.delete(id);}
     catch {unsaved.add(id);}
     notify();
@@ -112,7 +115,7 @@
         }
       }
     } finally { registering = previousRegistering; }
-    if(result){record(document,input.revisionId);if(!archive)persist(input.id);refresh();}
+    if(result){record(document,input.revisionId);if(!archive && !Frame.disk)persist(input.id);refresh();}
     return result;
   };
   function currentId(){return document.getElementById("design-picker").value;}
@@ -127,16 +130,18 @@
       changed:[...next.keys()].filter(id=>old.has(id)).map(id=>({id,fields:[...new Set([...Object.keys(old.get(id)),...Object.keys(next.get(id))])].filter(k=>JSON.stringify(old.get(id)[k])!==JSON.stringify(next.get(id)[k]))})).filter(item=>item.fields.length),
       settings:["width","height","background","tokens","states"].filter(k=>JSON.stringify(before[k])!==JSON.stringify(after[k]))};
   }
-  function exportProject(id=currentId()) {
+  function exportProject(id=currentId(), {shareRevisions = false} = {}) {
     if(!Frame.documents.has(id))throw new Error("Portable export requires a structured design; custom Canvas code stays in its source files");
     if(currentId()!==id)throw new Error("Select the design before exporting its feedback");
     const doc=Frame.agent.getDocument(id),guide=Frame.activeStyleguide;
-    const project = {...copy(projectExtras.get(id)||{}),format:"frame-project",version:1,archive:copy(archives.get(id)),feedback:Frame.agent.getFeedback(),styleguide:guide?copy(guide):null,
+    const archive=archives.get(id);
+    const snapshot=shareRevisions?{...archive,revisions:archive.revisions.map(entry=>({...entry}))}:copy(archive);
+    const project = {...copy(projectExtras.get(id)||{}),format:"frame-project",version:1,archive:snapshot,feedback:Frame.agent.getFeedback(),styleguide:guide?copy(guide):null,
       viewport:Frame.currentViewport(id),state:Frame.currentState(id),values:Frame.agent.getValues?.(id)||{},assets:copy(doc.assets||[])};
     Frame.project.captureResume?.(project); return project;
   }
-  function validateProject(project) {
-    if(new TextEncoder().encode(JSON.stringify(project)).byteLength>maxProjectBytes)throw new Error("Project exceeds the 128 MB import limit");
+  function validateProject(project, {portable = true} = {}) {
+    if(portable && new TextEncoder().encode(JSON.stringify(project)).byteLength>maxProjectBytes)throw new Error("Project exceeds the 128 MB import limit");
     if(project?.format!=="frame-project"||project.version!==1)throw new Error("Unsupported project format");
     if (project.resume !== undefined) {
       const r=project.resume,v=r?.view;
@@ -166,8 +171,9 @@
     const presets=defaultPresets(doc);
     project.archive.viewportPresets=presets.some(preset=>sameSize(preset,project.viewport))?presets:defaultPresets(project.viewport);
   }
-  function importProject(input, {preserveLegacy = false} = {}) {
-    const project=copy(validateProject(input)),id=project.archive.designId;
+  function importProject(input, {preserveLegacy = false, diskRecovery = false} = {}) {
+    const checked=validateProject(input,{portable:!(Frame.disk && diskRecovery)});
+    const project=Frame.disk && diskRecovery?checked:copy(checked),id=project.archive.designId;
     seedImportedPresets(project);
     if(Frame.designs.has(id))throw new Error("Project ID already exists; choose an unused ID");
     if(project.styleguide&&Frame.styleguides.has(project.styleguide.id)&&JSON.stringify(Frame.styleguides.get(project.styleguide.id))!==JSON.stringify(project.styleguide))throw new Error("Bundled styleguide conflicts with an existing guide");
@@ -200,18 +206,29 @@
   };
   Frame.revisions={
     acknowledgeCheckpoint: archive => {
-      if (JSON.stringify(archives.get(archive.designId)) !== JSON.stringify(archive)) return false;
+      const current=archives.get(archive.designId);
+      if (Frame.disk) {
+        if (!current || current.currentRevisionId!==archive.currentRevisionId || current.sourceRevisionId!==archive.sourceRevisionId ||
+            JSON.stringify(current.viewportPresets)!==JSON.stringify(archive.viewportPresets) ||
+            current.revisions.length!==archive.revisions.length ||
+            current.revisions.some((entry,index)=>entry.document!==archive.revisions[index].document)) return false;
+      } else if (JSON.stringify(current) !== JSON.stringify(archive)) return false;
       unsaved.delete(archive.designId); notify(); return true;
     },
     list:id=>copy((archives.get(id)?.revisions||[]).map(({revisionId,capturedAt,parentRevisionId,document})=>({revisionId,capturedAt,parentRevisionId,elementCount:document.elements.length}))),
     get:(id,revisionId)=>copy(revision(id,revisionId).document),
     restore:(id,revisionId)=>Frame.agent.updateDocument(copy(revision(id,revisionId).document)),
     compare,
-    retry:()=>{for(const id of [...unsaved])persist(id);}
+    retry:()=>{for(const id of [...unsaved]) {
+      if (Frame.disk) {
+        if(id===currentId()) Frame.project.automaticCheckpoints.ensure(id).catch(()=>{});
+      } else persist(id);
+    }}
   };
   function restoreStartup(input, expectedSelection) {
     const conflict=message=>{const error=new Error(message);error.name='ConflictError';throw error;};
-    const project=copy(validateProject(input)),id=project.archive.designId,old=archives.get(id);
+    const checked=validateProject(input,{portable:!Frame.disk});
+    const project=Frame.disk?checked:copy(checked),id=project.archive.designId,old=archives.get(id);
     seedImportedPresets(project);
     if(currentId()!==expectedSelection || Frame.projectBridge.restorationEpoch()!==0 || !Frame.projectBridge.canCheckpoint()) conflict('The open review changed while loading; recover the checkpoint as a separate design.');
     if(Frame.designs.has(id) && !Frame.documents.has(id))conflict('A different source design uses this project ID; both versions are preserved.');
@@ -239,7 +256,8 @@
     } finally { Frame.restoringProject=null; }
     window.dispatchEvent(new CustomEvent('frame:project-restored',{detail:{id}}));refresh();return id;
   }
-  Frame.project={export:exportProject,validate:validateProject,import:importProject,restoreStartup,getViewportPresets,setViewportPresets};
+  Frame.project={export:exportProject,validate:validateProject,import:importProject,restoreStartup,getViewportPresets,setViewportPresets,
+    captureDurable:id=>exportProject(id,{shareRevisions:!!Frame.disk})};
   const picker=document.getElementById("revision-picker");
   function refresh() {
     if(!picker)return;

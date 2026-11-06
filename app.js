@@ -98,7 +98,98 @@
     const loadedLines = data.lines.map(({points, ...metadata}) => { lineMetadata.set(points, metadata); return points; });
     return {lines: loadedLines, notes: data.notes, unsaved: false, notice: ""};
   }
+  const diskFeedback = new Map();
+  function feedbackDocument(id, session) {
+    return FrameFeedback.document(Frame.designs.get(id),
+      session.feedback.lines.map(line => ({...lineMetadata.get(line), points: line})), session.feedback.notes);
+  }
+  function updateDiskFeedback(id, session) {
+    if (design?.id === id && sessions.get(id) === session) updateControls();
+  }
+  function diskFeedbackError(id, session, error) {
+    session.feedback.unsaved = true;
+    session.feedback.notice = 'Feedback is unsaved on disk: ' + error.message + ' Download feedback before closing or reloading.';
+    pendingFeedback.set(id, session.feedback);
+    updateDiskFeedback(id, session);
+  }
+  function flushDiskFeedback(id, session, disk) {
+    if (disk.running || disk.generation === undefined || !disk.next || disk.conflict) return;
+    const data = disk.next;
+    disk.running = true;
+    Frame.disk.save('feedback', id, disk.generation, data).then(receipt => {
+      disk.generation = receipt.generation;
+      if (disk.next === data) {
+        disk.next = null;
+        session.feedback.unsaved = false;
+        session.feedback.notice = '';
+        pendingFeedback.delete(id);
+      }
+      return true;
+    }).catch(error => {
+      disk.conflict = error.name === 'ConflictError';
+      diskFeedbackError(id, session, error);
+      return false;
+    }).then(saved => {
+      disk.running = false;
+      if (saved && disk.next) flushDiskFeedback(id, session, disk);
+      updateDiskFeedback(id, session);
+    });
+  }
+  function loadDiskFeedback(id, session) {
+    let disk = diskFeedback.get(id);
+    if (!disk) {
+      disk = {baseline: JSON.stringify(feedbackDocument(id, session))};
+      diskFeedback.set(id, disk);
+    }
+    if (disk.loading || disk.generation !== undefined) return disk;
+    disk.loading = true;
+    Frame.disk.read('feedback', id).then(record => {
+      const data = record && FrameFeedback.read(record.data, {id});
+      const install = () => {
+        if (design?.id === id && (active || noteDrag || noteDraft)) {
+          setTimeout(install, 100); return;
+        }
+        disk.loading = false;
+        if (record) {
+          const saved = JSON.stringify(data);
+          if (disk.next && saved !== disk.baseline) {
+            disk.conflict = true;
+            diskFeedbackError(id, session, new Error('Disk feedback changed while opening this design.'));
+            return;
+          }
+          if (!disk.next) {
+            const imported = unpack(data);
+            Object.assign(session.feedback, imported, {blocked: false});
+            if (design?.id === id) {
+              lines = imported.lines; notes = imported.notes;
+              selectedLine = null; selectedNote = null; redrawMarks();
+            }
+          }
+        }
+        disk.generation = record?.generation || 0;
+        if (!record && !disk.next) {
+          const migrate = () => {
+            if (disk.generation !== 0 || disk.next || session.feedback.blocked ||
+                !(session.feedback.lines.length || session.feedback.notes.length)) return;
+            disk.next = structuredClone(feedbackDocument(id, session));
+            pendingFeedback.set(id, session.feedback);
+            flushDiskFeedback(id, session, disk);
+          };
+          if (Frame.project.startup?.ready) Frame.project.startup.ready.then(migrate);
+          else migrate();
+        }
+        flushDiskFeedback(id, session, disk);
+        updateDiskFeedback(id, session);
+      };
+      install();
+    }).catch(error => {
+      disk.loading = false;
+      diskFeedbackError(id, session, error);
+    });
+    return disk;
+  }
   function load() {
+    if (Frame.disk) return unpack(FrameFeedback.read([], design));
     let saved;
     try {
       saved = localStorage.getItem(storageKey()) ?? localStorage.getItem(`frame-feedback-v2:${design.id}`) ??
@@ -166,7 +257,7 @@
     resolveSelected.disabled = !selected;
     resolveSelected.textContent = selected?.status === "resolved" ? "Reopen" : "Mark resolved";
     deleteSelected.disabled = !designReady || (!selectedLine && !selectedNote);
-    retrySave.hidden = !feedback.unsaved;
+    retrySave.hidden = !feedback.unsaved || diskFeedback.get(design?.id)?.conflict === true;
     retrySave.disabled = active !== null || noteDrag !== null;
     saveNotice.textContent = feedback.notice;
     const marks = [...lines.map(line=>lineMetadata.get(line)), ...notes].filter(feedbackInViewport);
@@ -194,6 +285,16 @@
     edited();
     feedback.lines = lines;
     feedback.notes = notes;
+    if (Frame.disk) {
+      const session = sessions.get(design.id);
+      const disk = loadDiskFeedback(design.id, session);
+      disk.next = structuredClone(currentDocument());
+      pendingFeedback.set(design.id, feedback);
+      flushDiskFeedback(design.id, session, disk);
+      updateControls();
+      window.dispatchEvent(new CustomEvent('frame:feedback-changed', {detail: {id: design.id}}));
+      return;
+    }
     try {
       if (feedback.blocked) throw new Error("Saved data is protected");
       localStorage.setItem(storageKey(), JSON.stringify(currentDocument()));
@@ -639,6 +740,7 @@
     ({feedback, history} = sessions.get(id));
     lines = feedback.lines;
     notes = feedback.notes;
+    if (Frame.disk) loadDiskFeedback(id, sessions.get(id));
     pointLimitReached = false;
     previousElements = Frame.documents.has(design.id) ? Frame.agent.inspect(design.id) : [];
     window.dispatchEvent(new CustomEvent("frame:design-selected", {detail: {design}}));
@@ -1037,10 +1139,15 @@
     canCheckpoint: () => !active && !noteDrag && !noteDraft && !panDrag,
     restorationEpoch: () => restorationEpoch,
     restoreCheckpointFeedback: data => {
+      if (Frame.disk && diskFeedback.get(design.id)?.generation > 0) return;
       const imported=unpack(data), protectedOriginal=feedback.blocked;
-      feedback={...imported,blocked:protectedOriginal,notice:protectedOriginal?'Checkpoint restored; unreadable legacy feedback remains protected.':''};
+      const restored={...imported,blocked:protectedOriginal,notice:protectedOriginal?'Checkpoint restored; unreadable legacy feedback remains protected.':''};
+      if(Frame.disk)Object.assign(feedback,restored);
+      else feedback=restored;
       lines=feedback.lines;notes=feedback.notes;history={undo:[],redo:[]};
-      sessions.set(design.id,{feedback,history});pendingFeedback.delete(design.id);
+      if(Frame.disk)sessions.get(design.id).history=history;
+      else sessions.set(design.id,{feedback,history});
+      pendingFeedback.delete(design.id);
     },
     acknowledgeCheckpoint: data => {
       const session = sessions.get(data.design), target = Frame.designs.get(data.design);

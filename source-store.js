@@ -54,5 +54,21 @@
       return run(record.id, structuredClone(record), generation, guard);
     }};
   }
-  Frame.sourceStore = {create};
+  function diskStore() {
+    const unpack = record => record ? validate({...record.data, generation: record.generation}) : null;
+    async function read(id) {
+      return unpack(await Frame.disk.read('sources', id));
+    }
+    async function save(record, generation, guard) {
+      const data = validate({...record, version: 1, generation: generation + 1});
+      guard?.();
+      const receipt = await Frame.disk.save('sources', data.id, generation, data);
+      return {...data, generation: receipt.generation};
+    }
+    return {read, save};
+  }
+  Frame.sourceStore = {create: options => {
+    const legacy = create(options);
+    return Frame.disk ? diskStore() : legacy;
+  }};
 })();

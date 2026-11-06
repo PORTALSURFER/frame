@@ -193,27 +193,42 @@
     project.resume = {...project.resume,version:1, view:Frame.view?.get() || {zoom:1,panX:0,panY:0},
       automaticCheckpoints:!!Frame.project.automaticCheckpoints?.status(project.archive.designId)?.enabled};
     delete project.resume.legacyDigest;
+    if (Frame.disk) return;
     try { baselines.set(project, legacySnapshot(project.archive.designId)); } catch { baselines.set(project, null); }
   };
   async function write(project, expectedGeneration) {
+    if (Frame.disk) return Frame.disk.saveProject(project, expectedGeneration);
     const snapshot = FrameDocument.clone(project), baseline = baselines.get(project);
     if (snapshot.resume) snapshot.resume.legacyDigest = typeof baseline === 'string' ? await digest(baseline) : null;
     return store.save(snapshot, expectedGeneration);
   }
   Frame.project.startupEvidence = {rememberedId, legacySnapshot, digest};
-  Frame.project.saveDurable = (id, expectedGeneration) => write(Frame.project.export(id), expectedGeneration);
+  function read(id) {
+    return Frame.disk ? Frame.disk.readProject(id) : store.read(id);
+  }
+  Frame.project.saveDurable = async (id, expectedGeneration) => {
+    const project=Frame.project.captureDurable(id);
+    const receipt=await write(project, expectedGeneration);
+    if (Frame.disk) Frame.revisions.acknowledgeCheckpoint(project.archive);
+    return receipt;
+  };
   Frame.project.writeDurable = write;
-  Frame.project.readDurable = id => store.read(id);
-  Frame.project.listDurable = () => store.list();
+  Frame.project.readDurable = read;
+  Frame.project.readCheckpointHead = async id => {
+    if (!Frame.disk) return read(id);
+    const record=await Frame.disk.read('projects',id);
+    return record ? {...record, project: record.data} : read(id);
+  };
+  Frame.project.listDurable = () => Frame.disk ? Frame.disk.list() : store.list();
   Frame.project.recoverDurable = async (id, recoveredId) => {
     if (typeof recoveredId !== 'string' || !/^[a-z0-9][a-z0-9_-]*$/i.test(recoveredId) || Frame.designs.has(recoveredId)) throw new Error('Choose a new, unused project ID');
-    const record = await store.read(id);
+    const record = await read(id);
     if (!record) throw new Error('Saved project not found');
-    const project = FrameDocument.clone(record.project);
+    const project = Frame.disk ? record.project : FrameDocument.clone(record.project);
     project.archive.designId = recoveredId;
     for (const revision of project.archive.revisions) revision.document.id = recoveredId;
     project.feedback.design = recoveredId;
     for (const mark of [...project.feedback.lines, ...project.feedback.notes]) mark.designId = recoveredId;
-    return Frame.project.import(project);
+    return Frame.project.import(project, {diskRecovery: !!Frame.disk});
   };
 })();
