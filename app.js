@@ -298,7 +298,7 @@
     retrySave.disabled = !!feedbackGestureActive(design?.id);
     saveNotice.textContent = feedback.notice;
     const marks = [...lines.map(line=>lineMetadata.get(line)), ...notes].filter(feedbackInViewport);
-    clear.disabled = marks.length === 0;
+    clear.disabled = lines.length === 0 && notes.length === 0;
     const visibleLines=marks.filter(mark=>mark.type==="stroke").length,visibleNotes=marks.length-visibleLines;
     const openCount = marks.filter(mark=>mark.status!=="resolved").length;
     count.title = openCount + " open · " + (marks.length-openCount) + " resolved";
@@ -1003,8 +1003,8 @@
     finishNoteDrag();
     closeNoteEditor();
     const before = snapshot();
-    lines = lines.filter(line=>!feedbackInViewport(lineMetadata.get(line)));
-    notes = notes.filter(note=>!feedbackInViewport(note));
+    lines = [];
+    notes = [];
     record(before, "Clear feedback");
     selectedLine = null;
     selectedNote = null;
