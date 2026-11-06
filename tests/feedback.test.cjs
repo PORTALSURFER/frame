@@ -73,6 +73,46 @@ async function beginMouse(page) {
   await page.mouse.move(bounds.x + 150, bounds.y + 150, {steps: 3});
 }
 
+test('eraser sweeps across visible lines and note pins, with one undo and a recoverable cancel', async t => {
+  const page = await openPage(t);
+  await page.evaluate(() => {
+    const design = Frame.designs.get('starter'), feedback = Frame.agent.getFeedback();
+    for (const [x, status] of [[140, 'open'], [200, 'resolved'], [260, 'open'], [500, 'open']]) {
+      feedback.lines.push({...FrameFeedback.metadata('stroke', design), status, points:[[x, 80], [x, 240]]});
+    }
+    feedback.notes.push({...FrameFeedback.metadata('note', design), anchor:[320, 160], text:'Erase this pin'});
+    Frame.projectBridge.importFeedback(feedback);
+  });
+  await (await feedbackControl(page, '#feedback-filter')).selectOption('open');
+  await page.keyboard.press('e');
+  assert.equal(await page.getByRole('button', {name:'Eraser'}).getAttribute('aria-pressed'), 'true');
+  const board = await page.locator('#board').boundingBox();
+  const sweep = async () => {
+    await page.mouse.move(board.x + board.width * 80 / 960, board.y + board.height * 160 / 600);
+    await page.mouse.down();
+    await page.mouse.move(board.x + board.width * 370 / 960, board.y + board.height * 160 / 600);
+  };
+  await sweep();
+  assert.equal(await page.locator('#brush path:not([hidden])').count(), 1);
+  assert.equal(await page.locator('.note-pin:visible').count(), 0);
+  await page.keyboard.press('Escape');
+  await page.mouse.up();
+  assert.equal(await page.locator('#brush path:not([hidden])').count(), 3);
+  assert.equal(await page.locator('.note-pin:visible').count(), 1);
+  await sweep();
+  await page.mouse.up();
+  const marks = () => page.evaluate(() => Frame.agent.getFeedback());
+  assert.deepEqual((await marks()).lines.map(line => line.points[0][0]), [200, 500]);
+  assert.equal((await marks()).notes.length, 0);
+  await page.locator('#undo').click();
+  assert.equal((await marks()).lines.length, 4);
+  assert.equal((await marks()).notes.length, 1);
+  await page.locator('#redo').click();
+  await page.reload();
+  assert.equal((await marks()).lines.length, 2);
+  assert.equal((await marks()).notes.length, 0);
+});
+
 test('secondary mouse, touch, and pen events cannot replace, extend, or finish a stroke', async t => {
   const page = await openPage(t);
   await beginMouse(page);

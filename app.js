@@ -56,6 +56,7 @@
   let active = null;
   let activePath = null;
   let activePointerId = null;
+  let erasing = null;
   let pointLimitReached = false;
   let zoom = 1, panX = 0, panY = 0, panDrag = null;
   let paintGeneration = 0;
@@ -160,7 +161,7 @@
     Frame.disk.read('feedback', id).then(record => {
       const data = record && FrameFeedback.read(record.data, {id});
       const install = () => {
-        if (design?.id === id && (active || noteDrag || noteDraft)) {
+        if (design?.id === id && (activePointerId !== null || noteDrag || noteDraft)) {
           setTimeout(install, 100); return;
         }
         disk.loading = false;
@@ -262,9 +263,9 @@
     document.getElementById("import-feedback").disabled = !design;
     for (const button of toolButtons) button.disabled = !designReady || (button.dataset.feedbackTool === "interact" && !Frame.documents.has(design?.id));
     selectionStatus.textContent = selectedNote ? `Note ${notes.indexOf(selectedNote) + 1} selected. Drag it or use arrow keys to move.` : selectedLine ? `Line ${lines.indexOf(selectedLine) + 1} selected.` : "";
-    undo.disabled = !active && !noteDrag?.moved && history.undo.length === 0;
-    redo.disabled = !!active || !!noteDrag?.moved || history.redo.length === 0;
-    undo.title = active ? "Undo drawing line" : noteDrag?.moved ? "Undo moving note" : history.undo.at(-1)?.label || "Undo";
+    undo.disabled = activePointerId === null && !noteDrag?.moved && history.undo.length === 0;
+    redo.disabled = activePointerId !== null || !!noteDrag?.moved || history.redo.length === 0;
+    undo.title = erasing ? "Undo erasing feedback" : active ? "Undo drawing line" : noteDrag?.moved ? "Undo moving note" : history.undo.at(-1)?.label || "Undo";
     redo.title = history.redo.at(-1)?.label ? `Redo: ${history.redo.at(-1).label}` : "Redo";
 
     download.disabled = !design;
@@ -273,7 +274,7 @@
     resolveSelected.textContent = selected?.status === "resolved" ? "Reopen" : "Mark resolved";
     deleteSelected.disabled = !designReady || (!selectedLine && !selectedNote);
     retrySave.hidden = !feedback.unsaved || diskFeedback.get(design?.id)?.conflict === true;
-    retrySave.disabled = active !== null || noteDrag !== null;
+    retrySave.disabled = activePointerId !== null || noteDrag !== null;
     saveNotice.textContent = feedback.notice;
     const marks = [...lines.map(line=>lineMetadata.get(line)), ...notes].filter(feedbackInViewport);
     clear.disabled = marks.length === 0;
@@ -371,7 +372,7 @@
     save();
   }
   function travelHistory(direction) {
-    finishLine();
+    finishBrush();
     finishNoteDrag();
     closeNoteEditor();
     const entry = history[direction].pop();
@@ -419,7 +420,7 @@
     path.setAttribute("aria-pressed", points === selectedLine ? "true" : "false");
     path.classList.toggle("selected", points === selectedLine);
     path.classList.toggle("resolved", lineMetadata.get(points)?.status === "resolved");
-    path.toggleAttribute("hidden", !feedbackVisible(lineMetadata.get(points)));
+    path.toggleAttribute("hidden", !feedbackVisible(lineMetadata.get(points)) || !!erasing?.lines.has(points));
   }
   function selectLine(line) {
     selectedLine = line;
@@ -438,7 +439,7 @@
   }
   function deleteSelection() {
     if (!selectedLine && !selectedNote) return;
-    finishLine();
+    finishBrush();
     finishNoteDrag();
     closeNoteEditor();
     const before = snapshot();
@@ -456,8 +457,8 @@
       pin.classList.toggle("selected", note === selectedNote);
       pin.setAttribute("aria-pressed", note === selectedNote ? "true" : "false");
       pin.classList.toggle("resolved", note.status === "resolved");
-      pin.hidden = !feedbackVisible(note);
-      pin.tabIndex = mode === "pen" ? -1 : 0;
+      pin.hidden = !feedbackVisible(note) || !!erasing?.notes.has(note);
+      pin.tabIndex = mode === "pen" || mode === "erase" ? -1 : 0;
     }
   }
   function positionNote(pin, note) {
@@ -558,27 +559,60 @@
     noteDialog.showModal();
     noteText.focus();
   }
+  function distanceToSegmentSquared(x, y, ax, ay, bx, by) {
+    const dx = bx - ax, dy = by - ay;
+    const lengthSquared = dx * dx + dy * dy;
+    const t = lengthSquared ? Math.max(0, Math.min(1, ((x - ax) * dx + (y - ay) * dy) / lengthSquared)) : 0;
+    return (x - ax - t * dx) ** 2 + (y - ay - t * dy) ** 2;
+  }
+  function segmentsWithin(ax, ay, bx, by, cx, cy, dx, dy, radius) {
+    if (Math.max(ax, bx) + radius < Math.min(cx, dx) || Math.max(cx, dx) + radius < Math.min(ax, bx) ||
+        Math.max(ay, by) + radius < Math.min(cy, dy) || Math.max(cy, dy) + radius < Math.min(ay, by)) return false;
+    const side = (x, y, x1, y1, x2, y2) => (x2 - x1) * (y - y1) - (y2 - y1) * (x - x1);
+    if (side(cx, cy, ax, ay, bx, by) * side(dx, dy, ax, ay, bx, by) < 0 &&
+        side(ax, ay, cx, cy, dx, dy) * side(bx, by, cx, cy, dx, dy) < 0) return true;
+    const limit = radius * radius;
+    return distanceToSegmentSquared(ax, ay, cx, cy, dx, dy) <= limit ||
+      distanceToSegmentSquared(bx, by, cx, cy, dx, dy) <= limit ||
+      distanceToSegmentSquared(cx, cy, ax, ay, bx, by) <= limit ||
+      distanceToSegmentSquared(dx, dy, ax, ay, bx, by) <= limit;
+  }
+  function lineWithin(line, from, to, scaleX, scaleY, radius) {
+    for (let index = 0; index < line.length; index++) {
+      const a = line[Math.max(0, index - 1)], b = line[index];
+      if (segmentsWithin(...from, ...to, a[0] * scaleX, a[1] * scaleY, b[0] * scaleX, b[1] * scaleY, radius)) return true;
+    }
+    return false;
+  }
   function lineAt(event) {
     const {boardBounds, scaleX, scaleY} = geometry();
-    const x = event.clientX - boardBounds.left;
-    const y = event.clientY - boardBounds.top;
+    const point = [event.clientX - boardBounds.left, event.clientY - boardBounds.top];
     for (let index = lines.length - 1; index >= 0; index--) {
       const line = lines[index];
-      if (!feedbackVisible(lineMetadata.get(line))) continue;
-      for (let point = 0; point < line.length; point++) {
-        const a = line[Math.max(0, point - 1)];
-        const b = line[point];
-        const ax = a[0] * scaleX, ay = a[1] * scaleY;
-        const dx = (b[0] - a[0]) * scaleX, dy = (b[1] - a[1]) * scaleY;
-        const lengthSquared = dx * dx + dy * dy;
-        const ratio = lengthSquared ? Math.max(0, Math.min(1, ((x - ax) * dx + (y - ay) * dy) / lengthSquared)) : 0;
-        if (Math.hypot(x - ax - ratio * dx, y - ay - ratio * dy) <= 8) return line;
-      }
+      if (feedbackVisible(lineMetadata.get(line)) && lineWithin(line, point, point, scaleX, scaleY, 8)) return line;
     }
     return null;
   }
+  function sweepEraser(event) {
+    const {boardBounds, scaleX, scaleY} = geometry();
+    const point = [event.clientX - boardBounds.left, event.clientY - boardBounds.top];
+    const from = erasing.point || point;
+    erasing.point = point;
+    const count = erasing.lines.size + erasing.notes.size;
+    for (const line of lines) {
+      if (!erasing.lines.has(line) && feedbackVisible(lineMetadata.get(line)) &&
+          lineWithin(line, from, point, scaleX, scaleY, 10)) erasing.lines.add(line);
+    }
+    for (const note of notes) {
+      const [x, y] = note.anchor;
+      if (feedbackVisible(note) && distanceToSegmentSquared(x * scaleX, y * scaleY, ...from, ...point) <= 24 ** 2) {
+        erasing.notes.add(note);
+      }
+    }
+    if (erasing.lines.size + erasing.notes.size !== count) redrawMarks();
+  }
   function setMode(next) {
-    finishLine();
+    finishBrush();
     finishNoteDrag();
     closeNoteEditor();
     finishPan();
@@ -593,6 +627,10 @@
       : mode === "note" ? "Click to place a note. Or Tab to the canvas, use arrows to position, and Enter to place. Click a note to edit or drag to move."
       : "Click a line or note to select it, or use Tab. Double-click a note to edit. Escape deselects.";
     if (mode === "interact") instructions.textContent = "Use prototype controls and Tab to test interaction. Feedback tools resume annotation.";
+    if (mode === "erase") {
+      brush.setAttribute("aria-label", "Erase feedback marks");
+      instructions.textContent = "Drag across lines or note pins to erase them. Undo restores the last sweep.";
+    }
     if (mode === "pan") instructions.textContent = "Drag to pan, or middle-drag in any tool. Scroll to zoom. Fit restores the board.";
     selectLine(null);
     updateKeyboardCursor();
@@ -734,7 +772,7 @@
   }
   function selectDesign(id) {
     edited();
-    if (active) finishLine();
+    finishBrush();
     finishNoteDrag();
     closeNoteEditor();
     importDraft = null; importRequest++;
@@ -763,8 +801,27 @@
     fitBoard();
     if(!booting && !Frame.restoringProject)try { localStorage.setItem("frame-last-design", id); } catch { /* optional */ }
   }
-  function finishLine() {
-    if (!active) return;
+  function finishBrush(cancelErase = false) {
+    if (activePointerId === null) return;
+    const pointerId = activePointerId;
+    activePointerId = null;
+    if (brush.hasPointerCapture(pointerId)) brush.releasePointerCapture(pointerId);
+    if (erasing) {
+      const erased = erasing;
+      erasing = null;
+      if (cancelErase || (!erased.lines.size && !erased.notes.size)) {
+        redrawMarks();
+        return;
+      }
+      const before = snapshot();
+      lines = lines.filter(line => !erased.lines.has(line));
+      notes = notes.filter(note => !erased.notes.has(note));
+      pointLimitReached = false;
+      record(before, "Erase feedback");
+      redrawMarks();
+      save();
+      return;
+    }
     if (active.length === 1) active.push([active[0][0] + 0.1, active[0][1] + 0.1]);
     activePath.setAttribute("d", pathData(active));
     lineMetadata.get(active).updatedAt = new Date().toISOString();
@@ -772,9 +829,6 @@
     strokeBefore = null;
     active = null;
     activePath = null;
-    const pointerId = activePointerId;
-    activePointerId = null;
-    if (brush.hasPointerCapture(pointerId)) brush.releasePointerCapture(pointerId);
     save();
   }
 
@@ -852,6 +906,14 @@
       selectLine(lineAt(event));
       return;
     }
+    if (mode === "erase") {
+      activePointerId = event.pointerId;
+      erasing = {lines:new Set(), notes:new Set(), point:null};
+      brush.setPointerCapture(event.pointerId);
+      sweepEraser(event);
+      updateControls();
+      return;
+    }
     if (lines.length >= MAX_LINES) {
       updateControls();
       return;
@@ -867,7 +929,13 @@
     updateControls();
   });
   function updateActive(event) {
-    if (!active || event.pointerId !== activePointerId) return;
+    if (event.pointerId !== activePointerId) return;
+    if (erasing) {
+      const samples = event.getCoalescedEvents?.();
+      for (const sample of samples?.length ? samples : [event]) sweepEraser(sample);
+      return;
+    }
+    if (!active) return;
     if (event.shiftKey) {
       active.splice(1, active.length - 1, pointFromEvent(event));
     } else {
@@ -879,7 +947,7 @@
           active.push(next);
           if (active.length >= MAX_LINE_POINTS) {
             pointLimitReached = true;
-            finishLine();
+            finishBrush();
             return;
           }
         }
@@ -896,20 +964,20 @@
     if (panDrag && panDrag.pointerId === event.pointerId) { movePan(event); finishPan(); return; }
     if (event.pointerId !== activePointerId) return;
     updateActive(event);
-    finishLine();
+    finishBrush();
   });
   function finishPointer(event) {
     if (panDrag?.pointerId === event.pointerId) {
       finishPan(event.type === "pointercancel");
     }
-    if (event.pointerId === activePointerId) finishLine();
+    if (event.pointerId === activePointerId) finishBrush(event.type === "pointercancel");
   }
   brush.addEventListener("pointercancel", finishPointer);
   brush.addEventListener("lostpointercapture", finishPointer);
   undo.addEventListener("click", () => travelHistory("undo"));
   redo.addEventListener("click", () => travelHistory("redo"));
   clear.addEventListener("click", () => {
-    finishLine();
+    finishBrush();
     finishNoteDrag();
     closeNoteEditor();
     const before = snapshot();
@@ -955,7 +1023,7 @@
   });
   function setFeedbackStatus(id, status) {
     if (!["open","resolved"].includes(status)) throw new Error("Status must be open or resolved");
-    finishLine(); finishNoteDrag();
+    finishBrush(); finishNoteDrag();
     const note = notes.find(mark=>mark.id===id);
     const line = lines.find(line=>lineMetadata.get(line).id===id);
     const mark = note || (line && lineMetadata.get(line));
@@ -982,7 +1050,7 @@
     fitBoard();
   });
   download.addEventListener("click", () => {
-    finishLine();
+    finishBrush();
     finishNoteDrag();
     const data = JSON.stringify(currentDocument(), null, 2);
     const url = URL.createObjectURL(new Blob([data], {type: "application/json"}));
@@ -993,7 +1061,7 @@
     setTimeout(() => URL.revokeObjectURL(url), 1000);
   });
   document.getElementById("import-feedback").addEventListener("click", () => {
-    finishLine(); finishNoteDrag(); closeNoteEditor();
+    finishBrush(); finishNoteDrag(); closeNoteEditor();
     importDraft = null; importRequest++;
     importFile.value = ""; importError.textContent = ""; importPreview.textContent = "";
     confirmImport.disabled = true;
@@ -1049,9 +1117,13 @@
       save();
       return;
     }
-    if (event.key === "Escape") selectLine(null);
+    if (event.key === "Escape") {
+      if (erasing) finishBrush(true);
+      selectLine(null);
+    }
     if (designReady && !event.metaKey && !event.ctrlKey && !event.altKey) {
       if (event.key.toLowerCase() === "p") setMode("pen");
+      if (event.key.toLowerCase() === "e") setMode("erase");
       if (event.key.toLowerCase() === "v") setMode("select");
       if (event.key.toLowerCase() === "h") setMode("pan");
       if (event.key.toLowerCase() === "i" && Frame.documents.has(design?.id)) setMode("interact");
@@ -1067,7 +1139,7 @@
     }
   });
   window.addEventListener("beforeunload", (event) => {
-    if (active || noteDrag?.moved || (noteDraft && noteText.value !== (noteDraft.note?.text || "")) || pendingFeedback.size) {
+    if (activePointerId !== null || noteDrag?.moved || (noteDraft && noteText.value !== (noteDraft.note?.text || "")) || pendingFeedback.size) {
       event.preventDefault();
       event.returnValue = "";
     }
@@ -1102,13 +1174,13 @@
     get: () => ({zoom, panX, panY}),
     set: value => {
       if (!value || !Number.isFinite(value.zoom) || value.zoom < 0.25 || value.zoom > 8 || !Number.isFinite(value.panX) || !Number.isFinite(value.panY)) throw new Error("Invalid view");
-      finishLine(); finishNoteDrag(); finishPan(); ({zoom,panX,panY}=value); fitBoard(); return Frame.view.get();
+      finishBrush(); finishNoteDrag(); finishPan(); ({zoom,panX,panY}=value); fitBoard(); return Frame.view.get();
     },
-    fit: () => { finishLine(); finishNoteDrag(); finishPan(); zoom=1;panX=panY=0;fitBoard(); },
+    fit: () => { finishBrush(); finishNoteDrag(); finishPan(); zoom=1;panX=panY=0;fitBoard(); },
     setMode
   };
   function zoomByButton(nextZoom) {
-    finishLine(); finishNoteDrag(); finishPan();
+    finishBrush(); finishNoteDrag(); finishPan();
     zoom = nextZoom;
     fitBoard(true);
   }
@@ -1126,7 +1198,7 @@
       return !target || target.visible!==node.visible || JSON.stringify(node.bounds)!==JSON.stringify(target.bounds);
     });
     if(!moved){previousElements=next;return;}
-    finishLine();finishNoteDrag();
+    finishBrush();finishNoteDrag();
     if (selectedLine&&!feedbackInViewport(lineMetadata.get(selectedLine))) selectedLine=null;
     if (selectedNote&&!feedbackInViewport(selectedNote)) selectedNote=null;
     const before=snapshot();
@@ -1151,7 +1223,7 @@
     document.getElementById("feedback-revision-notice").textContent=[...lines.map(line=>lineMetadata.get(line)),...notes].filter(mark=>mark.needsReview).length+" marks need review after layout changes.";
   }
   Frame.projectBridge={
-    canCheckpoint: () => !active && !noteDrag && !noteDraft && !panDrag,
+    canCheckpoint: () => activePointerId === null && !noteDrag && !noteDraft && !panDrag,
     restorationEpoch: () => restorationEpoch,
     restoreCheckpointFeedback: data => {
       if (Frame.disk && diskFeedback.get(design.id)?.generation > 0) return;
@@ -1186,20 +1258,20 @@
     selectedId: () => design?.id,
     isReady: () => designReady,
     selectDesign,
-    feedback: () => { finishLine(); finishNoteDrag(); return currentDocument(); }
+    feedback: () => { finishBrush(); finishNoteDrag(); return currentDocument(); }
   });
   window.addEventListener("frame:design-updated", event => {
     if(Frame.restoringProject)return;
     if (design?.id !== event.detail.id) return;
     edited();
     carryFeedback();
-    finishLine(); finishNoteDrag(); closeNoteEditor();
+    finishBrush(); finishNoteDrag(); closeNoteEditor();
     sizeLabel.textContent = design.width + " × " + design.height;
     paintDesign(); fitBoard(); refreshDesigns();
   });
   window.addEventListener("frame:styleguide-selected", () => {
     edited();if(Frame.restoringProject)return;
-    finishLine();
+    finishBrush();
     finishNoteDrag();
     closeNoteEditor();
     if (design) { paintDesign(); fitBoard(); }
