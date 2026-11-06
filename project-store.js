@@ -118,7 +118,9 @@
         });
         return Promise.all(records.map(async value => {
           const {id, generation, updatedAt, project} = await materialize(value);
-          return {id, generation, updatedAt, revisionId: project.archive.currentRevisionId};
+          const revisionId = project.archive.currentRevisionId;
+          const name = project.archive.revisions.find(revision => revision.revisionId === revisionId).document.name;
+          return {id, name, generation, updatedAt, revisionId};
         }));
       },
       save: async (project, expectedGeneration) => {

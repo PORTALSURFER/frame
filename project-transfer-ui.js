@@ -17,6 +17,9 @@
         (s.sourceGuide!==s.targetGuide?'Styleguide copied to '+s.targetGuide+'. ':'')+'The original and existing projects will be preserved. Import stores a checkpoint before opening.';
     }catch(error){if(token===request)status.textContent='Preview unavailable: '+error.message;}
   }
+  document.getElementById('open-first-design').addEventListener('click',()=>{
+    document.getElementById('import-project').click();
+  });
   document.getElementById('import-project').addEventListener('click',()=>{
     invalidate();input=null;file.value='';target.value='';status.textContent='';lock(false);dialog.showModal();
   });

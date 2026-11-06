@@ -1,13 +1,14 @@
 // Run create → render → human note → agent edit → checks → revision review → handoff.
 const http=require('node:http'),fs=require('node:fs/promises'),path=require('node:path'),assert=require('node:assert/strict');
 const {chromium}=require('playwright');
+const {readFixturePage}=require('./fixture-page.cjs');
 (async()=>{
  const root=path.resolve(__dirname,'..'),output=process.env.FRAME_OUTPUT_DIR||path.join(root,'artifacts');
  await fs.mkdir(output,{recursive:true});
  const server=http.createServer(async(req,res)=>{
   const pathname=new URL(req.url,'http://localhost').pathname,name=path.resolve(root,'.'+(pathname==='/'?'/index.html':pathname));
   if(!name.startsWith(root+path.sep)){res.writeHead(403).end();return;}
-  try{res.setHeader('Content-Type',name.endsWith('.js')?'application/javascript':name.endsWith('.css')?'text/css':'text/html');res.end(await fs.readFile(name));}catch{res.writeHead(404).end();}
+  try{res.setHeader('Content-Type',name.endsWith('.js')?'application/javascript':name.endsWith('.css')?'text/css':'text/html');res.end(await readFixturePage(name));}catch{res.writeHead(404).end();}
  });
  await new Promise(r=>server.listen(0,'127.0.0.1',r));
  const browser=await chromium.launch({executablePath:process.env.FRAME_BROWSER_PATH||undefined});

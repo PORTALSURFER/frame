@@ -1,3 +1,4 @@
+const {readFixturePage}=require('../examples/fixture-page.cjs');
 const {test, before, after} = require('node:test');
 const assert = require('node:assert/strict');
 const http = require('node:http');
@@ -19,7 +20,7 @@ before(async () => {
     try {
       const types = {'.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css'};
       response.setHeader('Content-Type', types[path.extname(filename)] || 'application/octet-stream');
-      response.end(await fs.readFile(filename));
+      response.end(await readFixturePage(filename));
     } catch {
       response.writeHead(404).end();
     }
@@ -482,7 +483,7 @@ for (const mode of ['empty', 'invalid']) {
       }
     }});
     assert.equal(await page.locator('#design-status').isVisible(), true);
-    assert.equal(await page.locator('#design-status-title').textContent(), 'No designs available');
+    assert.equal(await page.locator('#design-status-title').textContent(), 'No design open');
     assert.equal(await page.locator('#design-picker').isDisabled(), true);
     assert.equal(await page.locator('#download').isDisabled(), true);
     assert.equal(await page.locator('#brush').isVisible(), false);

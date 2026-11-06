@@ -615,6 +615,7 @@
     designErrorDetails.textContent = details;
     designErrorDetails.parentElement.hidden = !details;
     retryRender.hidden = !canRetry;
+    document.getElementById("open-first-design").hidden = !!design;
     updateControls();
   }
   function selectDesign(id) {
@@ -982,7 +983,7 @@
     picker.disabled = Frame.designs.size === 0;
     if (!Frame.designs.size) {
       sizeLabel.textContent = "";
-      showDesignStatus("No designs available", "Add a valid design, then reload Frame.");
+      showDesignStatus("No design open", "Open a design file from your project.");
       return;
     }
     if (design && Frame.designs.get(design.id) === design) {

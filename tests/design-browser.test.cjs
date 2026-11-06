@@ -1,3 +1,4 @@
+const {readFixturePage}=require('../examples/fixture-page.cjs');
 const {test,before,after}=require('node:test');
 const assert=require('node:assert/strict'),http=require('node:http'),fs=require('node:fs/promises'),path=require('node:path');
 const {chromium}=require('playwright');
@@ -7,7 +8,7 @@ before(async()=>{
  server=http.createServer(async(req,res)=>{
   const name=path.resolve(root,'.'+(new URL(req.url,'http://localhost').pathname==='/'?'/index.html':new URL(req.url,'http://localhost').pathname));
   if(!name.startsWith(root+path.sep)){res.writeHead(403).end();return;}
-  try{res.setHeader('Content-Type',name.endsWith('.js')?'application/javascript':name.endsWith('.css')?'text/css':'text/html');res.end(await fs.readFile(name));}catch{res.writeHead(404).end();}
+  try{res.setHeader('Content-Type',name.endsWith('.js')?'application/javascript':name.endsWith('.css')?'text/css':'text/html');res.end(await (req.url==='/?blank'?fs.readFile(name):readFixturePage(name)));}catch{res.writeHead(404).end();}
  });
  await new Promise(r=>server.listen(0,'127.0.0.1',r));url='http://127.0.0.1:'+server.address().port;
  browser=await chromium.launch({executablePath:process.env.FRAME_BROWSER_PATH||undefined});
@@ -18,6 +19,16 @@ async function pageFor(t){
  const page=await context.newPage();const errors=[];page.on('pageerror',e=>errors.push(e.message));t.after(()=>assert.deepEqual(errors,[]));
  await page.goto(url);await page.evaluate(id=>Frame.agent.selectDesign(id),'instrument');return page;
 }
+test('a fresh workspace opens without designs and offers file import',async t=>{
+ const context=await browser.newContext();t.after(()=>context.close());
+ const page=await context.newPage(),errors=[];page.on('pageerror',error=>errors.push(error.message));
+ await page.goto(url+'/?blank');
+ await page.getByRole('heading',{name:'No design open'}).waitFor();
+ assert.deepEqual(await page.evaluate(()=>Frame.agent.listDesigns()),[]);
+ await page.getByRole('button',{name:'Open design file'}).click();
+ await page.getByRole('dialog',{name:'Import design'}).waitFor();
+ assert.deepEqual(errors,[]);
+});
 test('wheel zoom coalesces raster work and settles sharply without changing design coordinates',async t=>{
  const page=await pageFor(t);
  const result=await page.evaluate(async()=>{
@@ -425,14 +436,12 @@ test('one saved Pulse design switches layouts, states and feedback by viewport',
   for(const node of design.elements.filter(node=>!node.parentId))node.viewportLayout='wide';
   design.elements.push(phone);design.states.phone={'phone-layout':{text:'Phone detail'}};
   Frame.registerDocument(design);
-  Frame.registerDocument({...Frame.agent.getDocument('instrument'),id:id+'-phone'});
   Frame.agent.selectDesign(id);
   Frame.project.setViewportPresets(id,[{name:'Desktop',width:1280,height:800},{name:'Phone',width:393,height:852}]);
   const feedback=Frame.agent.getFeedback();
   for(const width of [1280,393])feedback.lines.push({...FrameFeedback.metadata('stroke',Frame.designs.get(id)),reviewedViewport:{width,height:800},points:[[0,0],[10,10]]});
   Frame.projectBridge.importFeedback(feedback);
   await Frame.project.saveDurable(id,0);
-  Frame.agent.selectDesign(id+'-phone');await Frame.project.saveDurable(id+'-phone',0);
   Frame.agent.selectDesign('instrument');
  },id);
  await page.reload();
@@ -440,6 +449,7 @@ test('one saved Pulse design switches layouts, states and feedback by viewport',
  await menu.locator('summary').click();
  await menu.getByRole('button',{name:'Pulse',exact:true}).click();
  await page.waitForFunction(id=>document.getElementById('design-picker').value===id,id);
+ await menu.locator('#open-designs').waitFor({state:'hidden'});
  assert.equal(await menu.getAttribute('open'),null);
  assert.equal(await picker.inputValue(),'1280×800');
  await page.locator('#state-picker').selectOption('error');
@@ -456,9 +466,8 @@ test('one saved Pulse design switches layouts, states and feedback by viewport',
  await menu.locator('summary').click();
  await menu.getByRole('button',{name:'Browse designs'}).click();
  const library=page.getByRole('dialog',{name:'Designs'});
- await library.getByRole('heading',{name:'Pulse concepts'}).waitFor();
- assert.equal(await library.getByRole('button',{name:/pulse-browser-reference-phone/}).count(),0);
- assert.equal(await page.evaluate(async()=>(await Frame.project.listDurable()).length),2);
+ await library.getByRole('button',{name:/^Pulse instrument-r1$/}).waitFor();
+ assert.equal(await page.evaluate(async()=>(await Frame.project.listDurable()).length),1);
 });
 test('saved viewport, state and input values resume with the browser draft',async t=>{
  const page=await pageFor(t);

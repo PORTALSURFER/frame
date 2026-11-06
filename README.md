@@ -43,49 +43,13 @@ Available today:
 - Keep marks aligned with design coordinates when the board resizes.
 - Save feedback per design in browser `localStorage` and export strokes and notes as JSON.
 
-The original Canvas examples are visual mockups. Instrument workstation adds a structured prototype with responsive layouts and interactive controls. Viewport/state selectors, zoom/pan/fit, structural checks, semantic checks of actual controls, and repeatable visual/interaction comparisons are available through the toolbar and browser API. See docs/agent-api.md for their scope and limitations.
-
-Open **Designs → Browse designs** to switch between open and saved designs. Open **Pulse** directly from the Designs menu, then use **Viewport** to switch between its desktop and phone layouts. Use **Designs → Viewport sizes** to add, edit, or remove named resolutions for the current design. Keep at least one preset. The viewport picker uses those presets, and design downloads and checkpoints include them.
+Frame opens as an empty design environment. Use **Open design file** to import a `.frame.json` file from your project. The **Designs** menu lists the designs in the current workspace. Use **Download design** to save a portable copy alongside the project source. Viewport presets, revisions and feedback are included in the file.
 
 ## Run locally
 
-Run `npm start`, then keep using <http://127.0.0.1:8765/> in the same tab. The
-launcher binds only to loopback and fails clearly if that port is already in use;
-it never chooses another port or opens extra tabs. It serves revalidated files so
-refreshing loads edits. JSON source watchers can use its ETags for unchanged files.
-`localhost`, `127.0.0.1` and different ports are distinct browser-storage origins.
-Changing addresses does not migrate saved projects or feedback. Export from each
-old address before consolidating work; keep the originals until recovery is verified.
+Run `npm start` and open <http://127.0.0.1:8765/>. The launcher binds only to loopback. Browser drafts and checkpoints are scoped to the address, so use a separate local port when reviewing several projects at once. Keep each design file in its owning project.
 
-Open `index.html` in a browser, or serve this folder:
-
-```sh
-python3 -m http.server 8765
-```
-
-Then open <http://127.0.0.1:8765/>. **Starter UI** is a neutral example. **Sift example** preserves the original VST mockup and its traced waveform as a separate design; it does not generate functional VST code.
-
-## Add a design
-
-Create a JavaScript file in `examples/` (or another folder) and load it after `frame.js` and before `app.js` in `index.html`:
-
-```js
-Frame.register({
-  id: "my-interface",
-  name: "My interface",
-  width: 1000,
-  height: 600,
-  paint(ctx) {
-    ctx.fillStyle = "#202526";
-    ctx.fillRect(0, 0, 1000, 600);
-    // Draw shapes, text, paths, gradients, and images here.
-  }
-});
-```
-
-The drawing coordinates use the registered width and height. Frame scales the board to fit the window and renders at device resolution. Edit the script and reload to see changes. Annotations remain aligned with the design's coordinates, even after resizing.
-
-`Frame.register` returns `true` for a valid design. Invalid definitions and duplicate IDs return `false` and are recorded in `Frame.errors`; duplicate IDs keep the original design. Frame shows registration errors in the footer and displays an empty state when no valid designs are available. Designs registered after startup are added to the picker automatically.
+The scripts under `examples/` are fixtures for tests and the opt-in review workflow. They are never loaded by the Frame workspace.
 
 If a design's paint function fails, Frame shows a render error with details and a **Retry render** action. Choose another design to continue working. Existing feedback remains available for export, and a successful retry restores the canvas and its marks.
 
@@ -114,7 +78,7 @@ Guides are embedded in ordinary scripts so the reader also works when opening `i
 
 ## Structured designs and agent operations
 
-The **Instrument workstation** example uses a serializable design document with stable element IDs, hierarchy, bounds, styles, reusable primitives, shared tokens, and viewport/state data. Register documents with Frame.registerDocument and edit them through Frame.agent. Agents can inspect elements, hit-test positions, apply atomic editing batches, refresh designs without reloading, and export PNGs with or without feedback. Marks on structured elements retain an element anchor and their original revision context. See [the browser API](docs/agent-api.md) for operations and limits.
+The opt-in **Instrument workstation** fixture uses a serializable design document with stable element IDs, hierarchy, bounds, styles, reusable primitives, shared tokens, and viewport/state data. Register documents with Frame.registerDocument and edit them through Frame.agent. Agents can inspect elements, hit-test positions, apply atomic editing batches, refresh designs without reloading, and export PNGs with or without feedback. Marks on structured elements retain an element anchor and their original revision context. See [the browser API](docs/agent-api.md) for operations and limits.
 
 ## Feedback
 
@@ -174,7 +138,7 @@ The suite covers drawing and pointer recovery, undo/clear, drawing limits, stora
 
 ## Frame inside Frame
 
-Select **Frame · workspace redesign** to review a Technical Futurist proposal for Frame itself. The 1280×800 structured prototype uses a compact header and canvas toolbar, a left feedback-tool strip, and a right feedback panel. It embeds the compact Sift r7 design as editable structured nodes rather than a screenshot. The two feedback cards are illustrative fixtures.
+The **Frame · workspace redesign** fixture captures a Technical Futurist proposal for Frame itself. The 1280×800 structured prototype uses a compact header and canvas toolbar, a left feedback-tool strip, and a right feedback panel. It embeds the compact Sift r7 design as editable structured nodes rather than a screenshot. The two feedback cards are illustrative fixtures.
 
 Use Frame's Interact tool to try selection/resolve states and the guide, project, review and export panels, or its Pen/Note tools to annotate the redesign. These are prototype state transitions; controls inside the proposal do not operate the surrounding app, export files, copy prompts or delete actual feedback. The compact workspace proposal is now implemented in Frame’s live interface, including a real feedback list. The proposal remains available for historical comparison. Guide, project and export menu copy describes the proposed grouping of existing capabilities. The prototype and real annotations can be downloaded as a portable project.
 

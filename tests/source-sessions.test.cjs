@@ -1,8 +1,15 @@
+const {readFixturePage}=require('../examples/fixture-page.cjs');
 const {test,before,after}=require('node:test');
 const assert=require('node:assert/strict'),http=require('node:http'),fs=require('node:fs/promises'),path=require('node:path');
 const {chromium}=require('playwright'),{createServer}=require('../scripts/serve.cjs');
 let server,browser,url;
-before(async()=>{server=createServer(path.resolve(__dirname,'..'));await new Promise(r=>server.listen(0,'127.0.0.1',r));url='http://127.0.0.1:'+server.address().port;browser=await chromium.launch();});
+before(async()=>{const root=path.resolve(__dirname,'..');server=createServer(root);
+ const serve=server.listeners('request')[0];server.removeListener('request',serve);
+ server.on('request',async(req,res)=>{
+  if(req.url!=='/')return serve(req,res);
+  res.setHeader('Content-Type','text/html');
+  res.end(await readFixturePage(path.join(root,'index.html')));
+ });await new Promise(r=>server.listen(0,'127.0.0.1',r));url='http://127.0.0.1:'+server.address().port;browser=await chromium.launch();});
 after(async()=>{await browser?.close();if(server)await new Promise(r=>server.close(r));});
 async function pageFor(t,override=''){
  const context=await browser.newContext();t.after(()=>context.close());const page=await context.newPage();page.setDefaultTimeout(5000);

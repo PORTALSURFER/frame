@@ -16,18 +16,11 @@
   <script src="archive-codec.js" defer></script>
   <script src="revision-tools.js?v=2" defer></script>
   <script src="project-store.js" defer></script>
-  <script src="examples/starter.js" defer></script>
-  <script src="examples/sift-waveform-data.js" defer></script>
-  <script src="examples/sift.js" defer></script>
   <script src="styleguides/technical-futurist.js?v=6" defer></script>
   <script src="styleguides/sift-hardware.js?v=3" defer></script>
   <script src="styleguides/zebra-modular.js" defer></script>
   <script src="styleguide-picker.js" defer></script>
   <script src="feedback.js" defer></script>
-  <script src="examples/instrument.js" defer></script>
-  <script src="examples/sift-style-studies.js?v=6" defer></script>
-  <script src="examples/frame-workspace.js" defer></script>
-  <script src="examples/gainsnap-sift-hardware.js?v=5" defer></script>
   <script src="app.js?v=5" defer></script>
   <script src="review-tools.js" defer></script>
   <script src="project-storage-ui.js" defer></script>
@@ -52,7 +45,7 @@
         <button id="view-styleguide" type="button" disabled>View guide</button>
       </div>
       <details class="project-menu"><summary>Designs <span class="project-warning">Attention</span><span aria-hidden="true">⌄</span></summary><div class="project-actions">
-        <button id="open-pulse-design" type="button" hidden>Pulse</button>
+        <div id="open-designs" hidden></div>
         <output id="open-design-status" role="status" hidden></output>
         <button id="browse-designs" type="button">Browse designs</button>
         <button id="configure-viewports" type="button" disabled>Viewport sizes</button>
@@ -111,6 +104,7 @@
         <h1 id="design-status-title"></h1>
         <p id="design-status-message"></p>
         <details hidden><summary>Error details</summary><pre id="design-error-details"></pre></details>
+        <button id="open-first-design" type="button" hidden>Open design file</button>
         <button id="retry-render" type="button" hidden>Retry render</button>
       </section>
       <div class="board" id="board" aria-label="Interface design">

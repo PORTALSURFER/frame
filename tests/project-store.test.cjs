@@ -1,3 +1,4 @@
+const {readFixturePage}=require('../examples/fixture-page.cjs');
 const {test, before, after} = require('node:test');
 const assert = require('node:assert/strict');
 const http = require('node:http');
@@ -11,7 +12,7 @@ before(async () => {
     const pathname = new URL(req.url, 'http://localhost').pathname;
     const file = path.resolve(root, '.' + (pathname === '/' ? '/index.html' : pathname));
     if (!file.startsWith(root + path.sep)) { res.writeHead(403).end(); return; }
-    try { res.end(await fs.readFile(file)); } catch { res.writeHead(404).end(); }
+    try { res.end(await readFixturePage(file)); } catch { res.writeHead(404).end(); }
   });
   await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
   url = 'http://127.0.0.1:' + server.address().port;

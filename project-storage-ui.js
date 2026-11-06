@@ -43,13 +43,12 @@
   });
   const library=document.getElementById('design-library'),libraryEntries=document.getElementById('design-library-entries');
   const libraryStatus=document.getElementById('design-library-status'),closeLibrary=document.getElementById('close-design-library');
-  const pulseId='pulse-browser-reference',legacyPhoneId='pulse-browser-reference-phone';
-  const pulseButton=document.getElementById('open-pulse-design'),designMenu=pulseButton.closest('details');
+  const shortcuts=document.getElementById('open-designs'),designMenu=shortcuts.closest('details');
   const menuStatus=document.getElementById('open-design-status');
   let listing=0,opening=false,menuRequest=0;
   async function openDesign(id, output=libraryStatus) {
     if(opening)return;
-    opening=true;closeLibrary.disabled=true;pulseButton.disabled=true;libraryEntries.inert=true;
+    opening=true;closeLibrary.disabled=true;shortcuts.inert=true;libraryEntries.inert=true;
     output.hidden=false;output.textContent='Opening design…';
     try {
       if(id!==current()) {
@@ -70,44 +69,43 @@
       if(library.open)library.close();
       else {designMenu.open=false;designMenu.querySelector('summary').focus();}
     } catch(error) {output.textContent=error.message;}
-    finally {opening=false;closeLibrary.disabled=false;pulseButton.disabled=false;libraryEntries.inert=false;}
+    finally {opening=false;closeLibrary.disabled=false;shortcuts.inert=false;libraryEntries.inert=false;}
   }
-  pulseButton.addEventListener('click',()=>openDesign(pulseId,menuStatus));
+  function designEntries(saved) {
+    const entries=new Map([...Frame.designs].map(([id,design])=>[id,{name:design.name,revisionId:design.revisionId}]));
+    for(const record of saved)if(!entries.has(record.id))entries.set(record.id,{name:record.name||record.id,revisionId:record.revisionId});
+    return entries;
+  }
+  function designButton(id,entry,output,showRevision=false) {
+    const button=document.createElement('button');
+    button.type='button';button.textContent=entry.name;
+    if(showRevision&&entry.revisionId) {
+      const revision=document.createElement('small');revision.textContent=entry.revisionId;button.append(revision);
+    }
+    if(id===current())button.setAttribute('aria-current','true');
+    button.addEventListener('click',()=>openDesign(id,output));
+    return button;
+  }
   designMenu.addEventListener('toggle',async()=>{
     const token=++menuRequest;
     if(!designMenu.open)return;
-    if(current()===pulseId)pulseButton.setAttribute('aria-current','true');
-    else pulseButton.removeAttribute('aria-current');
-    if(Frame.designs.has(pulseId)){pulseButton.hidden=false;return;}
     try {
       const saved=await Frame.project.listDurable();
-      if(token===menuRequest&&designMenu.open)pulseButton.hidden=!saved.some(record=>record.id===pulseId);
+      if(token!==menuRequest||!designMenu.open)return;
+      const entries=designEntries(saved);
+      shortcuts.replaceChildren(...Array.from(entries,([id,entry])=>designButton(id,entry,menuStatus)));
+      shortcuts.hidden=!entries.size;
     } catch { /* Browse designs reports storage errors. */ }
   });
   function renderLibrary(saved) {
-    const entries=new Map([...Frame.designs].map(([id,design])=>[id,{name:design.name,revisionId:design.revisionId}]));
-    for(const record of saved)if(!entries.has(record.id))entries.set(record.id,{name:record.id,revisionId:record.revisionId});
-    entries.delete(legacyPhoneId);
-    libraryEntries.replaceChildren();
-    const sections=[
-      {name:'Pulse concepts',contains:id=>/^pulse(?:-|$)/i.test(id)},
-      {name:'Other designs',contains:id=>!/^pulse(?:-|$)/i.test(id)}
-    ];
-    for(const {name,contains} of sections) {
-      const items=[...entries].filter(([id])=>contains(id));
-      if(!items.length)continue;
-      const heading=document.createElement('h3');heading.textContent=name;
-      const list=document.createElement('ul');
-      for(const [id,entry] of items) {
-        const item=document.createElement('li'),button=document.createElement('button');
-        button.type='button';button.textContent=id===pulseId?'Pulse':entry.name;
-        if(entry.revisionId){const revision=document.createElement('small');revision.textContent=entry.revisionId;button.append(revision);}
-        if(id===current())button.setAttribute('aria-current','true');
-        button.addEventListener('click',()=>openDesign(id));
-        item.append(button);list.append(item);
-      }
-      libraryEntries.append(heading,list);
+    const entries=designEntries(saved);
+    if(!entries.size){libraryEntries.textContent='No designs in this workspace.';return;}
+    const list=document.createElement('ul');
+    for(const [id,entry] of entries) {
+      const item=document.createElement('li');
+      item.append(designButton(id,entry,libraryStatus,true));list.append(item);
     }
+    libraryEntries.replaceChildren(list);
   }
   document.getElementById('browse-designs').addEventListener('click',async event=>{
     const token=++listing;

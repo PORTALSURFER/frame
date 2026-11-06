@@ -13,6 +13,7 @@
   }
   async function run(){
     try {
+      if(!id)return report('none');
       const record=await Frame.project.readDurable(id);
       if(!record)return report('none');
       const resume=record.project.resume;
