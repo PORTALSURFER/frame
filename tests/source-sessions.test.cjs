@@ -8,7 +8,7 @@ async function pageFor(t,override=''){
  const context=await browser.newContext();t.after(()=>context.close());const page=await context.newPage();page.setDefaultTimeout(5000);
  const errors=[];page.on('pageerror',e=>errors.push(e.message));t.after(()=>assert.deepEqual(errors,[]));
  if(override)await page.route('**/source-store.js',async route=>{const response=await route.fetch();await route.fulfill({response,body:await response.text()+override});});
- await page.goto(url);await page.locator('#design-picker').selectOption('instrument');
+ await page.goto(url);await page.evaluate(id=>Frame.agent.selectDesign(id),'instrument');
  await page.evaluate(async()=>{await Frame.project.startup.ready;await Frame.sources.ready;});
  return page;
 }
@@ -120,7 +120,7 @@ test('selection cancels pending source admission before it can publish settings'
  const page=await pageFor(t),source=await sourceFor(page);let release,started;const began=new Promise(r=>started=r),gate=new Promise(r=>release=r);
  await page.route('**/delayed.json',async route=>{started();await gate;try{await route.fulfill({json:source.doc});}catch{}});
  await page.evaluate(()=>{window.pendingSource=Frame.sources.connect({url:'/delayed.json',interval:60000});window.pendingSource.catch(()=>{});});await began;
- await page.locator('#design-picker').selectOption('starter');release();await page.evaluate(()=>window.pendingSource);
+ await page.evaluate(id=>Frame.agent.selectDesign(id),'starter');release();await page.evaluate(()=>window.pendingSource);
  assert.equal(await page.evaluate(()=>Frame.sources.settings('instrument')),null);assert.equal(await page.locator('#design-picker').inputValue(),'starter');
 });
 test('unreadable saved settings stay protected and checkpoint conflicts prevent reconnect',async t=>{

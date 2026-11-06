@@ -17,7 +17,7 @@ after(async()=>{await browser?.close();if(server)await new Promise(resolve=>serv
 test('Frame redesign is a structured guide-led prototype with usable state controls and persistent feedback',async t=>{
  const context=await browser.newContext({viewport:{width:1600,height:1200}});t.after(()=>context.close());
  const page=await context.newPage(),errors=[];page.on('pageerror',error=>errors.push(error.message));
- await page.goto(url);await page.locator('#design-picker').selectOption('frame-workspace');
+ await page.goto(url);await page.evaluate(id=>Frame.agent.selectDesign(id),'frame-workspace');
  const doc=await page.evaluate(()=>Frame.agent.getDocument('frame-workspace'));
  assert.equal(doc.styleguideId,'technical-futurist');assert.equal(doc.width,1280);assert.equal(doc.height,800);
  assert.ok(doc.elements.some(n=>n.id==='sample-wave-0'));assert.equal(doc.assets,undefined);
@@ -47,7 +47,7 @@ test('Frame redesign is a structured guide-led prototype with usable state contr
  assert.deepEqual(stable(await page.evaluate(()=>Frame.agent.getFeedback().lines)),marks);
  const project=await page.evaluate(()=>Frame.project.export('frame-workspace'));
  await fs.writeFile(path.join(output,'frame-workspace.frame.json'),JSON.stringify(project,null,2));
- await page.reload();await page.locator('#design-picker').selectOption('frame-workspace');
+ await page.reload();await page.evaluate(id=>Frame.agent.selectDesign(id),'frame-workspace');
  assert.deepEqual(stable(await page.evaluate(()=>Frame.agent.getFeedback().lines)),marks);
  assert.deepEqual(errors,[]);
 });

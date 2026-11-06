@@ -16,7 +16,7 @@ before(async()=>{
 after(async()=>{await browser?.close();if(server)await new Promise(resolve=>server.close(resolve));});
 test('GainSnap Sift Hardware study preserves compact controls, state previews, editable inputs and exports',async t=>{
  const context=await browser.newContext({viewport:{width:1100,height:1000}});t.after(()=>context.close());const page=await context.newPage(),errors=[];page.on('pageerror',error=>errors.push(error.message));
- await page.goto(url);await page.locator('#design-picker').selectOption('gainsnap-sift-hardware');
+ await page.goto(url);await page.evaluate(id=>Frame.agent.selectDesign(id),'gainsnap-sift-hardware');
  const doc=await page.evaluate(()=>Frame.agent.getDocument('gainsnap-sift-hardware'));
  assert.equal(doc.revisionId,'gainsnap-sift-hardware-r5');
  const node=id=>doc.elements.find(n=>n.id===id);

@@ -15,7 +15,7 @@ before(async()=>{
 after(async()=>{await browser?.close();if(server)await new Promise(resolve=>server.close(resolve));});
 test('live workspace feedback cards select, resolve, filter, undo, delete and persist actual annotations',async t=>{
  const context=await browser.newContext({viewport:{width:1280,height:800}});t.after(()=>context.close());
- const page=await context.newPage();await page.goto(url);await page.locator('#design-picker').selectOption('starter');
+ const page=await context.newPage();await page.goto(url);await page.evaluate(id=>Frame.agent.selectDesign(id),'starter');
  const board=await page.locator('#board').boundingBox();
  await page.mouse.move(board.x+100,board.y+100);await page.mouse.down();await page.mouse.move(board.x+150,board.y+150);await page.mouse.up();
  const card=page.locator('.feedback-card');assert.equal(await card.count(),1);
@@ -47,7 +47,9 @@ for(const width of [320,768,912,1280,1600])test(`workspace controls and canvas r
   return {x,y,width,height};
  }));
  const separate=(a,b)=>a.x+a.width<=b.x||b.x+b.width<=a.x||a.y+a.height<=b.y||b.y+b.height<=a.y;
- assert.ok(controls.slice(0,3).every(control=>control.width>=100),'design, revision and styleguide selectors remain readable');
+ assert.equal(await page.locator('.topbar select:visible').count(),2,'revision and styleguide are the only toolbar selects');
+ assert.equal(await page.getByRole('combobox',{name:'Design',exact:true}).count(),0,'the separate design picker is hidden');
+ assert.ok(controls.slice(0,2).every(control=>control.width>=100),'revision and styleguide selectors remain readable');
  for(const [i,control] of controls.entries())assert.ok(controls.slice(i+1).every(other=>separate(control,other)),'toolbar controls do not overlap');
  assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true,'no horizontal page overflow');
  const stage=await page.locator('#stage').boundingBox(),panel=await page.locator('.feedback-panel').boundingBox(),rail=await page.locator('.tool-rail').boundingBox();
@@ -55,7 +57,7 @@ for(const width of [320,768,912,1280,1600])test(`workspace controls and canvas r
  assert.ok(separate(stage,panel)&&separate(stage,rail),'panel and rail do not overlap the canvas');
  await fs.mkdir(path.join(root,'artifacts/workspace-ui'),{recursive:true});
  await page.screenshot({path:path.join(root,`artifacts/workspace-ui/workspace-${width}.png`),fullPage:true});
- if(width===1280){await page.locator('#design-picker').selectOption('sift-style-studies');await page.screenshot({path:path.join(root,'artifacts/workspace-ui/sift-workspace.png'),fullPage:true});}
+ if(width===1280){await page.evaluate(id=>Frame.agent.selectDesign(id),'sift-style-studies');await page.screenshot({path:path.join(root,'artifacts/workspace-ui/sift-workspace.png'),fullPage:true});}
  await page.evaluate(()=>Frame.setProjectStatus(document.getElementById('checkpoint-status'),'Checkpoint storage unavailable',true));
  assert.equal(await page.locator('.project-warning').isVisible(),true);
  await page.locator('.project-menu summary').click();
@@ -88,7 +90,7 @@ test('wheel zoom stays anchored to the cursor, respects limits, and preserves an
  await page.locator('#fit-view').click();assert.deepEqual(await page.evaluate(()=>Frame.view.get()),{zoom:1,panX:0,panY:0});
 });
 test('middle-drag pans over prototype controls in every mode without edits and recovers from cancellation',async t=>{
- const context=await browser.newContext({viewport:{width:1400,height:1000}});t.after(()=>context.close());const page=await context.newPage();await page.goto(url);await page.locator('#design-picker').selectOption('sift-style-studies');
+ const context=await browser.newContext({viewport:{width:1400,height:1000}});t.after(()=>context.close());const page=await context.newPage();await page.goto(url);await page.evaluate(id=>Frame.agent.selectDesign(id),'sift-style-studies');
  for(const mode of ['pen','note','select','interact']){
   await page.locator('#tool-'+mode).click();await page.locator('#fit-view').click();
   const bounds=await page.locator('#board').boundingBox();let point={x:bounds.x+100,y:bounds.y+100};

@@ -14,7 +14,9 @@ const {chromium}=require('playwright');
  try {
   const page=await browser.newPage({viewport:{width:1440,height:1000}});
   await page.goto('http://127.0.0.1:'+server.address().port);
-  await page.locator('#design-picker').selectOption('instrument');
+  await page.locator('.project-menu summary').click();
+  await page.getByRole('button',{name:'Browse designs'}).click();
+  await page.getByRole('button',{name:/Instrument workstation/}).click();
   await page.evaluate(()=>Frame.agent.renderReady());
   async function image(name,feedback=false) {
    const bytes=await page.evaluate(async feedback=>Array.from(new Uint8Array(await (await Frame.agent.exportImage({feedback})).blob.arrayBuffer())),feedback);

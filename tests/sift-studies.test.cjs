@@ -17,7 +17,7 @@ after(async()=>{await browser?.close();if(server)await new Promise(resolve=>serv
 test('Sift guide studies retain old revisions and expose a refined guide-driven pair with independent geometry, idle states and persistent restoration',async t=>{
  const context=await browser.newContext({viewport:{width:1440,height:1100}});t.after(()=>context.close());
  const page=await context.newPage(),errors=[];page.on('pageerror',error=>errors.push(error.message));
- await page.goto(url);await page.locator('#design-picker').selectOption('sift-style-studies');
+ await page.goto(url);await page.evaluate(id=>Frame.agent.selectDesign(id),'sift-style-studies');
  assert.equal(await page.locator('#revision-picker').inputValue(),'sift-technical-futurist-r7');
  assert.deepEqual(errors,[]);
  const history=await page.evaluate(()=>Frame.revisions.list('sift-style-studies'));
@@ -82,7 +82,7 @@ test('Sift guide studies retain old revisions and expose a refined guide-driven 
    await fs.writeFile(path.join(output,revision+'-'+state+'.png'),Buffer.from(png));
   }
  }
- await page.reload();await page.locator('#design-picker').selectOption('sift-style-studies');
+ await page.reload();await page.evaluate(id=>Frame.agent.selectDesign(id),'sift-style-studies');
  assert.equal(await page.locator('#revision-picker').inputValue(),'sift-technical-futurist-r8');
  assert.equal(await page.locator('#styleguide-picker').inputValue(),'technical-futurist');
  await page.evaluate(()=>Frame.agent.setState('sift-style-studies','recording'));

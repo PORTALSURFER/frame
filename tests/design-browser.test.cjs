@@ -16,7 +16,7 @@ after(async()=>{await browser?.close();if(server)await new Promise(r=>server.clo
 async function pageFor(t){
  const context=await browser.newContext();t.after(()=>context.close());
  const page=await context.newPage();const errors=[];page.on('pageerror',e=>errors.push(e.message));t.after(()=>assert.deepEqual(errors,[]));
- await page.goto(url);await page.locator('#design-picker').selectOption('instrument');return page;
+ await page.goto(url);await page.evaluate(id=>Frame.agent.selectDesign(id),'instrument');return page;
 }
 test('wheel zoom coalesces raster work and settles sharply without changing design coordinates',async t=>{
  const page=await pageFor(t);
@@ -299,7 +299,7 @@ test('revisions compare and restore exact documents, carry bound feedback and fl
  assert.deepEqual(result.comparison.changed.map(n=>n.id),['run']);
  assert.equal(result.removed.notes[0].needsReview,true);
  assert.equal(result.restored.revisionId,'instrument-r1');assert.equal(result.count,3);
- await page.reload();await page.locator('#design-picker').selectOption('instrument');
+ await page.reload();await page.evaluate(id=>Frame.agent.selectDesign(id),'instrument');
  assert.equal(await page.evaluate(()=>Frame.revisions.list('instrument').length),3);
 });
 test('portable projects round trip into a fresh browser with revisions, guide, state and feedback',async t=>{
@@ -371,7 +371,7 @@ test('selecting a revision immediately loads it, preserves feedback and history,
  assert.deepEqual(await page.evaluate(()=>Frame.revisions.list('instrument')),before.history);
  await page.locator('#revision-picker').selectOption(edited);
  assert.equal(await page.evaluate(()=>Frame.agent.inspect('instrument').find(n=>n.id==='run').text),'NEW REVISION');
- await page.reload();await page.locator('#design-picker').selectOption('instrument');
+ await page.reload();await page.evaluate(id=>Frame.agent.selectDesign(id),'instrument');
  assert.equal(await page.locator('#revision-picker').inputValue(),edited);
  assert.equal(await page.evaluate(()=>Frame.agent.getDocument('instrument').revisionId),edited);
  assert.deepEqual(await page.evaluate(()=>Frame.agent.getFeedback().lines),before.feedback.lines);
@@ -413,7 +413,7 @@ test('viewport sizes are named per design and survive a browser reload',async t=
  await page.reload();
  assert.equal(await picker.inputValue(),'393×852');
  assert.deepEqual(await options(),['Desktop · 1000 × 700','Tablet · 768 × 1024','Pulse mobile · 393 × 852']);
- await page.locator('#design-picker').selectOption('sift-style-studies');
+ await page.evaluate(id=>Frame.agent.selectDesign(id),'sift-style-studies');
  assert.ok((await options()).every(option=>!option.includes('Pulse mobile')));
 });
 test('the design library opens a saved Pulse concept with its original ID and presets',async t=>{
@@ -446,7 +446,7 @@ test('saved viewport, state and input values resume with the browser draft',asyn
   Frame.agent.setViewport('instrument',{width:360,height:740});
   Frame.agent.setState('instrument','error');Frame.agent.setValue('instrument','frequency','128');
  });
- await page.reload();await page.locator('#design-picker').selectOption('instrument');
+ await page.reload();await page.evaluate(id=>Frame.agent.selectDesign(id),'instrument');
  assert.deepEqual(await page.evaluate(()=>Frame.currentViewport('instrument')),{width:360,height:740});
  assert.equal(await page.evaluate(()=>Frame.currentState('instrument')),'error');
  assert.equal(await page.evaluate(()=>Frame.agent.getValues('instrument').frequency),'128');
@@ -474,21 +474,21 @@ test('project save failures retain revisions for export and retry persists the b
  });
  assert.match(await page.locator('#project-save-notice').textContent(),/unsaved/);
  assert.equal(await page.evaluate(()=>Frame.project.export('instrument').archive.revisions.length),2);
- await page.locator('#design-picker').selectOption('starter');
- await page.locator('#design-picker').selectOption('instrument');
+ await page.evaluate(id=>Frame.agent.selectDesign(id),'starter');
+ await page.evaluate(id=>Frame.agent.selectDesign(id),'instrument');
  assert.equal(await page.evaluate(()=>Frame.agent.getDocument('instrument').elements.find(n=>n.id==='status').text),'RECOVERABLE DRAFT');
  await page.evaluate(()=>{Storage.prototype.setItem=window.originalProjectSave;});
  assert.equal(await page.locator('.project-warning').isVisible(),true);
  await page.locator('.project-menu summary').click({timeout:5000});
  await page.locator('#retry-project-save').click({timeout:5000});
  assert.equal(await page.locator('#project-save-notice').textContent(),'');
- await page.reload();await page.locator('#design-picker').selectOption('instrument');
+ await page.reload();await page.evaluate(id=>Frame.agent.selectDesign(id),'instrument');
  assert.equal(await page.evaluate(()=>Frame.agent.getDocument('instrument').elements.find(n=>n.id==='status').text),'RECOVERABLE DRAFT');
 });
 test('unreadable saved project archives are protected while in-memory edits remain exportable',async t=>{
  const page=await pageFor(t);
  await page.evaluate(()=>localStorage.setItem('frame-project-v1:instrument','unreadable backup'));
- await page.reload();await page.locator('#design-picker').selectOption('instrument');
+ await page.reload();await page.evaluate(id=>Frame.agent.selectDesign(id),'instrument');
  await page.evaluate(()=>Frame.agent.applyEdits('instrument',[{op:'update',id:'status',patch:{text:'IN MEMORY'}}]));
  await page.locator('.project-menu summary').click({timeout:5000});
  await page.locator('#retry-project-save').click({timeout:5000});
@@ -521,10 +521,10 @@ test('a new source revision starts a snapshot and subsequent reloads retain edit
   const response=await route.fetch();
   await route.fulfill({response,body:(await response.text()).replace('instrument-r1','instrument-r2')});
  });
- await page.reload();await page.locator('#design-picker').selectOption('instrument');
+ await page.reload();await page.evaluate(id=>Frame.agent.selectDesign(id),'instrument');
  assert.equal(await page.evaluate(()=>Frame.agent.getDocument('instrument').revisionId),'instrument-r2');
  await page.evaluate(()=>Frame.agent.applyEdits('instrument',[{op:'update',id:'status',patch:{text:'NEW SOURCE DRAFT'}}]));
- await page.reload();await page.locator('#design-picker').selectOption('instrument');
+ await page.reload();await page.evaluate(id=>Frame.agent.selectDesign(id),'instrument');
  assert.equal(await page.evaluate(()=>Frame.agent.getDocument('instrument').elements.find(n=>n.id==='status').text),'NEW SOURCE DRAFT');
  assert.equal(await page.evaluate(()=>Frame.revisions.list('instrument').length),3);
 });
