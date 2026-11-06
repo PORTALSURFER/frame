@@ -245,7 +245,7 @@
     if(!picker)return;
     const id=currentId(),enabled=Frame.documents.has(id);
     picker.disabled=!enabled;
-    for(const name of ["restore-revision","compare-revisions","download-project"])document.getElementById(name).disabled=!enabled;
+    for(const name of ["restore-revision","download-project"])document.getElementById(name).disabled=!enabled;
     picker.replaceChildren(...(archives.get(id)?.revisions||[]).map(r=>{const o=document.createElement("option");o.value=r.revisionId;o.textContent=r.revisionId;return o;}));
     picker.value=Frame.designs.get(id)?.revisionId||"";
     notify();
@@ -256,29 +256,9 @@
   if(picker) {
     picker.addEventListener("change",()=>Frame.revisions.restore(currentId(),picker.value));
     document.getElementById("restore-revision").addEventListener("click",()=>Frame.revisions.restore(currentId(),picker.value));
-    document.getElementById("compare-revisions").addEventListener("click",()=>{
-      const id=currentId(),all=Frame.revisions.list(id),latest=Frame.designs.get(id).revisionId;
-      for(const name of ["compare-before","compare-after"]) {
-        const select=document.getElementById(name);select.replaceChildren(...all.map(r=>{const o=document.createElement("option");o.value=o.textContent=r.revisionId;return o;}));select.value=name==="compare-before"?picker.value:latest;
-      }
-      showComparison();document.getElementById("compare-dialog").showModal();
-    });
-    document.getElementById("compare-before").addEventListener("change",showComparison);
-    document.getElementById("compare-after").addEventListener("change",showComparison);
-    document.getElementById("compare-overlay").addEventListener("change",()=>document.getElementById("revision-canvases").classList.toggle("overlay",document.getElementById("compare-overlay").checked));
-    document.getElementById("close-compare").addEventListener("click",()=>document.getElementById("compare-dialog").close());
     document.getElementById("download-project").addEventListener("click",()=>download(JSON.stringify(exportProject(),null,2),currentId()+".frame.json","application/json"));
     document.getElementById("retry-project-save").addEventListener("click",Frame.revisions.retry);
 
-  }
-  function showComparison() {
-    const id=currentId(),before=document.getElementById("compare-before").value,after=document.getElementById("compare-after").value,result=compare(id,before,after);
-    document.getElementById("compare-summary").textContent=result.added.length+" added · "+result.removed.length+" removed · "+result.changed.length+" changed\n"+
-      [...result.added.map(id=>"+ "+id),...result.removed.map(id=>"- "+id),...result.changed.map(item=>item.id+": "+item.fields.join(", ")),...result.settings.map(key=>"Settings: "+key)].join("\n");
-    for(const [name,revisionId]of [["before",before],["after",after]]) {
-      const doc=revision(id,revisionId).document,canvas=document.getElementById("revision-"+name);canvas.width=doc.width;canvas.height=doc.height;
-      canvas.setAttribute("aria-label",name+" revision "+revisionId);FrameDocument.render(canvas.getContext("2d"),doc);
-    }
   }
   window.addEventListener("frame:design-updated",e=>{
     if(registering || Frame.restoringProject)return;

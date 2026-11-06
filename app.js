@@ -21,9 +21,7 @@
   const download = document.getElementById("download");
   const retrySave = document.getElementById("retry-save");
   const count = document.getElementById("mark-count");
-  const sidebarToggle = document.getElementById("toggle-feedback");
-  const feedbackPanel = document.getElementById("feedback-panel");
-  const app = document.querySelector(".app");
+  const feedbackMenu = document.getElementById("feedback-menu");
   const sizeLabel = document.getElementById("design-size");
   const limitNotice = document.getElementById("feedback-limit-notice");
   const saveNotice = document.getElementById("feedback-save-notice");
@@ -711,25 +709,14 @@
     panY += (event.clientY - bounds.y - bounds.height / 2) * (1 - ratio);
     zoom = nextZoom; fitBoard(true);
   }, {passive:false});
-  function setSidebarCollapsed(collapsed) {
-    const hadFocus = document.activeElement === sidebarToggle;
-    app.classList.toggle("feedback-collapsed", collapsed);
-    feedbackPanel.hidden = collapsed;
-    sidebarToggle.setAttribute("aria-expanded", String(!collapsed));
-    sidebarToggle.setAttribute("aria-label", collapsed ? "Show feedback" : "Hide feedback");
-    sidebarToggle.title = collapsed ? "Show feedback" : "Hide feedback";
-    const toggleParent = collapsed ? feedbackPanel.parentElement : feedbackPanel.querySelector(".feedback-heading");
-    if (sidebarToggle.parentElement !== toggleParent) toggleParent.append(sidebarToggle);
-    if (hadFocus) sidebarToggle.focus({preventScroll:true});
-  }
-  let sidebarCollapsed = false;
-  try { sidebarCollapsed = localStorage.getItem("frame-feedback-sidebar-collapsed") === "true"; } catch { /* optional preference */ }
-  setSidebarCollapsed(sidebarCollapsed);
-  sidebarToggle.addEventListener("click", () => {
-    finishLine(); finishNoteDrag(); finishPan();
-    sidebarCollapsed = !sidebarCollapsed;
-    setSidebarCollapsed(sidebarCollapsed);
-    try { localStorage.setItem("frame-feedback-sidebar-collapsed", String(sidebarCollapsed)); } catch { /* layout still works without storage */ }
+  document.addEventListener("pointerdown", event => {
+    if (feedbackMenu.open && !feedbackMenu.contains(event.target)) feedbackMenu.open = false;
+  });
+  feedbackMenu.addEventListener("keydown", event => {
+    if (event.key !== "Escape" || !feedbackMenu.open) return;
+    event.stopPropagation();
+    feedbackMenu.open = false;
+    feedbackMenu.querySelector("summary").focus();
   });
 
   brush.addEventListener("pointerdown", (event) => {

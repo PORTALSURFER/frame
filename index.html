@@ -39,66 +39,66 @@
   <main class="app">
     <header class="topbar">
       <a class="brand" href="./" aria-label="Frame home"><strong>FRAME</strong></a>
-      <div class="tools" role="group" aria-label="Design and feedback controls">
-        <label>Revision <select id="revision-picker" aria-label="Revision"></select></label>
-        <label>Styleguide <select id="styleguide-picker" aria-label="Styleguide"></select></label>
-        <button id="view-styleguide" type="button" disabled>View guide</button>
-      </div>
-      <details class="project-menu"><summary>Designs <span class="project-warning">Attention</span><span aria-hidden="true">⌄</span></summary><div class="project-actions">
-        <div id="open-designs" hidden></div>
-        <output id="open-design-status" role="status" hidden></output>
-        <button id="browse-designs" type="button">Browse designs</button>
-        <button id="configure-viewports" type="button" disabled>Viewport sizes</button>
-        <button id="download-project" type="button">Download design</button>
-        <button id="save-checkpoint" type="button" disabled>Save checkpoint</button>
-        <label><input id="automatic-checkpoints" type="checkbox"> Automatic checkpoints</label>
-        <button id="retry-automatic-checkpoint" type="button" hidden>Retry automatic checkpoint</button>
-        <button id="recover-checkpoint" type="button">Recover checkpoint</button>
-        <button id="import-project" type="button">Import design</button>
-        <button id="source-settings" type="button">Source connection</button>
-        <button id="restore-revision" type="button">Restore revision</button>
-        <button id="retry-project-save" type="button" hidden>Retry project save</button>
-        <div class="project-statuses" role="group" aria-label="Design status">
-          <output id="live-document-status" role="status"></output>
-          <output id="checkpoint-status" role="status"></output>
-          <output id="automatic-checkpoint-status" role="status"></output>
-          <output id="startup-restore-status" role="status"></output>
+      <div class="tools" role="group" aria-label="Review controls">
+        <select id="viewport-picker" aria-label="Viewport" title="Viewport" disabled></select>
+        <select id="state-picker" aria-label="Interface state" title="Interface state"></select>
+        <select id="revision-picker" aria-label="Revision" title="Revision"></select>
+        <select id="styleguide-picker" aria-label="Styleguide" title="Styleguide"></select>
+        <button id="view-styleguide" type="button" aria-label="View guide" disabled>Guide</button>
+        <div class="zoom-controls" role="group" aria-label="Zoom">
+          <button id="zoom-out" type="button" aria-label="Zoom out">−</button>
+          <output id="zoom-value" aria-live="polite">100%</output>
+          <button id="zoom-in" type="button" aria-label="Zoom in">+</button>
+          <button id="fit-view" type="button">Fit</button>
         </div>
-      </div></details>
-    </header>
-    <div class="review-toolbar" role="group" aria-label="Design review">
-      <label>Viewport <select id="viewport-picker" aria-label="Viewport" disabled></select></label>
-        <label>State <select id="state-picker" aria-label="Interface state"></select></label><div class="zoom-controls"><button id="zoom-out" type="button" aria-label="Zoom out">−</button><output id="zoom-value" aria-live="polite">100%</output><button id="zoom-in" type="button" aria-label="Zoom in">+</button>
-        <button id="fit-view" type="button">Fit</button></div><div class="review-actions"><button id="compare-revisions" type="button">Compare</button>
-        <button id="check-design" type="button">Check design</button><label><input id="image-feedback" type="checkbox"> Include feedback</label>
-        <button id="download-image" type="button">Download PNG</button></div>
-<span id="review-action-status" role="status"></span>
-    </div>
-    <nav class="tool-rail" aria-label="Canvas tools">
-      <div class="feedback-tools" role="group" aria-label="Feedback tools">
-      <button id="tool-pen" type="button" data-feedback-tool="pen" aria-pressed="true" aria-keyshortcuts="P">Pen</button>
-        <button id="tool-note" type="button" data-feedback-tool="note" aria-pressed="false" aria-keyshortcuts="N">Note</button>
-        <button id="tool-pan" type="button" data-feedback-tool="pan" aria-pressed="false" aria-keyshortcuts="H">Pan</button>
-        <button id="tool-interact" type="button" data-feedback-tool="interact" aria-pressed="false" aria-keyshortcuts="I">Interact</button>
-        <button id="tool-select" type="button" data-feedback-tool="select" aria-pressed="false" aria-keyshortcuts="V">Select</button></div><div class="history-tools"><button id="undo" type="button" disabled aria-keyshortcuts="Control+Z Meta+Z">Undo</button>
-        <button id="redo" type="button" disabled aria-keyshortcuts="Control+Shift+Z Meta+Shift+Z Control+Y">Redo</button></div>
-    </nav>
-    <div class="feedback-dock">
-    <aside id="feedback-panel" class="feedback-panel" aria-label="Feedback panel">
-      <div class="feedback-heading"><h2>Feedback</h2><span id="mark-count">0 lines</span>
-        <button id="toggle-feedback" type="button" aria-controls="feedback-panel" aria-expanded="true" aria-label="Hide feedback" title="Hide feedback"><svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><path d="m6 3 5 5-5 5" fill="none" stroke="currentColor" stroke-width="1.5"/></svg></button>
+        <label class="image-feedback" title="Include feedback in PNG"><input id="image-feedback" type="checkbox" aria-label="Include feedback in PNG"> Marks</label>
+        <button id="download-image" type="button" aria-label="Download PNG">PNG</button>
       </div>
-      <label>Show <select id="feedback-filter" aria-label="Feedback status filter"><option value="all">All marks</option><option value="open">Open</option><option value="resolved">Resolved</option></select></label>
-      <div id="feedback-list" class="feedback-list" aria-label="Feedback marks"></div>
-      <p id="feedback-empty">No feedback yet. Use Pen or Note to mark what should change.</p>
-      <div class="selection-actions"><button id="resolve-selected" type="button" disabled>Mark resolved</button>
-        <button id="delete-selected" type="button" disabled aria-keyshortcuts="Delete Backspace">Delete selected</button></div>
-      <div class="feedback-actions"><button id="import-feedback" type="button">Import feedback</button>
-        <button id="download" type="button" disabled>Download feedback</button>
-        <button id="clear" type="button" disabled>Clear feedback</button>
-        <button id="retry-save" type="button" hidden>Retry save</button></div>
-    </aside>
-    </div>
+      <div class="topbar-menus">
+        <details class="project-menu"><summary>Designs <span class="project-warning">Attention</span><span aria-hidden="true">⌄</span></summary><div class="project-actions">
+          <div id="open-designs" hidden></div>
+          <output id="open-design-status" role="status" hidden></output>
+          <button id="browse-designs" type="button">Browse designs</button>
+          <button id="configure-viewports" type="button" disabled>Viewport sizes</button>
+          <button id="download-project" type="button">Download design</button>
+          <button id="save-checkpoint" type="button" disabled>Save checkpoint</button>
+          <label><input id="automatic-checkpoints" type="checkbox"> Automatic checkpoints</label>
+          <button id="retry-automatic-checkpoint" type="button" hidden>Retry automatic checkpoint</button>
+          <button id="recover-checkpoint" type="button">Recover checkpoint</button>
+          <button id="import-project" type="button">Import design</button>
+          <button id="source-settings" type="button">Source connection</button>
+          <button id="restore-revision" type="button">Restore revision</button>
+          <button id="retry-project-save" type="button" hidden>Retry project save</button>
+          <div class="project-statuses" role="group" aria-label="Design status">
+            <output id="live-document-status" role="status"></output>
+            <output id="checkpoint-status" role="status"></output>
+            <output id="automatic-checkpoint-status" role="status"></output>
+            <output id="startup-restore-status" role="status"></output>
+          </div>
+        </div></details>
+        <details id="feedback-menu" class="feedback-menu">
+          <summary>Feedback <span aria-hidden="true">⌄</span></summary>
+          <section id="feedback-panel" class="feedback-panel" aria-label="Feedback">
+            <div class="feedback-heading">
+              <label>Show <select id="feedback-filter" aria-label="Feedback status filter"><option value="all">All marks</option><option value="open">Open</option><option value="resolved">Resolved</option></select></label>
+              <span id="mark-count">0 lines</span>
+            </div>
+            <div id="feedback-list" class="feedback-list" aria-label="Feedback marks"></div>
+            <p id="feedback-empty">No feedback yet. Use Pen or Note to add a mark.</p>
+            <div class="selection-actions">
+              <button id="resolve-selected" type="button" disabled>Mark resolved</button>
+              <button id="delete-selected" type="button" disabled aria-keyshortcuts="Delete Backspace">Delete selected</button>
+            </div>
+            <div class="feedback-actions">
+              <button id="import-feedback" type="button">Import</button>
+              <button id="download" type="button" disabled>Download feedback</button>
+              <button id="clear" type="button" disabled>Clear feedback</button>
+              <button id="retry-save" type="button" hidden>Retry save</button>
+            </div>
+          </section>
+        </details>
+      </div>
+    </header>
     <div class="stage" id="stage">
       <section id="design-status" class="design-status" role="status" hidden>
         <h1 id="design-status-title"></h1>
@@ -127,14 +127,22 @@
           <pre id="registration-errors"></pre>
         </details>
       </div>
-      <div class="workspace-status"><span id="design-size" class="design-size"></span><span id="project-save-notice" role="status"></span><span id="feedback-revision-notice" role="status"></span></div>
+      <nav class="tool-rail" aria-label="Canvas tools">
+        <div class="feedback-tools" role="group" aria-label="Feedback tools">
+          <button id="tool-pen" type="button" data-feedback-tool="pen" aria-pressed="true" aria-label="Pen" aria-keyshortcuts="P" title="Pen (P)"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m3 21 4-1 13-13-3-3L4 17zM14 7l3 3"/></svg></button>
+          <button id="tool-note" type="button" data-feedback-tool="note" aria-pressed="false" aria-label="Note" aria-keyshortcuts="N" title="Note (N)"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 3h14v12l-6 6H5zM13 21v-6h6M8 8h8M8 12h5"/></svg></button>
+          <button id="tool-pan" type="button" data-feedback-tool="pan" aria-pressed="false" aria-label="Pan" aria-keyshortcuts="H" title="Pan (H)"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v18M3 12h18M9 6l3-3 3 3m-6 12 3 3 3-3M6 9l-3 3 3 3m12-6 3 3-3 3"/></svg></button>
+          <button id="tool-interact" type="button" data-feedback-tool="interact" aria-pressed="false" aria-label="Interact" aria-keyshortcuts="I" title="Interact (I)"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 3v11l3-3 3 7 3-1-3-7h4zM18 4l2-2m-1 5h3"/></svg></button>
+          <button id="tool-select" type="button" data-feedback-tool="select" aria-pressed="false" aria-label="Select" aria-keyshortcuts="V" title="Select (V)"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9V4h5m6 0h5v5m0 6v5h-5m-6 0H4v-5"/></svg></button>
+        </div>
+        <div class="history-tools" role="group" aria-label="History">
+          <button id="undo" type="button" disabled aria-label="Undo" aria-keyshortcuts="Control+Z Meta+Z" title="Undo"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 5 4 10l5 5m-5-5h10a5 5 0 0 1 0 10h-3"/></svg></button>
+          <button id="redo" type="button" disabled aria-label="Redo" aria-keyshortcuts="Control+Shift+Z Meta+Shift+Z Control+Y" title="Redo"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m15 5 5 5-5 5m5-5H10a5 5 0 0 0 0 10h3"/></svg></button>
+        </div>
+      </nav>
+      <div class="workspace-status"><output id="review-action-status" role="status"></output><span id="design-size" class="design-size"></span><span id="project-save-notice" role="status"></span><span id="feedback-revision-notice" role="status"></span></div>
     </footer>
   </main>
-  <dialog id="compare-dialog" aria-labelledby="compare-title" data-text-editor>
-    <h2 id="compare-title">Compare revisions</h2><label>Before <select id="compare-before" aria-label="Before revision"></select></label><label>After <select id="compare-after" aria-label="After revision"></select></label>
-    <label><input id="compare-overlay" type="checkbox"> Overlay revisions</label><pre id="compare-summary"></pre>
-    <div id="revision-canvases"><canvas id="revision-before" role="img"></canvas><canvas id="revision-after" role="img"></canvas></div><button id="close-compare" type="button">Close</button>
-  </dialog>
   <dialog id="design-library" aria-labelledby="design-library-title" data-text-editor>
     <h2 id="design-library-title">Designs</h2>
     <div id="design-library-entries"></div>
@@ -167,7 +175,6 @@
     <p id="import-preview" role="status"></p><p id="import-error" role="alert"></p>
     <div class="note-actions"><button id="confirm-import" type="button" disabled>Replace feedback</button><button id="cancel-import" type="button">Cancel</button></div>
   </dialog>
-  <dialog id="review-dialog" aria-labelledby="review-title" data-text-editor><h2 id="review-title">Visual design checks</h2><p>Bounds, overlaps, spacing, text overflow, and contrast in this viewport/state. Semantic accessibility checks require actual controls in Interact mode.</p><pre id="review-report"></pre><button id="close-review" type="button" autofocus>Close</button></dialog>
   <dialog id="styleguide-dialog" aria-labelledby="styleguide-title" data-text-editor>
     <div class="guide-heading"><h2 id="styleguide-title"></h2><button id="close-styleguide" type="button" autofocus>Close</button></div>
     <p id="styleguide-summary"></p>

@@ -51,7 +51,6 @@
     if(id!==designId){designId=id;pins.clear();controls.replaceChildren();}
     const enabled=structured();configure.disabled=viewportPicker.disabled=statePicker.disabled=!enabled;
     document.getElementById("tool-interact").disabled=!enabled;
-    document.getElementById("check-design").disabled=!enabled;
     if(enabled) {
       const doc=Frame.agent.getDocument(designId);
       statePicker.replaceChildren(...FrameDocument.viewportStates(doc,Frame.currentViewport(designId).width).map(state=>{const o=document.createElement("option");o.value=o.textContent=state;return o;}));
@@ -159,11 +158,6 @@
     if(preset)Frame.agent.setViewport(designId,{width:preset.width,height:preset.height});
   });
   statePicker.addEventListener("change",()=>Frame.agent.setState(designId,statePicker.value));
-  document.getElementById("check-design").addEventListener("click",()=>{
-    const result=checks();document.getElementById("review-report").textContent=result.issues.length?result.issues.map(i=>i.elementId+" · "+i.type+": "+i.message).join("\n"):"No structural issues found in this viewport/state.";
-    document.getElementById("review-dialog").showModal();
-  });
-  document.getElementById("close-review").addEventListener("click",()=>document.getElementById("review-dialog").close());
   document.getElementById("download-image").addEventListener("click",async()=>{
     const status=document.getElementById("review-action-status");
     try {const image=await Frame.agent.exportImage({feedback:document.getElementById("image-feedback").checked});

@@ -87,25 +87,20 @@ pre { white-space: pre-wrap; overflow-wrap: anywhere; }
 .keyboard-cursor::before, .keyboard-cursor::after { content:"";position:absolute;background:#ffd37a; }
 .keyboard-cursor::before {height:1px;width:32px;top:11px;left:-5px;}
 .keyboard-cursor::after {width:1px;height:32px;left:11px;top:-5px;}
-.review-toolbar { display:flex; align-items:center; flex-wrap:wrap; gap:10px; padding:8px 26px; background:#171e1c; border-bottom:1px solid #465451; font-size:11px; }
-.review-toolbar label { display:flex; align-items:center; gap:6px; }
-.review-toolbar button { padding:7px 10px; background:#293331; color:#e0e7e1; border:1px solid #465451; border-radius:3px; cursor:pointer; font:inherit; }
-.review-toolbar button:disabled { opacity:.4; }
 #zoom-value { min-width:45px; text-align:center; }
 .prototype-controls { position:absolute; inset:0; z-index:1; pointer-events:none; }
 .prototype-control { position:absolute; padding:8px; border:1px solid; border-radius:0; font:inherit; pointer-events:auto; }
 .prototype-control:disabled { cursor:default; }
 .stage[data-feedback-mode="interact"] .brush, .stage[data-feedback-mode="interact"] .notes-layer { pointer-events:none; }
 .brush[data-mode="pan"] { cursor:grab; }
-@media(max-width:600px) { .review-toolbar {padding:8px 13px;} .review-toolbar select {max-width:200px;min-width:0;} }
 /* Keep zoomed boards inside a stable viewport instead of growing the flex stage. */
 .app { height:100dvh; }
 .stage { flex:1 1 0; }
-.topbar, .review-toolbar, footer { flex-shrink:0; }
+.topbar, footer { flex-shrink:0; }
 .revision-toolbar { display:flex;align-items:center;flex-wrap:wrap;gap:8px;padding:8px 26px;flex-shrink:0;background:#171e1c;font-size:11px; }
 .revision-toolbar label {display:flex;align-items:center;gap:6px;}
 .revision-toolbar select {max-width:240px;min-width:120px;}
-.revision-toolbar button, #compare-dialog button, #project-dialog button {padding:7px 10px;border:1px solid #465451;background:#293331;color:#e0e7e1;cursor:pointer;font:inherit;}
+.revision-toolbar button, #project-dialog button {padding:7px 10px;border:1px solid #465451;background:#293331;color:#e0e7e1;cursor:pointer;font:inherit;}
 .revision-toolbar button:disabled {opacity:.4;}
 #project-save-notice, #feedback-revision-notice {color:#ffd37a;}
 #design-library {max-height:calc(100dvh - 32px);overflow:auto;}
@@ -125,13 +120,5 @@ pre { white-space: pre-wrap; overflow-wrap: anywhere; }
   #viewport-sizes fieldset {grid-template-columns:repeat(2,minmax(0,1fr));}
   #viewport-sizes label:first-of-type {grid-column:1/-1;}
 }
-#compare-dialog {width:min(1100px,calc(100vw - 32px));max-height:calc(100dvh - 32px);overflow:auto;}
-#compare-dialog label {display:inline-flex;gap:6px;align-items:center;max-width:100%;flex-wrap:wrap;}
-#compare-dialog select {max-width:250px;}
-#revision-canvases {display:flex;gap:12px;position:relative;}
-#revision-canvases canvas {width:calc(50% - 6px);height:auto;object-fit:contain;border:1px solid #465451;}
-#revision-canvases.overlay {display:block;}
-#revision-canvases.overlay canvas {width:100%;}
-#revision-canvases.overlay #revision-after {position:absolute;left:0;top:0;opacity:.5;}
 #project-file {max-width:100%;}
-@media(max-width:600px){.revision-toolbar{padding:8px 13px;}#revision-canvases{flex-direction:column;}#revision-canvases canvas{width:100%;}.revision-toolbar select{max-width:180px;}}
+@media(max-width:600px){.revision-toolbar{padding:8px 13px;}.revision-toolbar select{max-width:180px;}}

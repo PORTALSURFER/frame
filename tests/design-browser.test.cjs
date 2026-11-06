@@ -357,18 +357,6 @@ test('revision IDs are immutable and invalid portable projects leave registries 
  });
  assert.equal(result.collision,true);assert.equal(result.unchanged,true);assert.equal(result.invalid,true);assert.equal(result.size,result.previous);
 });
-test('comparison UI presents snapshots and overlay without changing the selected revision',async t=>{
- const page=await pageFor(t);
- await page.evaluate(()=>Frame.agent.applyEdits('instrument',[{op:'update',id:'run',patch:{text:'COMPARE ME'}}]));
- const current=await page.evaluate(()=>Frame.agent.getDocument('instrument').revisionId);
- await page.locator('#compare-revisions').click();
- await page.locator('#compare-before').selectOption('instrument-r1');
- assert.match(await page.locator('#compare-summary').textContent(),/1 changed/);
- await page.locator('#compare-overlay').check();
- assert.equal(await page.locator('#revision-canvases').evaluate(el=>el.classList.contains('overlay')),true);
- await page.locator('#close-compare').click();
- assert.equal(await page.evaluate(()=>Frame.agent.getDocument('instrument').revisionId),current);
-});
 test('selecting a revision immediately loads it, preserves feedback and history, and persists after reload',async t=>{
  const page=await pageFor(t);
  const board=await page.locator('#board').boundingBox();
@@ -459,6 +447,7 @@ test('one saved Pulse design switches layouts, states and feedback by viewport',
  assert.deepEqual(await page.locator('#state-picker option').allTextContents(),['default','phone']);
  assert.deepEqual(await page.evaluate(id=>Frame.agent.inspect(id).filter(node=>node.visible).map(node=>node.id),id),['phone-layout']);
  assert.equal(await page.locator('#brush path:visible').count(),1);
+ await page.locator('#feedback-menu summary').click();
  await page.locator('#clear').click();
  await picker.selectOption('1280×800');
  assert.equal(await page.locator('#state-picker').inputValue(),'error');
