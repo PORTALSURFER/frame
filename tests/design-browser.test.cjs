@@ -388,6 +388,58 @@ test('embedded image assets decode before readiness and survive portable export'
  });
  assert.ok(result.size>1000);assert.equal(result.assets[0].id,'sample');
 });
+test('viewport sizes are named per design and survive a browser reload',async t=>{
+ const page=await pageFor(t),picker=page.locator('#viewport-picker');
+ const options=()=>picker.locator('option').allTextContents();
+ const settings=async()=>{await page.locator('.project-menu summary').click();await page.locator('#configure-viewports').click();};
+ assert.deepEqual(await options(),['Desktop · 1000 × 700','Tablet · 768 × 1024','Phone · 360 × 740']);
+ assert.equal(await picker.inputValue(),'1000×700');
+ await picker.selectOption('360×740');
+ await settings();
+ const dialog=page.getByRole('dialog',{name:'Viewport sizes'});
+ await dialog.getByRole('button',{name:'Add size'}).click();
+ const added=dialog.getByRole('group',{name:'Size 4'});
+ await added.getByRole('textbox',{name:'Name'}).fill('Phone');
+ await added.getByRole('spinbutton',{name:'Width'}).fill('393');
+ await added.getByRole('spinbutton',{name:'Height'}).fill('852');
+ await dialog.getByRole('button',{name:'Save sizes'}).click();
+ assert.match(await dialog.getByRole('alert').textContent(),/unique/);
+ await added.getByRole('textbox',{name:'Name'}).fill('Pulse mobile');
+ await dialog.getByRole('group',{name:'Size 3'}).getByRole('button',{name:'Remove viewport size'}).click();
+ await dialog.getByRole('button',{name:'Save sizes'}).click();
+ assert.equal(await picker.inputValue(),'393×852');
+ assert.deepEqual(await page.evaluate(()=>Frame.currentViewport('instrument')),{width:393,height:852});
+ assert.equal(await page.evaluate(()=>Frame.project.export('instrument').archive.viewportPresets[2].name),'Pulse mobile');
+ await page.reload();
+ assert.equal(await picker.inputValue(),'393×852');
+ assert.deepEqual(await options(),['Desktop · 1000 × 700','Tablet · 768 × 1024','Pulse mobile · 393 × 852']);
+ await page.locator('#design-picker').selectOption('sift-style-studies');
+ assert.ok((await options()).every(option=>!option.includes('Pulse mobile')));
+});
+test('the design library opens a saved Pulse concept with its original ID and presets',async t=>{
+ const page=await pageFor(t);
+ await page.evaluate(async()=>{
+  const design=Frame.agent.getDocument('instrument');
+  design.id='pulse-browser-reference-phone';design.name='Pulse mobile concept';
+  Frame.registerDocument(design);Frame.agent.selectDesign(design.id);
+  Frame.project.setViewportPresets(design.id,[{name:'Review phone',width:393,height:852}]);
+  await Frame.project.saveDurable(design.id,0);
+  Frame.agent.selectDesign('instrument');
+ });
+ await page.reload();
+ assert.equal(await page.locator('#design-picker').inputValue(),'instrument');
+ await page.locator('.project-menu summary').click();
+ await page.getByRole('button',{name:'Browse designs'}).click();
+ const library=page.getByRole('dialog',{name:'Designs'});
+ await library.getByRole('heading',{name:'Pulse concepts'}).waitFor();
+ await library.getByRole('button',{name:/Pulse · phone/}).click();
+ await library.waitFor({state:'hidden'});
+ assert.equal(await page.locator('#design-picker').inputValue(),'pulse-browser-reference-phone');
+ assert.deepEqual(await page.locator('#viewport-picker option').allTextContents(),['Review phone · 393 × 852']);
+ assert.equal(await page.locator('#viewport-picker').inputValue(),'393×852');
+ assert.equal(await page.evaluate(()=>Frame.agent.getDocument('pulse-browser-reference-phone').revisionId),'instrument-r1');
+ assert.equal(await page.evaluate(async()=>(await Frame.project.listDurable()).length),1);
+});
 test('saved viewport, state and input values resume with the browser draft',async t=>{
  const page=await pageFor(t);
  await page.evaluate(()=>{

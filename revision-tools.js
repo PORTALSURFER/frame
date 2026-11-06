@@ -11,9 +11,51 @@
   const key=id=>"frame-project-v1:"+id;
   const maxProjectBytes = 128 * 1024 * 1024;
   let registering = false;
+  const defaultViewports=[
+    {name:"Desktop",width:1000,height:700},
+    {name:"Tablet",width:768,height:1024},
+    {name:"Phone",width:360,height:740}
+  ];
+  const sameSize=(a,b)=>a.width===b.width&&a.height===b.height;
+  function defaultPresets(size) {
+    const presets=copy(defaultViewports);
+    if(!presets.some(preset=>sameSize(preset,size))) {
+      const device=size.width<=480?"Phone":size.width<900&&size.height>size.width?"Tablet":"Desktop";
+      const preset=presets.find(preset=>preset.name===device);
+      preset.width=size.width; preset.height=size.height;
+    }
+    return presets;
+  }
+  function validatePresets(presets) {
+    const validDimensions=({width,height})=>[width,height].every(n=>Number.isInteger(n)&&n>=1&&n<=8192);
+    if(!Array.isArray(presets)||!presets.length||presets.length>16||
+       presets.some(p=>!p||typeof p.name!=="string"||!p.name.trim()||p.name.length>60||!validDimensions(p))) {
+      throw new Error("Enter 1–16 named sizes with whole-number dimensions from 1 to 8192.");
+    }
+    if(new Set(presets.map(p=>p.name.trim().toLowerCase())).size!==presets.length||
+       new Set(presets.map(p=>p.width+"×"+p.height)).size!==presets.length) {
+      throw new Error("Each size needs a unique name and resolution.");
+    }
+    return presets.map(({name,width,height})=>({name:name.trim(),width,height}));
+  }
+  function getViewportPresets(id) {
+    const archive=archives.get(id);
+    return copy(archive?.viewportPresets||defaultPresets(Frame.agent.getDocument(id)));
+  }
+  function setViewportPresets(id,input) {
+    const archive=archives.get(id);
+    if(!archive)throw new Error("Open a structured design to configure its viewport sizes.");
+    const presets=validatePresets(input);
+    const current=Frame.currentViewport(id);
+    const previous=getViewportPresets(id),index=previous.findIndex(preset=>sameSize(preset,current));
+    const next=presets.find(preset=>sameSize(preset,current))||
+      presets.find(preset=>preset.name===previous[index]?.name)||presets[index]||presets[0];
+    archive.viewportPresets=presets;
+    Frame.agent.setViewport(id,{width:next.width,height:next.height});
+  }
   function notify() {
     const status=document.getElementById("project-save-notice");
-    if(status)status.textContent=blocked.size?"Unreadable saved project data is protected. New checkpoints do not replace that original.":unsaved.size?"Project changes are unsaved. Download the project before closing or reloading, or retry project saving.":"";
+    if(status)status.textContent=blocked.size?"Unreadable saved design data is protected. New checkpoints do not replace that original.":unsaved.size?"Design changes are unsaved. Download the design before closing or reloading, or retry saving.":"";
     const retry=document.getElementById("retry-project-save");if(retry)retry.hidden=!unsaved.size;
   }
   function persist(id) {
@@ -34,6 +76,7 @@
   }
   function validateArchive(archive) {
     if(!archive||archive.version!==1||typeof archive.designId!=="string"||!Array.isArray(archive.revisions)||!archive.revisions.length)throw new Error("Invalid revision archive");
+    if(archive.viewportPresets!==undefined)validatePresets(archive.viewportPresets);
     const ids=new Set();
     for(const revision of archive.revisions) {
       FrameDocument.validate(revision.document);
@@ -50,6 +93,11 @@
     if(archive)archives.set(input.id,archive);
     const document=archive?.sourceRevisionId===input.revisionId?archive.revisions.find(r=>r.revisionId===archive.currentRevisionId).document:input;
     const context=archive?.sourceRevisionId===input.revisionId?copy(archive.context||null):null;
+    if(archive&&context?.viewport&&!archive.viewportPresets&&
+       [context.viewport.width,context.viewport.height].every(n=>Number.isInteger(n)&&n>=1&&n<=8192)) {
+      const presets=defaultPresets(document);
+      if(!presets.some(preset=>sameSize(preset,context.viewport)))archive.viewportPresets=defaultPresets(context.viewport);
+    }
     const previousRegistering = registering;
     registering = true;
     let result;
@@ -112,8 +160,15 @@
     if(JSON.stringify(project.assets||[])!==JSON.stringify(doc.assets||[]))throw new Error("Bundled assets differ from the current document");
     return project;
   }
+  function seedImportedPresets(project) {
+    if(project.archive.viewportPresets)return;
+    const doc=project.archive.revisions.find(r=>r.revisionId===project.archive.currentRevisionId).document;
+    const presets=defaultPresets(doc);
+    project.archive.viewportPresets=presets.some(preset=>sameSize(preset,project.viewport))?presets:defaultPresets(project.viewport);
+  }
   function importProject(input, {preserveLegacy = false} = {}) {
     const project=copy(validateProject(input)),id=project.archive.designId;
+    seedImportedPresets(project);
     if(Frame.designs.has(id))throw new Error("Project ID already exists; choose an unused ID");
     if(project.styleguide&&Frame.styleguides.has(project.styleguide.id)&&JSON.stringify(Frame.styleguides.get(project.styleguide.id))!==JSON.stringify(project.styleguide))throw new Error("Bundled styleguide conflicts with an existing guide");
     const previousRestore=Frame.restoringProject;
@@ -157,6 +212,7 @@
   function restoreStartup(input, expectedSelection) {
     const conflict=message=>{const error=new Error(message);error.name='ConflictError';throw error;};
     const project=copy(validateProject(input)),id=project.archive.designId,old=archives.get(id);
+    seedImportedPresets(project);
     if(currentId()!==expectedSelection || Frame.projectBridge.restorationEpoch()!==0 || !Frame.projectBridge.canCheckpoint()) conflict('The open review changed while loading; recover the checkpoint as a separate design.');
     if(Frame.designs.has(id) && !Frame.documents.has(id))conflict('A different source design uses this project ID; both versions are preserved.');
     if(old && (old.sourceRevisionId!==project.archive.sourceRevisionId || !project.archive.revisions.some(r=>r.revisionId===Frame.agent.getDocument(id).revisionId))) conflict('Source and checkpoint have diverged; both versions are preserved.');
@@ -183,7 +239,7 @@
     } finally { Frame.restoringProject=null; }
     window.dispatchEvent(new CustomEvent('frame:project-restored',{detail:{id}}));refresh();return id;
   }
-  Frame.project={export:exportProject,validate:validateProject,import:importProject,restoreStartup};
+  Frame.project={export:exportProject,validate:validateProject,import:importProject,restoreStartup,getViewportPresets,setViewportPresets};
   const picker=document.getElementById("revision-picker");
   function refresh() {
     if(!picker)return;

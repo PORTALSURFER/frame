@@ -51,17 +51,19 @@
         <label>Styleguide <select id="styleguide-picker" aria-label="Styleguide"></select></label>
         <button id="view-styleguide" type="button" disabled>View guide</button>
       </div>
-      <details class="project-menu"><summary>Project <span class="project-warning">Attention</span><span aria-hidden="true">⌄</span></summary><div class="project-actions">
-        <button id="download-project" type="button">Download project</button>
+      <details class="project-menu"><summary>Designs <span class="project-warning">Attention</span><span aria-hidden="true">⌄</span></summary><div class="project-actions">
+        <button id="browse-designs" type="button">Browse designs</button>
+        <button id="configure-viewports" type="button" disabled>Viewport sizes</button>
+        <button id="download-project" type="button">Download design</button>
         <button id="save-checkpoint" type="button" disabled>Save checkpoint</button>
         <label><input id="automatic-checkpoints" type="checkbox"> Automatic checkpoints</label>
         <button id="retry-automatic-checkpoint" type="button" hidden>Retry automatic checkpoint</button>
         <button id="recover-checkpoint" type="button">Recover checkpoint</button>
-        <button id="import-project" type="button">Import project</button>
+        <button id="import-project" type="button">Import design</button>
         <button id="source-settings" type="button">Source connection</button>
         <button id="restore-revision" type="button">Restore revision</button>
         <button id="retry-project-save" type="button" hidden>Retry project save</button>
-        <div class="project-statuses" role="group" aria-label="Project status">
+        <div class="project-statuses" role="group" aria-label="Design status">
           <output id="live-document-status" role="status"></output>
           <output id="checkpoint-status" role="status"></output>
           <output id="automatic-checkpoint-status" role="status"></output>
@@ -70,7 +72,7 @@
       </div></details>
     </header>
     <div class="review-toolbar" role="group" aria-label="Design review">
-      <label>Viewport <select id="viewport-picker" aria-label="Viewport"><option value="custom">Design size</option><option value="desktop">Desktop · 1000 × 700</option><option value="tablet">Tablet · 768 × 1024</option><option value="phone">Phone · 360 × 740</option></select></label>
+      <label>Viewport <select id="viewport-picker" aria-label="Viewport" disabled></select></label>
         <label>State <select id="state-picker" aria-label="Interface state"></select></label><div class="zoom-controls"><button id="zoom-out" type="button" aria-label="Zoom out">−</button><output id="zoom-value" aria-live="polite">100%</output><button id="zoom-in" type="button" aria-label="Zoom in">+</button>
         <button id="fit-view" type="button">Fit</button></div><div class="review-actions"><button id="compare-revisions" type="button">Compare</button>
         <button id="check-design" type="button">Check design</button><label><input id="image-feedback" type="checkbox"> Include feedback</label>
@@ -137,11 +139,30 @@
     <label><input id="compare-overlay" type="checkbox"> Overlay revisions</label><pre id="compare-summary"></pre>
     <div id="revision-canvases"><canvas id="revision-before" role="img"></canvas><canvas id="revision-after" role="img"></canvas></div><button id="close-compare" type="button">Close</button>
   </dialog>
-  <dialog id="project-dialog" aria-labelledby="project-title" data-text-editor><h2 id="project-title">Import project</h2>
-    <p>Export from the old Frame address, then choose that portable project here. Preview a separate copy before importing.</p><label for="project-file">Project JSON</label><input id="project-file" type="file" accept=".json,application/json">
-    <label for="project-target-id">Destination project id</label><input id="project-target-id" autocomplete="off">
+  <dialog id="design-library" aria-labelledby="design-library-title" data-text-editor>
+    <h2 id="design-library-title">Designs</h2>
+    <div id="design-library-entries"></div>
+    <p id="design-library-status" role="status"></p>
+    <button id="close-design-library" type="button" autofocus>Close</button>
+  </dialog>
+  <dialog id="viewport-dialog" aria-labelledby="viewport-title" data-text-editor>
+    <form id="viewport-form">
+      <h2 id="viewport-title">Viewport sizes</h2>
+      <p>Set the resolutions available in this design. Keep at least one size.</p>
+      <div id="viewport-sizes"></div>
+      <button id="add-viewport" type="button">Add size</button>
+      <p id="viewport-error" role="alert"></p>
+      <div class="note-actions">
+        <button type="submit">Save sizes</button>
+        <button id="cancel-viewports" type="button">Cancel</button>
+      </div>
+    </form>
+  </dialog>
+  <dialog id="project-dialog" aria-labelledby="project-title" data-text-editor><h2 id="project-title">Import design</h2>
+    <p>Export from the old Frame address, then choose that portable design here. Preview a separate copy before importing.</p><label for="project-file">Design JSON</label><input id="project-file" type="file" accept=".json,application/json">
+    <label for="project-target-id">Destination design ID</label><input id="project-target-id" autocomplete="off">
     <button id="preview-project" type="button">Preview import</button>
-    <p id="project-import-status" role="status"></p><button id="confirm-project" type="button" disabled>Import project</button><button id="cancel-project" type="button">Cancel</button>
+    <p id="project-import-status" role="status"></p><button id="confirm-project" type="button" disabled>Import design</button><button id="cancel-project" type="button">Cancel</button>
   </dialog>
   <dialog id="import-dialog" aria-labelledby="import-title" data-text-editor>
     <h2 id="import-title">Import feedback</h2>
@@ -185,8 +206,8 @@
   </dialog>
   <dialog id="checkpoint-dialog" aria-labelledby="checkpoint-title">
     <h2 id="checkpoint-title">Recover checkpoint</h2>
-    <label>Saved project <select id="checkpoint-picker"></select></label>
-    <label>New project id <input id="checkpoint-new-id" autocomplete="off"></label>
+    <label>Saved design <select id="checkpoint-picker"></select></label>
+    <label>New design ID <input id="checkpoint-new-id" autocomplete="off"></label>
     <p id="checkpoint-recovery-status" role="status"></p>
     <button id="confirm-checkpoint-recovery" type="button" disabled>Recover as new design</button>
     <button id="cancel-checkpoint-recovery" type="button">Cancel</button>

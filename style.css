@@ -108,6 +108,23 @@ pre { white-space: pre-wrap; overflow-wrap: anywhere; }
 .revision-toolbar button, #compare-dialog button, #project-dialog button {padding:7px 10px;border:1px solid #465451;background:#293331;color:#e0e7e1;cursor:pointer;font:inherit;}
 .revision-toolbar button:disabled {opacity:.4;}
 #project-save-notice, #feedback-revision-notice {color:#ffd37a;}
+#design-library {max-height:calc(100dvh - 32px);overflow:auto;}
+#design-library ul {list-style:none;padding:0;display:grid;gap:6px;}
+#design-library li button {width:100%;text-align:left;display:flex;flex-wrap:wrap;gap:4px 12px;justify-content:space-between;}
+#design-library button {padding:7px 10px;border:1px solid #465451;background:#293331;color:#e0e7e1;cursor:pointer;font:inherit;}
+#design-library button[aria-current="true"] {border-color:#a9b8b1;}
+#design-library small {color:#b8c4bf;}
+#viewport-dialog {width:min(510px,calc(100vw - 32px));max-height:calc(100dvh - 32px);overflow:auto;}
+#viewport-sizes fieldset {display:grid;grid-template-columns:minmax(0,1fr) 64px 64px auto;gap:8px;align-items:end;margin:0 0 12px;min-width:0;border:1px solid #465451;}
+#viewport-sizes label {margin:0;}
+#viewport-sizes input {display:block;width:100%;padding:6px;background:#141a19;color:inherit;border:1px solid #647371;border-radius:3px;}
+#viewport-dialog button {padding:7px 10px;border:1px solid #465451;background:#293331;color:#e0e7e1;cursor:pointer;font:inherit;}
+#viewport-dialog button:disabled {opacity:.5;cursor:default;}
+#viewport-error {color:#ffd2c6;}
+@media(max-width:480px) {
+  #viewport-sizes fieldset {grid-template-columns:repeat(2,minmax(0,1fr));}
+  #viewport-sizes label:first-of-type {grid-column:1/-1;}
+}
 #compare-dialog {width:min(1100px,calc(100vw - 32px));max-height:calc(100dvh - 32px);overflow:auto;}
 #compare-dialog label {display:inline-flex;gap:6px;align-items:center;max-width:100%;flex-wrap:wrap;}
 #compare-dialog select {max-width:250px;}

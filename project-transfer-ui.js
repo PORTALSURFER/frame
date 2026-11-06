@@ -8,7 +8,7 @@
   async function prepare(){
     invalidate();const token=request;
     try{
-      if(!input)throw new Error('Choose a portable project file first');
+      if(!input)throw new Error('Choose a portable design file first');
       const candidate=await Frame.project.prepareTransfer(input,{designId:target.value.trim()||undefined});
       if(token!==request||!dialog.open)return;
       prepared=candidate.project;target.value=candidate.summary.targetId;confirm.disabled=false;
