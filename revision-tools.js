@@ -52,11 +52,19 @@
       presets.find(preset=>preset.name===previous[index]?.name)||presets[index]||presets[0];
     archive.viewportPresets=presets;
     Frame.agent.setViewport(id,{width:next.width,height:next.height});
+    if(Frame.disk) {
+      persist(id);
+      window.dispatchEvent(new CustomEvent("frame:viewport-presets-changed",{detail:{id}}));
+    }
   }
   function notify() {
     const status=document.getElementById("project-save-notice");
-    if(status)status.textContent=blocked.size?"Unreadable saved design data is protected. New checkpoints do not replace that original.":unsaved.size?"Design changes are unsaved. Download the design before closing or reloading, or retry saving.":"";
-    const retry=document.getElementById("retry-project-save");if(retry)retry.hidden=!unsaved.size;
+    const needsAttention=Frame.disk?[...unsaved].some(id=>{
+      const save=Frame.project?.automaticCheckpoints?.status(id);
+      return !save?.enabled||!!save.error;
+    }):unsaved.size>0;
+    if(status)status.textContent=blocked.size?"Unreadable saved design data is protected. New checkpoints do not replace that original.":needsAttention?"Design changes are unsaved. Download the design before closing or reloading, or retry saving.":"";
+    const retry=document.getElementById("retry-project-save");if(retry)retry.hidden=!needsAttention;
   }
   function persist(id) {
     if (Frame.disk) {
@@ -256,7 +264,26 @@
     } finally { Frame.restoringProject=null; }
     window.dispatchEvent(new CustomEvent('frame:project-restored',{detail:{id}}));refresh();return id;
   }
-  Frame.project={export:exportProject,validate:validateProject,import:importProject,restoreStartup,getViewportPresets,setViewportPresets,
+  function followSavedRevision(project) {
+    const archive=project.archive,id=archive.designId,current=archives.get(id);
+    if(current.currentRevisionId===archive.currentRevisionId&&current.sourceRevisionId===archive.sourceRevisionId&&
+       current.revisions.length===archive.revisions.length&&JSON.stringify(current.viewportPresets)===JSON.stringify(archive.viewportPresets))return;
+    const doc=archive.revisions.find(entry=>entry.revisionId===archive.currentRevisionId).document;
+    const values=Frame.agent.getValues(id);
+    const inputs=new Set(doc.elements.filter(node=>node.type==="input").map(node=>node.id));
+    Frame.restoringProject=id;
+    try {
+      Frame.agent.updateDocument(doc);
+      Frame.agent.setValues(id,Object.fromEntries(Object.entries(values).filter(([key])=>inputs.has(key))));
+      archives.set(id,archive);
+    } finally { Frame.restoringProject=null; }
+    window.dispatchEvent(new CustomEvent("frame:design-updated",{detail:{id,fromDisk:true}}));
+    refresh();
+  }
+  Frame.project={export:exportProject,validate:validateProject,import:importProject,restoreStartup,getViewportPresets,setViewportPresets,followSavedRevision,
+    hasUnsavedRevision:id=>unsaved.has(id),
+    savedDesignCanFollow:(id,project)=>Frame.disk.canRetryProject({archive:archives.get(id)},project),
+    readSavedRevision:id=>Frame.disk.readProject(id,archives.get(id).revisions),
     captureDurable:id=>exportProject(id,{shareRevisions:!!Frame.disk})};
   const picker=document.getElementById("revision-picker");
   function refresh() {
@@ -279,9 +306,11 @@
 
   }
   window.addEventListener("frame:design-updated",e=>{
-    if(registering || Frame.restoringProject)return;
+    if(registering || Frame.restoringProject || e.detail.fromDisk)return;
+    if(Frame.disk&&!e.detail.documentChanged)return;
     if(Frame.documents.has(e.detail.id)){record(Frame.agent.getDocument(e.detail.id));persist(e.detail.id);refresh();}
   });
   window.addEventListener("frame:design-selected",refresh);
+  window.addEventListener("frame:automatic-checkpoint-status",notify);
   window.addEventListener("beforeunload",event=>{if(unsaved.size){event.preventDefault();event.returnValue="";}});
 })();

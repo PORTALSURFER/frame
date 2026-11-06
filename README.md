@@ -47,7 +47,9 @@ Frame opens as an empty design environment. Use **Open design file** to import a
 
 ## Run locally
 
-Run `npm start` and open <http://127.0.0.1:8765/>. The launcher binds only to loopback. Browser drafts and checkpoints are scoped to the address, so use a separate local port when reviewing several projects at once. Keep each design file in its owning project.
+Run `npm start` and open <http://127.0.0.1:8765/>. Frame starts an empty workspace on loopback. To open a durable workspace, set `FRAME_DATA_DIR` to the project's local `.frame` folder and use a separate `FRAME_PORT` for each running project. For Pulse, use its `scripts/open-frame.sh` launcher.
+
+Design revisions and feedback save in that project folder. An open review picks up newly saved revisions in place and keeps its viewport, state, and pan and zoom. **Save checkpoint** also records the current view for the next opening. If two sessions edit the same design from different revisions, Frame keeps both versions available for review.
 
 The scripts under `examples/` are fixtures for tests and the opt-in review workflow. They are never loaded by the Frame workspace.
 

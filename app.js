@@ -112,12 +112,26 @@
     pendingFeedback.set(id, session.feedback);
     updateDiskFeedback(id, session);
   }
+  const feedbackMarks = data => JSON.stringify([data?.lines || [], data?.notes || []]);
+  async function writeDiskFeedback(id, disk, data) {
+    try { return await Frame.disk.save('feedback', id, disk.generation, data); }
+    catch (error) {
+      if (error.name !== 'ConflictError') throw error;
+      const current = await Frame.disk.read('feedback', id);
+      if (!current) throw error;
+      const saved = feedbackMarks(current.data);
+      if (saved === feedbackMarks(data)) return current;
+      if (saved !== disk.savedMarks) throw error;
+      return Frame.disk.save('feedback', id, current.generation, data);
+    }
+  }
   function flushDiskFeedback(id, session, disk) {
     if (disk.running || disk.generation === undefined || !disk.next || disk.conflict) return;
     const data = disk.next;
     disk.running = true;
-    Frame.disk.save('feedback', id, disk.generation, data).then(receipt => {
+    writeDiskFeedback(id, disk, data).then(receipt => {
       disk.generation = receipt.generation;
+      disk.savedMarks = feedbackMarks(data);
       if (disk.next === data) {
         disk.next = null;
         session.feedback.unsaved = false;
@@ -167,6 +181,7 @@
           }
         }
         disk.generation = record?.generation || 0;
+        disk.savedMarks = feedbackMarks(data);
         if (!record && !disk.next) {
           const migrate = () => {
             if (disk.generation !== 0 || disk.next || session.feedback.blocked ||

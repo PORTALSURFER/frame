@@ -16,7 +16,14 @@
       controller=FrameAutomaticCheckpoints.create({
         capture:()=>{const project=Frame.project.captureDurable(id);project.resume.automaticCheckpoints=controller?.status().enabled??true;return project;},
         read:()=>Frame.project.readCheckpointHead(id),
-        ...(Frame.disk?{sameFeedback:()=>true,canRetryConflict:Frame.disk.canRetryProject}:{}),
+        ...(Frame.disk?{
+          sameFeedback:()=>true,
+          keepExisting:true,
+          canRetryConflict:(saved,open,baseline)=>{
+            const presets=project=>JSON.stringify(project?.archive.viewportPresets);
+            return (presets(saved)===presets(open)||presets(saved)===presets(baseline))&&Frame.disk.canRetryProject(saved,open);
+          }
+        }:{}),
         canCapture:()=>id===current() && Frame.projectBridge.canCheckpoint(),
         write:(snapshot,generation)=>Frame.project.writeDurable(snapshot,generation),
         acknowledge:snapshot=>{
@@ -28,22 +35,32 @@
       controllers.set(id,controller);notify(id,controller.status());return controller.flush();
     },
     status:(id=current())=>controllers.get(id)?.status()||null,
+    observe:(id,record)=>controllers.get(id)?.observe(record),
     async ensure(id=current()) {
       if (!Frame.documents.has(id) || id!==current()) return;
       const controller=controllers.get(id);
       return controller ? controller.retry() : Frame.project.automaticCheckpoints.enable(id);
     },
     flush:(id=current())=>requireController(id).flush(),
+    save(id=current()) {
+      const controller=requireController(id);
+      controller.changed();
+      return controller.flush();
+    },
     retry:(id=current())=>requireController(id).retry(),
     disable:(id=current())=>{const controller=requireController(id);controller.changed();return controller.disable();}
   };
-  for(const event of ['frame:design-updated',...(!Frame.disk?['frame:feedback-changed']:[])])window.addEventListener(event,e=>{
-    if(Frame.restoringProject)return;
+  const trackedEvents=Frame.disk?['frame:design-updated','frame:viewport-presets-changed']:['frame:design-updated','frame:feedback-changed'];
+  for(const event of trackedEvents)window.addEventListener(event,e=>{
+    if(Frame.restoringProject||e.detail.fromDisk||
+       (Frame.disk&&event==='frame:design-updated'&&!e.detail.documentChanged))return;
     const controller=controllers.get(e.detail.id);
     if(controller)controller.changed();
     else if(Frame.disk && e.detail.id===current()) start(e.detail.id);
   });
-  for(const event of ['frame:styleguide-selected','frame:view-changed'])window.addEventListener(event,()=>{if(!Frame.restoringProject)controllers.get(current())?.changed();});
+  if(!Frame.disk)for(const event of ['frame:styleguide-selected','frame:view-changed'])window.addEventListener(event,()=>{
+    if(!Frame.restoringProject)controllers.get(current())?.changed();
+  });
   window.addEventListener('frame:design-leaving',e=>{const controller=controllers.get(e.detail.id);if(controller?.status().pending)controller.flush();});
   function start(id) {
     Frame.project.startup?.ready.then(status=>{

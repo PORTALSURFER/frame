@@ -6,7 +6,7 @@
   let bridge=null, renderPromise=Promise.resolve();
   function requireDocument(id) {const doc=documents.get(id);if(!doc) throw new Error("No structured document for design: "+id);return doc;}
   function view(id) {const doc=requireDocument(id);return viewports.get(id)||{width:doc.width,height:doc.height};}
-  function changed(id) {window.dispatchEvent(new CustomEvent("frame:design-updated",{detail:{id}}));}
+  function changed(id,documentChanged=false) {window.dispatchEvent(new CustomEvent("frame:design-updated",{detail:{id,documentChanged}}));}
   function registerDocument(input) {
     const doc=copy(FrameDocument.validate(input));
     if(Frame.designs.has(doc.id)) {Frame.errors.push({id:doc.id,message:doc.id+": Duplicate design id; the original design was kept"});window.dispatchEvent(new Event("frame:designs-changed"));return false;}
@@ -23,7 +23,7 @@
     documents.set(doc.id,doc);
     Object.assign(Frame.designs.get(doc.id),{name:doc.name,width:viewports.get(doc.id)?.width||doc.width,height:viewports.get(doc.id)?.height||doc.height,revisionId:doc.revisionId});
     if(!Object.hasOwn(doc.states||{default:{}},states.get(doc.id)||"default")) states.set(doc.id,"default");
-    changed(doc.id);return copy(doc);
+    changed(doc.id,true);return copy(doc);
   }
   function setViewport(id,viewport) {
     requireDocument(id);

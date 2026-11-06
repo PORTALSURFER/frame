@@ -79,13 +79,14 @@
       }
       return true;
     },
-    async readProject(id) {
+    async readProject(id, knownRevisions = []) {
       const record = await read('projects', id);
       if (!record) return null;
       const project = record.data;
       const entries = project.archive.revisions;
+      const known = new Map(await Promise.all(knownRevisions.map(async ({document})=>[await revisionKey(document),document])));
       project.archive.revisions = await mapRevisions(entries, async entry => ({
-        ...entry, document: await getRevision(entry.document),
+        ...entry, document: known.get(entry.document) || await getRevision(entry.document),
       }));
       if (record.data.assetsFromRevision) {
         const current = project.archive.revisions.find(entry => entry.revisionId === project.archive.currentRevisionId);

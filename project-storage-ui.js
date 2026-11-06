@@ -22,7 +22,7 @@
     try{const automatic=Frame.project.automaticCheckpoints;
       const automaticStatus=automatic?.status(id);
       const receipt=automaticStatus?.state==='conflict'?await automatic.retry(id):
-        automaticStatus?.enabled?await automatic.flush(id):await Frame.project.saveDurable(id,generations.get(id));
+        automaticStatus?.enabled?await automatic.save(id):await Frame.project.saveDurable(id,generations.get(id));
       if(receipt.error)throw new Error(receipt.error);generations.set(id,receipt.generation);
       showStatus(status,'Checkpoint saved: '+id+' · generation '+receipt.generation);
     }catch(error){showStatus(status,'Checkpoint not saved: '+error.message+' Download the design to keep a portable backup.',true);}
