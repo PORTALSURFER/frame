@@ -46,13 +46,23 @@ for(const width of [320,768,912,1280,1600])test(`workspace controls and canvas r
  });
  assert.deepEqual(await page.locator('.topbar').boundingBox(),topbar,'routine status must not resize the header');
  assert.equal(await page.locator('#live-document-status').isVisible(),false);
- const controls=await page.locator('.topbar .tools select, .topbar .tools button, .topbar-menus summary').evaluateAll(nodes=>nodes.map(node=>{
-  const {x,y,width,height}=node.getBoundingClientRect();
-  return {x,y,width,height};
- }));
- assert.equal(await page.locator('.topbar select:visible').count(),4,'review selectors are in the header');
+ const assertHeaderRow=async selectorCount=>{
+  const controls=await page.locator('.topbar .tools :is(select,button):visible, .topbar-menus summary:visible').evaluateAll(nodes=>nodes.map(node=>{
+   const {y,height}=node.getBoundingClientRect();
+   return {y,height};
+  }));
+  assert.equal(await page.locator('.topbar select:visible').count(),selectorCount,'review selectors are in the header');
+  assert.ok(Math.max(...controls.map(control=>control.y))<Math.min(...controls.map(control=>control.y+control.height)),'header controls share a single row');
+ };
+ await assertHeaderRow(4);
  assert.equal(await page.getByRole('combobox',{name:'Design',exact:true}).count(),0,'the separate design picker is hidden');
- assert.ok(Math.max(...controls.map(control=>control.y))<Math.min(...controls.map(control=>control.y+control.height)),'header controls share a single row');
+ await page.evaluate(()=>{
+  const {states,...doc}=Frame.agent.getDocument('instrument');
+  const contexts=Object.entries(states).map(([id,overrides])=>({id,label:id,overrides}));
+  Frame.agent.updateDocument({...doc,revisionId:'header-views',views:[{id:'preview',label:'Preview',contexts}]});
+  Frame.agent.selectDesign(doc.id);
+ });
+ await assertHeaderRow(5);
  if(width>=912) {
   const sizes=await page.locator('.tools').evaluate(node=>({content:node.scrollWidth,available:node.clientWidth}));
   assert.ok(sizes.content<=sizes.available,JSON.stringify(sizes));
