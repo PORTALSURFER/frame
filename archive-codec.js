@@ -47,6 +47,11 @@
     output.push(decoder.decode(buffer.subarray(0, used), {stream: true}), decoder.decode());
     return output.join('');
   }
+  function mapViewOverrides(views, transform) {
+    return views.map(view => ({...view, contexts: view.contexts.map(context => ({
+      ...context, overrides: transform(context.overrides)
+    }))}));
+  }
   function pack(archive) {
     const elements = [], states = [], elementMap = new Map(), stateMap = new Map();
     const intern = (value, pool, map) => {
@@ -58,6 +63,7 @@
       const doc = {...revision.document};
       doc.elements = doc.elements.map(element => intern(element, elements, elementMap));
       if (doc.states !== undefined) doc.states = Object.fromEntries(Object.entries(doc.states).map(([name, state]) => [name, intern(state, states, stateMap)]));
+      if (doc.views !== undefined) doc.views = mapViewOverrides(doc.views, overrides => intern(overrides, states, stateMap));
       return {...revision, document: doc};
     });
     return {format: 'frame-archive-dedup-v1', archive: {...archive, revisions}, elements, states};
@@ -77,6 +83,7 @@
         if (!doc.states || typeof doc.states !== 'object' || Array.isArray(doc.states)) throw new Error('Invalid compact project states');
         doc.states = Object.fromEntries(Object.entries(doc.states).map(([name, index]) => [name, resolve(value.states, index)]));
       }
+      if (doc.views !== undefined) doc.views = mapViewOverrides(doc.views, index => resolve(value.states, index));
       return {...revision, document: doc};
     });
     return {...value.archive, revisions};

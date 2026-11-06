@@ -1,7 +1,8 @@
 (() => {
   const viewportPicker=document.getElementById("viewport-picker"),statePicker=document.getElementById("state-picker");
+  const viewPicker=document.getElementById("view-picker"),contextPicker=document.getElementById("context-picker");
   const controls=document.getElementById("prototype-controls"),pins=new Map(),baselines=new Map();
-  let designId=null,interaction=false;
+  let designId=null,interaction=false,availableViews=[];
   const configure=document.getElementById("configure-viewports"),dialog=document.getElementById("viewport-dialog");
   const sizes=document.getElementById("viewport-sizes"),sizeError=document.getElementById("viewport-error");
   const addSize=document.getElementById("add-viewport");
@@ -45,16 +46,33 @@
     catch(error){sizeError.textContent=error.message;}
   });
   function structured(){return Frame.documents.has(designId);}
+  function refreshNavigation(doc) {
+    const width=doc && Frame.currentViewport(designId).width;
+    const state=doc && Frame.currentState(designId);
+    availableViews=doc?.views ? FrameDocument.viewportViews(doc,width) : [];
+    const activeView=availableViews.find(view=>view.contexts.some(context=>context.id===state));
+    const contexts=activeView?.contexts||[];
+    statePicker.hidden=!!doc?.views;
+    viewPicker.hidden=!activeView;
+    contextPicker.hidden=contexts.length<2;
+    if(activeView) {
+      viewPicker.replaceChildren(...availableViews.map(view=>new Option(view.label,view.id)));
+      viewPicker.value=activeView.id;
+      contextPicker.replaceChildren(...contexts.map(context=>new Option(context.label,context.id)));
+      contextPicker.value=state;
+    } else if(doc) {
+      statePicker.replaceChildren(...FrameDocument.viewportStates(doc,width).map(id=>new Option(id,id)));
+      statePicker.value=state;
+    } else statePicker.replaceChildren();
+  }
   function refresh(event) {
     if(Frame.restoringProject)return;
     const id=document.getElementById("design-picker").value;
     if(id!==designId){designId=id;pins.clear();controls.replaceChildren();}
     const enabled=structured();configure.disabled=viewportPicker.disabled=statePicker.disabled=!enabled;
     document.getElementById("tool-interact").disabled=!enabled;
+    refreshNavigation(Frame.documents.get(designId));
     if(enabled) {
-      const doc=Frame.agent.getDocument(designId);
-      statePicker.replaceChildren(...FrameDocument.viewportStates(doc,Frame.currentViewport(designId).width).map(state=>{const o=document.createElement("option");o.value=o.textContent=state;return o;}));
-      statePicker.value=Frame.currentState(designId);
       const presets=Frame.project.getViewportPresets(designId),signature=JSON.stringify(presets);
       if(renderedPresets!==signature) {
         renderedPresets=signature;
@@ -158,6 +176,11 @@
     if(preset)Frame.agent.setViewport(designId,{width:preset.width,height:preset.height});
   });
   statePicker.addEventListener("change",()=>Frame.agent.setState(designId,statePicker.value));
+  viewPicker.addEventListener("change",()=>{
+    const view=availableViews.find(view=>view.id===viewPicker.value);
+    if(view)Frame.agent.setState(designId,view.contexts[0].id);
+  });
+  contextPicker.addEventListener("change",()=>Frame.agent.setState(designId,contextPicker.value));
   document.getElementById("download-image").addEventListener("click",async()=>{
     const status=document.getElementById("review-action-status");
     try {const image=await Frame.agent.exportImage({feedback:document.getElementById("image-feedback").checked});

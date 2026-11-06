@@ -112,6 +112,25 @@ the structural checks are clean or that native product behavior is implemented.
 
 Viewport presets and Frame.agent.setViewport(id,{width,height}) recompute responsive bounds rather than shrink a fixed canvas. Elements can specify percentage responsive bounds and maxWidth breakpoints. Frame.agent.setState(id,state) applies named overrides; controls use accessible labels and declarative set-state actions.
 
+Use `views` to organize a design's screens and the contexts available within each screen:
+
+```json
+{
+  "views": [
+    {
+      "id": "issues",
+      "label": "Issues",
+      "contexts": [
+        {"id": "default", "label": "Browse", "overrides": {}},
+        {"id": "issues-selected", "label": "Selected rows", "overrides": {"selection-bar": {"visible": true}}}
+      ]
+    }
+  ]
+}
+```
+
+Each view has a unique ID and at least one context. Context IDs are unique across the design, and one must be `default`. These IDs work with `setState`, prototype actions, checkpoints, and the `viewportLayouts.narrow` and `viewportLayouts.wide` lists. A view opens in its first available context. If a viewport change makes the current context unavailable, Frame tries the first available context in the same view, then falls back to `default`. Switching back to the original viewport restores the requested context if it is still selected. Documents with a flat `states` map still use the original state picker.
+
 For distinct narrow and wide compositions in a single design, declare `viewportLayouts: {maxWidth, narrow, wide}`. Each layout lists its available states, including `default`. Elements with `viewportLayout: "narrow"` appear at or below `maxWidth`. Elements with `viewportLayout: "wide"` appear above it. Descendants inherit visibility from their parents. Frame previews the default state when the current state is unavailable at a width. Feedback stays with the layout in which it was recorded.
 
 Choose Interact to exercise real button/input elements with mouse or keyboard. Other modes annotate feedback. Pan (H) drags the view; zoom controls and Fit preserve design coordinates. Frame.view exposes get, set({zoom,panX,panY}), fit, and setMode.

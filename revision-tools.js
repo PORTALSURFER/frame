@@ -116,7 +116,7 @@
       result=originalRegister(document);
       if(result&&context) {
         if(context.viewport&&[context.viewport.width,context.viewport.height].every(n=>Number.isInteger(n)&&n>0&&n<=8192))Frame.agent.setViewport(input.id,context.viewport);
-        if(Object.hasOwn(document.states||{default:{}},context.state))Frame.agent.setState(input.id,context.state);
+        if(FrameDocument.hasState(document,context.state))Frame.agent.setState(input.id,context.state);
         if(context.values&&typeof context.values==="object") {
           const values=Object.fromEntries(Object.entries(context.values).filter(([id,value])=>typeof value==="string"&&document.elements.some(n=>n.id===id&&n.type==="input")));
           Frame.agent.setValues?.(input.id,values);
@@ -162,7 +162,7 @@
     FrameFeedback.validate(project.feedback,{id:doc.id});
     if(project.feedback.width!==project.viewport?.width||project.feedback.height!==project.viewport?.height||
       ![project.viewport?.width,project.viewport?.height].every(n=>Number.isInteger(n)&&n>0&&n<=8192))throw new Error("Project viewport and feedback dimensions do not match");
-    if(!Object.hasOwn(doc.states||{default:{}},project.state))throw new Error("Project has an unknown interface state");
+    if(!FrameDocument.hasState(doc,project.state))throw new Error("Project has an unknown interface state");
     if(!project.values||typeof project.values!=="object"||Object.keys(project.values).some(id=>!doc.elements.some(n=>n.id===id&&n.type==="input")||typeof project.values[id]!=="string"))throw new Error("Invalid prototype input values");
     if(project.styleguide) {
       const guide=project.styleguide;

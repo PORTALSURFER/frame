@@ -469,6 +469,43 @@ test('saved viewport, state and input values resume with the browser draft',asyn
  assert.equal(await page.evaluate(()=>Frame.currentState('instrument')),'error');
  assert.equal(await page.evaluate(()=>Frame.agent.getValues('instrument').frequency),'128');
 });
+
+test('view and context pickers scope options by screen and viewport, and restore the selection',async t=>{
+ const page=await pageFor(t);
+ await page.evaluate(()=>{
+  const id='instrument',doc=Frame.agent.getDocument(id);
+  const {states,...base}=doc;
+  Frame.agent.updateDocument({...base,revisionId:'grouped-r1',views:[
+   {id:'issues',label:'Issues',contexts:[
+    {id:'default',label:'Browse',overrides:states.default},
+    {id:'loading',label:'Selected rows',overrides:states.loading}
+   ]},
+   {id:'activity',label:'Activity',contexts:[{id:'error',label:'Unavailable',overrides:states.error}]}
+  ],viewportLayouts:{maxWidth:500,narrow:['default'],wide:['default','loading','error']}});
+ });
+ const view=page.getByRole('combobox',{name:'View',exact:true}),context=page.locator('#context-picker');
+ const viewport=page.getByRole('combobox',{name:'Viewport',exact:true});
+ const desktop=await viewport.inputValue();
+ assert.equal(await view.inputValue(),'issues');
+ assert.deepEqual(await context.locator('option').allTextContents(),['Browse','Selected rows']);
+ assert.equal(await page.locator('#state-picker').isHidden(),true);
+ await view.selectOption('activity');
+ assert.equal(await context.isHidden(),true);
+ assert.equal(await page.evaluate(()=>Frame.currentState('instrument')),'error');
+ await view.selectOption('issues');
+ assert.equal(await context.inputValue(),'default');
+ await context.selectOption('loading');
+ await viewport.selectOption('360×740');
+ assert.deepEqual(await view.locator('option').allTextContents(),['Issues']);
+ assert.equal(await context.isHidden(),true);
+ assert.equal(await page.evaluate(()=>Frame.currentState('instrument')),'default');
+ await viewport.selectOption(desktop);
+ assert.equal(await context.inputValue(),'loading');
+ await page.reload();
+ await page.evaluate(()=>Frame.agent.selectDesign('instrument'));
+ assert.equal(await view.inputValue(),'issues');
+ assert.equal(await context.inputValue(),'loading');
+});
 test('asset decode failure is a render error rather than a false ready signal',async t=>{
  const page=await pageFor(t);
  const rejected=await page.evaluate(async()=>{

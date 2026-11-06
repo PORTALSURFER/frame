@@ -22,7 +22,7 @@
     Frame.validateRevision?.(doc);
     documents.set(doc.id,doc);
     Object.assign(Frame.designs.get(doc.id),{name:doc.name,width:viewports.get(doc.id)?.width||doc.width,height:viewports.get(doc.id)?.height||doc.height,revisionId:doc.revisionId});
-    if(!Object.hasOwn(doc.states||{default:{}},states.get(doc.id)||"default")) states.set(doc.id,"default");
+    if(!FrameDocument.hasState(doc,states.get(doc.id)||"default")) states.set(doc.id,"default");
     changed(doc.id,true);return copy(doc);
   }
   function setViewport(id,viewport) {
@@ -31,7 +31,7 @@
     viewports.set(id,{width:viewport.width,height:viewport.height});Object.assign(Frame.designs.get(id),viewport);changed(id);return copy(viewport);
   }
   function setState(id,state) {
-    if(!Object.hasOwn(requireDocument(id).states||{default:{}},state)) throw new Error("Unknown state: "+state);
+    if(!FrameDocument.hasState(requireDocument(id),state)) throw new Error("Unknown state: "+state);
     states.set(id,state);changed(id);return state;
   }
   function setValue(id,elementId,value) {
@@ -110,6 +110,6 @@ getFeedback:()=>copy(requireBridge().feedback()),exportImage,
   Frame.currentState=id=>{
     const state=states.get(id)||"default";
     const doc=documents.get(id);
-    return !doc?.viewportLayouts||FrameDocument.viewportStates(doc,view(id).width).includes(state)?state:"default";
+    return doc ? FrameDocument.resolveState(doc,view(id).width,state) : "default";
   };
 })();

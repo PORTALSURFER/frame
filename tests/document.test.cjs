@@ -42,6 +42,26 @@ test('document validation rejects cycles, missing parents, duplicate IDs and unl
  }
 });
 
+test('view contexts validate globally, resolve within their view, and participate in edits',()=>{
+ const {states,...base}=structuredClone(doc);
+ const grouped={...base,views:[
+  {id:'home',label:'Home',contexts:[{id:'default',label:'Ready',overrides:states.default}]},
+  {id:'tasks',label:'Tasks',contexts:[
+   {id:'list',label:'List',overrides:{label:{text:'Tasks'}}},
+   {id:'loading',label:'Loading',overrides:states.loading}
+  ]}
+ ],viewportLayouts:{maxWidth:500,narrow:['default','list'],wide:['default','list','loading']}};
+ model.validate(grouped);
+ assert.deepEqual(model.viewportViews(grouped,320).map(view=>view.contexts.map(context=>context.id)),[['default'],['list']]);
+ assert.equal(model.layout(grouped,{width:800,height:600},'loading')[1].text,'Loading');
+ assert.equal(model.layout(grouped,{width:320,height:600},'loading')[1].text,'Tasks');
+ assert.deepEqual(model.edit(grouped,[{op:'remove',id:'panel'}]).views[1].contexts[1].overrides,{});
+ assert.throws(()=>model.validate({...grouped,states}),/replace the flat states/);
+ const invalid=structuredClone(grouped);
+ invalid.views[1].contexts[1].id='default';
+ assert.throws(()=>model.validate(invalid),/duplicate view context/);
+});
+
 test('opt-in device flow reflows fixed children and equal grid columns with viewport changes',()=>{
  const base={version:1,id:'flow',name:'Flow',revisionId:'r1',width:200,height:100,elements:[
   {id:'parent',type:'container',bounds:{x:0,y:0,width:200,height:100},responsive:{width:'100%'},flow:{kind:'wrap',gap:4}},
