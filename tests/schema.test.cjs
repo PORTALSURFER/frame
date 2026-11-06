@@ -2,6 +2,19 @@ const {test} = require('node:test');
 const assert = require('node:assert/strict');
 const codec = require('../feedback.js');
 const design = {id: 'demo', width: 800, height: 600, revisionId: 'r1'};
+test('feedback merges independent changes and refuses edits to the same annotation', () => {
+  const first = {...codec.metadata('note', design), text:'First',anchor:[20,20]};
+  const second = {...codec.metadata('note', design), text:'Second',anchor:[30,20]};
+  const base = codec.document(design,[],[first,second]);
+  const local = {...base,notes:[{...first,text:'Edited here'}]};
+  const remoteNote = {...codec.metadata('note',design),text:'New elsewhere',anchor:[40,20]};
+  const saved = {...base,notes:[first,second,remoteNote]};
+  const merged = codec.merge(base,local,saved);
+  assert.deepEqual(merged.notes,[local.notes[0],remoteNote]);
+  assert.deepEqual(codec.merge(base,local,local),local);
+  assert.equal(codec.merge(base,local,{...saved,notes:[first,{...second,text:'Edited elsewhere'}]}),null);
+  assert.equal(codec.merge(base,local,{...saved,notes:[{...first,text:'Edited elsewhere'},second]}),null);
+});
 test('legacy migration retains oversized geometry and IDs without inventing dates or revisions', () => {
   const points = Array.from({length: 5001}, (_, i) => [i, -(i + 1)]);
   const migrated = codec.read({version: 2, lines: [points], notes: [{id:'legacy-stroke-demo-1', text:'Retain me', anchor:[-20, 900]}]}, design);

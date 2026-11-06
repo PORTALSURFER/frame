@@ -114,32 +114,59 @@
     updateDiskFeedback(id, session);
   }
   const feedbackMarks = data => JSON.stringify([data?.lines || [], data?.notes || []]);
-  async function writeDiskFeedback(id, disk, data) {
-    try { return await Frame.disk.save('feedback', id, disk.generation, data); }
-    catch (error) {
-      if (error.name !== 'ConflictError') throw error;
-      const current = await Frame.disk.read('feedback', id);
-      if (!current) throw error;
-      const saved = feedbackMarks(current.data);
-      if (saved === feedbackMarks(data)) return current;
-      if (saved !== disk.savedMarks) throw error;
-      return Frame.disk.save('feedback', id, current.generation, data);
+  function feedbackGestureActive(id) {
+    return design?.id === id && (activePointerId !== null || noteDrag || noteDraft);
+  }
+  function installDiskFeedback(id, session, data) {
+    const imported = unpack(structuredClone(data));
+    Object.assign(session.feedback, imported, {blocked: false});
+    session.history = {undo:[],redo:[]};
+    if (design?.id === id) {
+      lines = imported.lines; notes = imported.notes; history = session.history;
+      selectedLine = null; selectedNote = null; redrawMarks();
     }
+  }
+  async function reconcileDiskFeedback(id, session, disk, error) {
+    const record = await Frame.disk.read('feedback', id);
+    if (!record) throw error;
+    const saved = FrameFeedback.read(record.data, {id});
+    if (feedbackGestureActive(id)) {
+      setTimeout(() => flushDiskFeedback(id, session, disk), 100);
+      return false;
+    }
+    const pending = disk.next;
+    const merged = FrameFeedback.merge(disk.saved, pending, saved);
+    if (!merged) {
+      error.message = 'The same annotation was changed in another session. Your changes are still in this tab.';
+      throw error;
+    }
+    if (feedbackMarks(merged) !== feedbackMarks(pending)) installDiskFeedback(id, session, merged);
+    disk.generation = record.generation;
+    disk.saved = saved;
+    disk.next = feedbackMarks(merged) === feedbackMarks(saved) ? null : merged;
+    if (!disk.next) acknowledgeDiskFeedback(id, session);
+    return true;
+  }
+  function acknowledgeDiskFeedback(id, session) {
+    session.feedback.unsaved = false;
+    session.feedback.notice = '';
+    pendingFeedback.delete(id);
   }
   function flushDiskFeedback(id, session, disk) {
     if (disk.running || disk.generation === undefined || !disk.next || disk.conflict) return;
     const data = disk.next;
     disk.running = true;
-    writeDiskFeedback(id, disk, data).then(receipt => {
+    Frame.disk.save('feedback', id, disk.generation, data).then(receipt => {
       disk.generation = receipt.generation;
-      disk.savedMarks = feedbackMarks(data);
+      disk.saved = data;
       if (disk.next === data) {
         disk.next = null;
-        session.feedback.unsaved = false;
-        session.feedback.notice = '';
-        pendingFeedback.delete(id);
+        acknowledgeDiskFeedback(id, session);
       }
       return true;
+    }).catch(error => {
+      if (error.name !== 'ConflictError') throw error;
+      return reconcileDiskFeedback(id, session, disk, error);
     }).catch(error => {
       disk.conflict = error.name === 'ConflictError';
       diskFeedbackError(id, session, error);
@@ -153,7 +180,7 @@
   function loadDiskFeedback(id, session) {
     let disk = diskFeedback.get(id);
     if (!disk) {
-      disk = {baseline: JSON.stringify(feedbackDocument(id, session))};
+      disk = {saved: structuredClone(feedbackDocument(id, session))};
       diskFeedback.set(id, disk);
     }
     if (disk.loading || disk.generation !== undefined) return disk;
@@ -161,28 +188,22 @@
     Frame.disk.read('feedback', id).then(record => {
       const data = record && FrameFeedback.read(record.data, {id});
       const install = () => {
-        if (design?.id === id && (activePointerId !== null || noteDrag || noteDraft)) {
+        if (feedbackGestureActive(id)) {
           setTimeout(install, 100); return;
         }
         disk.loading = false;
         if (record) {
-          const saved = JSON.stringify(data);
-          if (disk.next && saved !== disk.baseline) {
+          const merged = disk.next ? FrameFeedback.merge(disk.saved, disk.next, data) : data;
+          if (!merged) {
             disk.conflict = true;
             diskFeedbackError(id, session, new Error('Disk feedback changed while opening this design.'));
             return;
           }
-          if (!disk.next) {
-            const imported = unpack(data);
-            Object.assign(session.feedback, imported, {blocked: false});
-            if (design?.id === id) {
-              lines = imported.lines; notes = imported.notes;
-              selectedLine = null; selectedNote = null; redrawMarks();
-            }
-          }
+          installDiskFeedback(id, session, merged);
+          if (disk.next) disk.next = merged;
         }
         disk.generation = record?.generation || 0;
-        disk.savedMarks = feedbackMarks(data);
+        if (record) disk.saved = data;
         if (!record && !disk.next) {
           const migrate = () => {
             if (disk.generation !== 0 || disk.next || session.feedback.blocked ||
@@ -273,8 +294,8 @@
     resolveSelected.disabled = !selected;
     resolveSelected.textContent = selected?.status === "resolved" ? "Reopen" : "Mark resolved";
     deleteSelected.disabled = !designReady || (!selectedLine && !selectedNote);
-    retrySave.hidden = !feedback.unsaved || diskFeedback.get(design?.id)?.conflict === true;
-    retrySave.disabled = activePointerId !== null || noteDrag !== null;
+    retrySave.hidden = !feedback.unsaved;
+    retrySave.disabled = !!feedbackGestureActive(design?.id);
     saveNotice.textContent = feedback.notice;
     const marks = [...lines.map(line=>lineMetadata.get(line)), ...notes].filter(feedbackInViewport);
     clear.disabled = marks.length === 0;
@@ -335,14 +356,14 @@
     return {lines:[...lines],lineState:lines.map(line=>JSON.parse(JSON.stringify(lineMetadata.get(line)))),
       notes:notes.map(note=>({...JSON.parse(JSON.stringify(note)),note}))};
   }
-  function record(before, label) {
+  function record(before, label, updateTimestamps = true) {
     let after = snapshot();
     const unchanged = before.lines.length === after.lines.length && before.lines.every((line,i)=>line===after.lines[i]&&JSON.stringify(before.lineState[i])===JSON.stringify(after.lineState[i])) &&
       before.notes.length === after.notes.length && before.notes.every((entry,i)=>entry.note===after.notes[i].note&&JSON.stringify({...entry,note:undefined})===JSON.stringify({...after.notes[i],note:undefined}));
-    if (unchanged) return;
+    if (unchanged) return false;
     for (const entry of before.notes) {
       const note = notes.find(note => note === entry.note);
-      if (note && (note.text !== entry.text || note.status !== entry.status || note.anchor.some((value, axis) => value !== entry.anchor[axis]))) note.updatedAt = new Date().toISOString();
+      if (updateTimestamps && note && (note.text !== entry.text || note.status !== entry.status || note.anchor.some((value, axis) => value !== entry.anchor[axis]))) note.updatedAt = new Date().toISOString();
     }
     for(const entry of before.notes) {
       const note=notes.find(note=>note===entry.note);
@@ -355,6 +376,7 @@
     history.undo.push({before, after, label});
     if (history.undo.length > MAX_HISTORY) history.undo.shift();
     history.redo = [];
+    return true;
   }
   function restore(state) {
     lines = [...state.lines];
@@ -1044,7 +1066,11 @@
   });
   statusFilter.addEventListener("change",()=>{selectLine(null);redrawMarks();updateControls();});
   deleteSelected.addEventListener("click", deleteSelection);
-  retrySave.addEventListener("click", save);
+  retrySave.addEventListener("click", () => {
+    const disk = diskFeedback.get(design?.id);
+    if (disk) disk.conflict = false;
+    save();
+  });
   retryRender.addEventListener("click", () => {
     paintDesign();
     fitBoard();
@@ -1219,7 +1245,8 @@
     }
     lines=lines.map(line=>{const metadata={...lineMetadata.get(line)},points=carry(metadata,line);lineMetadata.set(points,metadata);return points;});
     for(const note of notes)carry(note);
-    record(before,"Carry feedback to changed layout");redrawMarks();save();previousElements=next;
+    if (record(before,"Carry feedback to changed layout",false)) save();
+    redrawMarks();previousElements=next;
     document.getElementById("feedback-revision-notice").textContent=[...lines.map(line=>lineMetadata.get(line)),...notes].filter(mark=>mark.needsReview).length+" marks need review after layout changes.";
   }
   Frame.projectBridge={
@@ -1264,7 +1291,8 @@
     if(Frame.restoringProject)return;
     if (design?.id !== event.detail.id) return;
     edited();
-    carryFeedback();
+    if (event.detail.documentChanged) carryFeedback();
+    else if (Frame.documents.has(design.id)) previousElements=Frame.agent.inspect(design.id);
     finishBrush(); finishNoteDrag(); closeNoteEditor();
     sizeLabel.textContent = design.width + " × " + design.height;
     paintDesign(); fitBoard(); refreshDesigns();

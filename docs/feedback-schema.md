@@ -57,3 +57,8 @@ successful change/retry, and leaves older storage backups untouched.
 Undo restores IDs, text, geometry and item timestamps exactly. Redo reuses the same
 identity. Saving, exporting, resizing, changing tools and retrying storage do not
 create mark identities or update item dates.
+
+In disk-backed workspaces, Frame reconciles edits to different annotation IDs
+when another session saves first. Conflicting changes to the same annotation
+stay in the current tab and can be downloaded for review. Switching context or
+viewport does not write feedback.

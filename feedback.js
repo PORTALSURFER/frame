@@ -63,7 +63,24 @@
   function document(design, lines, notes) {
     return {version: 3, design: design.id, revisionId: design.revisionId ?? null, width: design.width, height: design.height, lines, notes};
   }
-  const api = {metadata, validate, read, importDocument, document};
+  function merge(base, local, saved) {
+    const signature = value => JSON.stringify(value, (_, entry) =>
+      entry && typeof entry === "object" && !Array.isArray(entry)
+        ? Object.fromEntries(Object.keys(entry).sort().map(key => [key, entry[key]]))
+        : entry);
+    const marks = data => new Map([...(data?.lines || []), ...(data?.notes || [])].map(mark => [mark.id, mark]));
+    const before = marks(base), ours = marks(local), theirs = marks(saved);
+    const result = {...local, lines: [], notes: []};
+    for (const id of new Set([...ours.keys(), ...theirs.keys()])) {
+      const original = signature(before.get(id)), current = ours.get(id), stored = theirs.get(id);
+      const localValue = signature(current), savedValue = signature(stored);
+      if (localValue !== savedValue && localValue !== original && savedValue !== original) return null;
+      const mark = localValue === original ? stored : current;
+      if (mark) result[mark.type === "stroke" ? "lines" : "notes"].push(mark);
+    }
+    return result;
+  }
+  const api = {metadata, validate, read, importDocument, document, merge};
   if (typeof module !== "undefined") module.exports = api;
   else root.FrameFeedback = api;
 })(typeof window === "undefined" ? globalThis : window);

@@ -277,7 +277,9 @@
       Frame.agent.setValues(id,Object.fromEntries(Object.entries(values).filter(([key])=>inputs.has(key))));
       archives.set(id,archive);
     } finally { Frame.restoringProject=null; }
-    window.dispatchEvent(new CustomEvent("frame:design-updated",{detail:{id,fromDisk:true}}));
+    window.dispatchEvent(new CustomEvent("frame:design-updated",{detail:{
+      id,fromDisk:true,documentChanged:current.currentRevisionId!==archive.currentRevisionId
+    }}));
     refresh();
   }
   Frame.project={export:exportProject,validate:validateProject,import:importProject,restoreStartup,getViewportPresets,setViewportPresets,followSavedRevision,
