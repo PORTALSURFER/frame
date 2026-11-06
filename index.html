@@ -48,14 +48,6 @@
         <select id="revision-picker" aria-label="Revision" title="Revision"></select>
         <select id="styleguide-picker" aria-label="Styleguide" title="Styleguide"></select>
         <button id="view-styleguide" type="button" aria-label="View guide" disabled>Guide</button>
-        <div class="zoom-controls" role="group" aria-label="Zoom">
-          <button id="zoom-out" type="button" aria-label="Zoom out">−</button>
-          <output id="zoom-value" aria-live="polite">100%</output>
-          <button id="zoom-in" type="button" aria-label="Zoom in">+</button>
-          <button id="fit-view" type="button">Fit</button>
-        </div>
-        <label class="image-feedback" title="Include feedback in PNG"><input id="image-feedback" type="checkbox" aria-label="Include feedback in PNG"> Marks</label>
-        <button id="download-image" type="button" aria-label="Download PNG">PNG</button>
       </div>
       <div class="topbar-menus">
         <details class="project-menu"><summary>Designs <span class="project-warning">Attention</span><span aria-hidden="true">⌄</span></summary><div class="project-actions">
@@ -142,6 +134,16 @@
         <div class="history-tools" role="group" aria-label="History">
           <button id="undo" type="button" disabled aria-label="Undo" aria-keyshortcuts="Control+Z Meta+Z" title="Undo"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 5 4 10l5 5m-5-5h10a5 5 0 0 1 0 10h-3"/></svg></button>
           <button id="redo" type="button" disabled aria-label="Redo" aria-keyshortcuts="Control+Shift+Z Meta+Shift+Z Control+Y" title="Redo"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m15 5 5 5-5 5m5-5H10a5 5 0 0 0 0 10h3"/></svg></button>
+        </div>
+        <div class="zoom-controls" role="group" aria-label="Zoom">
+          <button id="zoom-out" type="button" aria-label="Zoom out">−</button>
+          <output id="zoom-value" aria-live="polite">100%</output>
+          <button id="zoom-in" type="button" aria-label="Zoom in">+</button>
+          <button id="fit-view" type="button">Fit</button>
+        </div>
+        <div class="export-tools" role="group" aria-label="PNG export">
+          <label class="image-feedback" title="Include feedback in PNG"><input id="image-feedback" type="checkbox" aria-label="Include feedback in PNG"> Marks</label>
+          <button id="download-image" type="button" aria-label="Download PNG">PNG</button>
         </div>
       </nav>
       <div class="workspace-status"><output id="review-action-status" role="status"></output><span id="design-size" class="design-size"></span><span id="project-save-notice" role="status"></span><span id="feedback-revision-notice" role="status"></span></div>
