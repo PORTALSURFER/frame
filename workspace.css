@@ -19,6 +19,9 @@ body { background:var(--ui-bg); color:var(--ui-ink); font-family:"Helvetica Neue
 .project-menu summary { list-style:none; border:1px solid var(--ui-line); padding:8px 14px; font-size:12px; cursor:pointer; min-height:32px; display:flex; gap:20px; align-items:center; }
 .project-menu summary::-webkit-details-marker { display:none; }
 .project-actions { position:absolute; z-index:20; right:0; top:calc(100% + 8px); width:min(260px, calc(100vw - 24px)); max-height:72dvh; overflow:auto; padding:12px; display:grid; gap:10px; background:linear-gradient(#424140,#333230); border:1px solid var(--ui-accent); box-shadow:0 16px 40px #0008; }
+#open-pulse-design {text-align:left;font-weight:600;}
+#open-pulse-design[aria-current] {box-shadow:inset 2px 0 var(--ui-accent);}
+#open-design-status {color:var(--ui-muted);font-size:11px;overflow-wrap:anywhere;}
 .project-menu:not([open]) .project-actions { display:none; }
 .project-warning { display:none; color:#efc94f; font-size:10px; }
 .project-menu:has([data-warning], #retry-project-save:not([hidden])) .project-warning { display:inline; }

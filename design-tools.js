@@ -39,7 +39,7 @@
     const inputs=values.get(id)||{};inputs[elementId]=String(value);values.set(id,inputs);changed(id);return inputs[elementId];
   }
   function inspect(id,options={}) {
-    let nodes=FrameDocument.inspect(requireDocument(id),view(id),states.get(id)||"default");
+    let nodes=FrameDocument.inspect(requireDocument(id),view(id),Frame.currentState(id));
     if(options.elementId) nodes=nodes.filter(node=>node.id===options.elementId);
     if(options.region) {const b=options.region;if(!["x","y","width","height"].every(k=>Number.isFinite(b[k]))||b.width<0||b.height<0) throw new Error("Invalid inspection region");
       nodes=nodes.filter(n=>n.bounds.x+n.bounds.width>=b.x&&n.bounds.x<=b.x+b.width&&n.bounds.y+n.bounds.height>=b.y&&n.bounds.y<=b.y+b.height);}
@@ -55,9 +55,12 @@
     ctx.scale(scale,scale);design.paint(ctx,{styleguide:Frame.activeStyleguide});
     if(feedback) {
       if(bridge.selectedId()!==design.id) throw new Error("Select the design before exporting its feedback overlay");
-      const marks=bridge.feedback();ctx.lineWidth=3;ctx.lineCap="round";ctx.strokeStyle="#ff3434";
-      for(const line of marks.lines) {ctx.beginPath();line.points.forEach(([x,y],i)=>ctx[i?"lineTo":"moveTo"](x,y));ctx.stroke();}
-      for(const note of marks.notes) {ctx.fillStyle="#362824";ctx.fillRect(note.anchor[0]-8,note.anchor[1]-8,220,50);ctx.fillStyle="#ffe2d4";ctx.font="12px monospace";ctx.fillText(note.text.split("\n")[0],note.anchor[0],note.anchor[1]+14,200);}
+      const marks=bridge.feedback(),doc=documents.get(design.id);
+      const matchesLayout=mark=>!mark.reviewedViewport||!doc?.viewportLayouts||
+        FrameDocument.viewportLayout(doc,mark.reviewedViewport.width)===FrameDocument.viewportLayout(doc,design.width);
+      ctx.lineWidth=3;ctx.lineCap="round";ctx.strokeStyle="#ff3434";
+      for(const line of marks.lines.filter(matchesLayout)) {ctx.beginPath();line.points.forEach(([x,y],i)=>ctx[i?"lineTo":"moveTo"](x,y));ctx.stroke();}
+      for(const note of marks.notes.filter(matchesLayout)) {ctx.fillStyle="#362824";ctx.fillRect(note.anchor[0]-8,note.anchor[1]-8,220,50);ctx.fillStyle="#ffe2d4";ctx.font="12px monospace";ctx.fillText(note.text.split("\n")[0],note.anchor[0],note.anchor[1]+14,200);}
     }
     const blob=await new Promise((resolve,reject)=>canvas.toBlob(b=>b?resolve(b):reject(new Error("Image export failed")),"image/png"));
     return {blob,width:canvas.width,height:canvas.height,designId:design.id,revisionId:design.revisionId??null,scale,feedback};
@@ -104,5 +107,9 @@ getFeedback:()=>copy(requireBridge().feedback()),exportImage,
   Frame.connectUI=api=>{bridge=api;};
   Frame.markRendering=promise=>{renderPromise=promise;promise.catch(()=>{});};
   Frame.currentViewport=id=>copy(view(id));
-  Frame.currentState=id=>states.get(id)||"default";
+  Frame.currentState=id=>{
+    const state=states.get(id)||"default";
+    const doc=documents.get(id);
+    return !doc?.viewportLayouts||FrameDocument.viewportStates(doc,view(id).width).includes(state)?state:"default";
+  };
 })();

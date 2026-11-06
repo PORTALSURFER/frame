@@ -45,7 +45,7 @@ Available today:
 
 The original Canvas examples are visual mockups. Instrument workstation adds a structured prototype with responsive layouts and interactive controls. Viewport/state selectors, zoom/pan/fit, structural checks, semantic checks of actual controls, and repeatable visual/interaction comparisons are available through the toolbar and browser API. See docs/agent-api.md for their scope and limitations.
 
-Open **Designs → Browse designs** to switch between open and saved designs. Pulse concepts appear together in the list. Use **Designs → Viewport sizes** to add, edit, or remove named resolutions for the current design. Keep at least one preset. The viewport picker uses those presets, and design downloads and checkpoints include them.
+Open **Designs → Browse designs** to switch between open and saved designs. Open **Pulse** directly from the Designs menu, then use **Viewport** to switch between its desktop and phone layouts. Use **Designs → Viewport sizes** to add, edit, or remove named resolutions for the current design. Keep at least one preset. The viewport picker uses those presets, and design downloads and checkpoints include them.
 
 ## Run locally
 

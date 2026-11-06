@@ -43,34 +43,51 @@
   });
   const library=document.getElementById('design-library'),libraryEntries=document.getElementById('design-library-entries');
   const libraryStatus=document.getElementById('design-library-status'),closeLibrary=document.getElementById('close-design-library');
-  const pulseConcepts=new Map([
-    ['pulse-browser-reference','Pulse · desktop'],
-    ['pulse-browser-reference-phone','Pulse · phone']
-  ]);
-  let listing=0,opening=false;
-  async function openDesign(id) {
+  const pulseId='pulse-browser-reference',legacyPhoneId='pulse-browser-reference-phone';
+  const pulseButton=document.getElementById('open-pulse-design'),designMenu=pulseButton.closest('details');
+  const menuStatus=document.getElementById('open-design-status');
+  let listing=0,opening=false,menuRequest=0;
+  async function openDesign(id, output=libraryStatus) {
     if(opening)return;
-    opening=true;closeLibrary.disabled=true;libraryEntries.inert=true;libraryStatus.textContent='Opening design…';
+    opening=true;closeLibrary.disabled=true;pulseButton.disabled=true;libraryEntries.inert=true;
+    output.hidden=false;output.textContent='Opening design…';
     try {
-      if(!Frame.designs.has(id)) {
-        const saved=await Frame.project.readDurable(id);
-        if(!saved)throw new Error('The saved design could not be found.');
+      if(id!==current()) {
         if(!Frame.designs.has(id)) {
-          Frame.project.import(saved.project,{preserveLegacy:true,diskRecovery:!!Frame.disk});
-          if(saved.project.resume?.automaticCheckpoints) {
-            const receipt=await Frame.project.automaticCheckpoints.enable(id);
-            if(receipt.error)throw new Error('Design opened. Automatic saving requires review: '+receipt.error);
-          }
+          const saved=await Frame.project.readDurable(id);
+          if(!saved)throw new Error('The saved design could not be found.');
+          if(!Frame.designs.has(id)) {
+            Frame.project.import(saved.project,{preserveLegacy:true,diskRecovery:!!Frame.disk});
+            if(saved.project.resume?.automaticCheckpoints) {
+              const receipt=await Frame.project.automaticCheckpoints.enable(id);
+              if(receipt.error)throw new Error('Design opened. Automatic saving requires review: '+receipt.error);
+            }
+          } else Frame.agent.selectDesign(id);
         } else Frame.agent.selectDesign(id);
-      } else Frame.agent.selectDesign(id);
+      }
       try {localStorage.setItem('frame-last-design',id);} catch { /* optional */ }
-      library.close();
-    } catch(error) {libraryStatus.textContent=error.message;}
-    finally {opening=false;closeLibrary.disabled=false;libraryEntries.inert=false;}
+      output.textContent='';menuStatus.hidden=true;
+      if(library.open)library.close();
+      else {designMenu.open=false;designMenu.querySelector('summary').focus();}
+    } catch(error) {output.textContent=error.message;}
+    finally {opening=false;closeLibrary.disabled=false;pulseButton.disabled=false;libraryEntries.inert=false;}
   }
+  pulseButton.addEventListener('click',()=>openDesign(pulseId,menuStatus));
+  designMenu.addEventListener('toggle',async()=>{
+    const token=++menuRequest;
+    if(!designMenu.open)return;
+    if(current()===pulseId)pulseButton.setAttribute('aria-current','true');
+    else pulseButton.removeAttribute('aria-current');
+    if(Frame.designs.has(pulseId)){pulseButton.hidden=false;return;}
+    try {
+      const saved=await Frame.project.listDurable();
+      if(token===menuRequest&&designMenu.open)pulseButton.hidden=!saved.some(record=>record.id===pulseId);
+    } catch { /* Browse designs reports storage errors. */ }
+  });
   function renderLibrary(saved) {
     const entries=new Map([...Frame.designs].map(([id,design])=>[id,{name:design.name,revisionId:design.revisionId}]));
     for(const record of saved)if(!entries.has(record.id))entries.set(record.id,{name:record.id,revisionId:record.revisionId});
+    entries.delete(legacyPhoneId);
     libraryEntries.replaceChildren();
     const sections=[
       {name:'Pulse concepts',contains:id=>/^pulse(?:-|$)/i.test(id)},
@@ -83,7 +100,7 @@
       const list=document.createElement('ul');
       for(const [id,entry] of items) {
         const item=document.createElement('li'),button=document.createElement('button');
-        button.type='button';button.textContent=pulseConcepts.get(id)||entry.name;
+        button.type='button';button.textContent=id===pulseId?'Pulse':entry.name;
         if(entry.revisionId){const revision=document.createElement('small');revision.textContent=entry.revisionId;button.append(revision);}
         if(id===current())button.setAttribute('aria-current','true');
         button.addEventListener('click',()=>openDesign(id));

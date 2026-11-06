@@ -112,6 +112,14 @@
         notice: "Saved feedback could not be loaded. Drawing and download still work. Existing saved data will not be overwritten."};
     }
   }
+  function feedbackInViewport(mark) {
+    const doc=Frame.documents.get(design?.id);
+    return !mark?.reviewedViewport||!doc?.viewportLayouts||
+      FrameDocument.viewportLayout(doc,mark.reviewedViewport.width)===FrameDocument.viewportLayout(doc,design.width);
+  }
+  function feedbackVisible(mark) {
+    return feedbackInViewport(mark)&&(statusFilter.value==="all"||mark?.status===statusFilter.value);
+  }
   function renderFeedbackList() {
     const marks = [...lines.map((line, index) => ({mark:line, metadata:lineMetadata.get(line), title:`Line ${index + 1}`, text:"Drawn annotation", type:"line"})),
       ...notes.map((note, index) => ({mark:note, metadata:note, title:`Note ${index + 1}`, text:note.text, type:"note"}))];
@@ -139,7 +147,7 @@
       [...card.children].forEach((child, index) => { if (child.textContent !== values[index]) child.textContent = values[index]; });
       card.dataset.status = status;
       card.setAttribute("aria-pressed", String(item.mark === selectedLine || item.mark === selectedNote));
-      card.hidden = statusFilter.value !== "all" && status !== statusFilter.value;
+      card.hidden = !feedbackVisible(item.metadata);
       if (!card.hidden) visible++;
     }
     for (const [mark, card] of feedbackCards) if (!present.has(mark)) { card.remove(); feedbackCards.delete(mark); }
@@ -154,7 +162,7 @@
     redo.disabled = !!active || !!noteDrag?.moved || history.redo.length === 0;
     undo.title = active ? "Undo drawing line" : noteDrag?.moved ? "Undo moving note" : history.undo.at(-1)?.label || "Undo";
     redo.title = history.redo.at(-1)?.label ? `Redo: ${history.redo.at(-1).label}` : "Redo";
-    clear.disabled = lines.length === 0 && notes.length === 0;
+
     download.disabled = !design;
     const selected = selectedNote || (selectedLine && lineMetadata.get(selectedLine));
     resolveSelected.disabled = !selected;
@@ -163,11 +171,13 @@
     retrySave.hidden = !feedback.unsaved;
     retrySave.disabled = active !== null || noteDrag !== null;
     saveNotice.textContent = feedback.notice;
-    const marks = [...lines.map(line=>lineMetadata.get(line)), ...notes];
+    const marks = [...lines.map(line=>lineMetadata.get(line)), ...notes].filter(feedbackInViewport);
+    clear.disabled = marks.length === 0;
+    const visibleLines=marks.filter(mark=>mark.type==="stroke").length,visibleNotes=marks.length-visibleLines;
     const openCount = marks.filter(mark=>mark.status!=="resolved").length;
     count.title = openCount + " open · " + (marks.length-openCount) + " resolved";
-    count.textContent = `${lines.length} ${lines.length === 1 ? "line" : "lines"}`;
-    if (notes.length) count.textContent += ` · ${notes.length} ${notes.length === 1 ? "note" : "notes"}`;
+    count.textContent = `${visibleLines} ${visibleLines === 1 ? "line" : "lines"}`;
+    if (visibleNotes) count.textContent += ` · ${visibleNotes} ${visibleNotes === 1 ? "note" : "notes"}`;
     const notices = [];
     if (lines.length > MAX_LINES || lines.some(line => line.length > MAX_LINE_POINTS)) {
       notices.push("Older feedback exceeds the drawing limits. All marks are preserved and can be downloaded.");
@@ -295,7 +305,7 @@
     path.setAttribute("aria-pressed", points === selectedLine ? "true" : "false");
     path.classList.toggle("selected", points === selectedLine);
     path.classList.toggle("resolved", lineMetadata.get(points)?.status === "resolved");
-    path.toggleAttribute("hidden", statusFilter.value !== "all" && lineMetadata.get(points)?.status !== statusFilter.value);
+    path.toggleAttribute("hidden", !feedbackVisible(lineMetadata.get(points)));
   }
   function selectLine(line) {
     selectedLine = line;
@@ -332,7 +342,7 @@
       pin.classList.toggle("selected", note === selectedNote);
       pin.setAttribute("aria-pressed", note === selectedNote ? "true" : "false");
       pin.classList.toggle("resolved", note.status === "resolved");
-      pin.hidden = statusFilter.value !== "all" && note.status !== statusFilter.value;
+      pin.hidden = !feedbackVisible(note);
       pin.tabIndex = mode === "pen" ? -1 : 0;
     }
   }
@@ -440,7 +450,7 @@
     const y = event.clientY - boardBounds.top;
     for (let index = lines.length - 1; index >= 0; index--) {
       const line = lines[index];
-      if (statusFilter.value !== "all" && lineMetadata.get(line).status !== statusFilter.value) continue;
+      if (!feedbackVisible(lineMetadata.get(line))) continue;
       for (let point = 0; point < line.length; point++) {
         const a = line[Math.max(0, point - 1)];
         const b = line[point];
@@ -798,8 +808,8 @@
     finishNoteDrag();
     closeNoteEditor();
     const before = snapshot();
-    lines = [];
-    notes = [];
+    lines = lines.filter(line=>!feedbackInViewport(lineMetadata.get(line)));
+    notes = notes.filter(note=>!feedbackInViewport(note));
     record(before, "Clear feedback");
     selectedLine = null;
     selectedNote = null;
@@ -1012,8 +1022,11 @@
     });
     if(!moved){previousElements=next;return;}
     finishLine();finishNoteDrag();
+    if (selectedLine&&!feedbackInViewport(lineMetadata.get(selectedLine))) selectedLine=null;
+    if (selectedNote&&!feedbackInViewport(selectedNote)) selectedNote=null;
     const before=snapshot();
     function carry(mark, points) {
+      if(!feedbackInViewport(mark))return points;
       if(!mark.elementAnchor) {mark.needsReview=true;mark.reviewReason="Position-only feedback needs review after layout changes";return points;}
       const target=nextById.get(mark.elementAnchor.elementId),old=oldById.get(mark.elementAnchor.elementId);
       if(!target || target.visible===false) {mark.needsReview=true;mark.reviewReason="The anchored element is removed or hidden";return points;}

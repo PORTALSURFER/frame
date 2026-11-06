@@ -54,7 +54,7 @@
     document.getElementById("check-design").disabled=!enabled;
     if(enabled) {
       const doc=Frame.agent.getDocument(designId);
-      statePicker.replaceChildren(...Object.keys(doc.states||{default:{}}).map(state=>{const o=document.createElement("option");o.value=o.textContent=state;return o;}));
+      statePicker.replaceChildren(...FrameDocument.viewportStates(doc,Frame.currentViewport(designId).width).map(state=>{const o=document.createElement("option");o.value=o.textContent=state;return o;}));
       statePicker.value=Frame.currentState(designId);
       const presets=Frame.project.getViewportPresets(designId),signature=JSON.stringify(presets);
       if(renderedPresets!==signature) {

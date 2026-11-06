@@ -416,29 +416,49 @@ test('viewport sizes are named per design and survive a browser reload',async t=
  await page.evaluate(id=>Frame.agent.selectDesign(id),'sift-style-studies');
  assert.ok((await options()).every(option=>!option.includes('Pulse mobile')));
 });
-test('the design library opens a saved Pulse concept with its original ID and presets',async t=>{
- const page=await pageFor(t);
- await page.evaluate(async()=>{
+test('one saved Pulse design switches layouts, states and feedback by viewport',async t=>{
+ const page=await pageFor(t),id='pulse-browser-reference';
+ await page.evaluate(async id=>{
   const design=Frame.agent.getDocument('instrument');
-  design.id='pulse-browser-reference-phone';design.name='Pulse mobile concept';
-  Frame.registerDocument(design);Frame.agent.selectDesign(design.id);
-  Frame.project.setViewportPresets(design.id,[{name:'Review phone',width:393,height:852}]);
-  await Frame.project.saveDurable(design.id,0);
+  const phone=Frame.components.text('phone-layout',{x:0,y:0,width:100,height:30},{text:'Phone',viewportLayout:'narrow'});
+  design.id=id;design.name='Pulse';design.viewportLayouts={maxWidth:799,narrow:['default','phone'],wide:Object.keys(design.states)};
+  for(const node of design.elements.filter(node=>!node.parentId))node.viewportLayout='wide';
+  design.elements.push(phone);design.states.phone={'phone-layout':{text:'Phone detail'}};
+  Frame.registerDocument(design);
+  Frame.registerDocument({...Frame.agent.getDocument('instrument'),id:id+'-phone'});
+  Frame.agent.selectDesign(id);
+  Frame.project.setViewportPresets(id,[{name:'Desktop',width:1280,height:800},{name:'Phone',width:393,height:852}]);
+  const feedback=Frame.agent.getFeedback();
+  for(const width of [1280,393])feedback.lines.push({...FrameFeedback.metadata('stroke',Frame.designs.get(id)),reviewedViewport:{width,height:800},points:[[0,0],[10,10]]});
+  Frame.projectBridge.importFeedback(feedback);
+  await Frame.project.saveDurable(id,0);
+  Frame.agent.selectDesign(id+'-phone');await Frame.project.saveDurable(id+'-phone',0);
   Frame.agent.selectDesign('instrument');
- });
+ },id);
  await page.reload();
- assert.equal(await page.locator('#design-picker').inputValue(),'instrument');
- await page.locator('.project-menu summary').click();
- await page.getByRole('button',{name:'Browse designs'}).click();
+ const menu=page.locator('.project-menu'),picker=page.locator('#viewport-picker');
+ await menu.locator('summary').click();
+ await menu.getByRole('button',{name:'Pulse',exact:true}).click();
+ await page.waitForFunction(id=>document.getElementById('design-picker').value===id,id);
+ assert.equal(await menu.getAttribute('open'),null);
+ assert.equal(await picker.inputValue(),'1280×800');
+ await page.locator('#state-picker').selectOption('error');
+ await picker.selectOption('393×852');
+ assert.equal(await page.locator('#design-picker').inputValue(),id);
+ assert.equal(await page.locator('#state-picker').inputValue(),'default');
+ assert.deepEqual(await page.locator('#state-picker option').allTextContents(),['default','phone']);
+ assert.deepEqual(await page.evaluate(id=>Frame.agent.inspect(id).filter(node=>node.visible).map(node=>node.id),id),['phone-layout']);
+ assert.equal(await page.locator('#brush path:visible').count(),1);
+ await page.locator('#clear').click();
+ await picker.selectOption('1280×800');
+ assert.equal(await page.locator('#state-picker').inputValue(),'error');
+ assert.equal(await page.locator('#brush path:visible').count(),1);
+ await menu.locator('summary').click();
+ await menu.getByRole('button',{name:'Browse designs'}).click();
  const library=page.getByRole('dialog',{name:'Designs'});
  await library.getByRole('heading',{name:'Pulse concepts'}).waitFor();
- await library.getByRole('button',{name:/Pulse · phone/}).click();
- await library.waitFor({state:'hidden'});
- assert.equal(await page.locator('#design-picker').inputValue(),'pulse-browser-reference-phone');
- assert.deepEqual(await page.locator('#viewport-picker option').allTextContents(),['Review phone · 393 × 852']);
- assert.equal(await page.locator('#viewport-picker').inputValue(),'393×852');
- assert.equal(await page.evaluate(()=>Frame.agent.getDocument('pulse-browser-reference-phone').revisionId),'instrument-r1');
- assert.equal(await page.evaluate(async()=>(await Frame.project.listDurable()).length),1);
+ assert.equal(await library.getByRole('button',{name:/pulse-browser-reference-phone/}).count(),0);
+ assert.equal(await page.evaluate(async()=>(await Frame.project.listDurable()).length),2);
 });
 test('saved viewport, state and input values resume with the browser draft',async t=>{
  const page=await pageFor(t);
