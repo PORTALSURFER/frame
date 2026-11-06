@@ -447,11 +447,16 @@ test('one saved Pulse design switches layouts, states and feedback by viewport',
  assert.deepEqual(await page.locator('#state-picker option').allTextContents(),['default','phone']);
  assert.deepEqual(await page.evaluate(id=>Frame.agent.inspect(id).filter(node=>node.visible).map(node=>node.id),id),['phone-layout']);
  assert.equal(await page.locator('#brush path:visible').count(),1);
- await page.locator('#feedback-menu summary').click();
- await page.locator('#clear').click();
+ const clear=page.locator('footer').getByRole('button',{name:'Clear all feedback',exact:true});
+ await clear.click();
  await picker.selectOption('1280×800');
  assert.equal(await page.locator('#state-picker').inputValue(),'error');
+ assert.equal(await page.locator('#brush path:visible').count(),0,'clear also removes marks from the other viewport');
+ assert.equal(await clear.isDisabled(),true);
+ await page.locator('#undo').click();
  assert.equal(await page.locator('#brush path:visible').count(),1);
+ await picker.selectOption('393×852');
+ assert.equal(await page.locator('#brush path:visible').count(),1,'undo restores marks on both viewports');
  await menu.locator('summary').click();
  await menu.getByRole('button',{name:'Browse designs'}).click();
  const library=page.getByRole('dialog',{name:'Designs'});

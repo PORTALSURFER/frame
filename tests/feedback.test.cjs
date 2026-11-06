@@ -307,7 +307,7 @@ test('the 1,000-line boundary blocks new strokes without losing feedback and und
   await beginMouse(page);
   await page.mouse.up();
   assert.equal((await savedLines(page)).length, 1000);
-  await (await feedbackControl(page, '#clear')).click();
+  await page.locator('footer').getByRole('button', {name:'Clear all feedback', exact:true}).click();
   assert.equal(await page.locator('#feedback-limit-notice').textContent(), '');
   await beginMouse(page);
   await page.mouse.up();
@@ -442,7 +442,7 @@ test('a failed clear remains exportable and retry persists the empty feedback', 
     window.restoreStorage = () => { Storage.prototype.setItem = original; };
     Storage.prototype.setItem = () => { throw new DOMException('Full', 'QuotaExceededError'); };
   });
-  await (await feedbackControl(page, '#clear')).click();
+  await page.locator('footer').getByRole('button', {name:'Clear all feedback', exact:true}).click();
   assert.deepEqual(await savedLines(page), saved);
   assert.deepEqual((await exportFeedback(page)).lines, []);
   assert.match(await page.locator('#feedback-save-notice').textContent(), /Feedback is unsaved/);
@@ -910,7 +910,7 @@ test('stroke-only storage migrates on edit without overwriting its legacy backup
   assert.equal(stored.current.version, 3);
   assert.deepEqual(stored.current.lines.map(line => line.points), legacy);
   assert.equal(stored.current.notes.length, 1);
-  await (await feedbackControl(page, '#clear')).click();
+  await page.locator('footer').getByRole('button', {name:'Clear all feedback', exact:true}).click();
   await page.reload();
   assert.equal(await page.locator('#brush path').count(), 0);
   assert.equal(await page.locator('.note-pin').count(), 0, 'empty v2 feedback takes precedence over legacy marks');
@@ -942,7 +942,7 @@ test('notes remain exportable after a failed save and failed clear, then retry s
     window.restoreStorage = () => { Storage.prototype.setItem = original; };
     Storage.prototype.setItem = () => { throw new DOMException('Full', 'QuotaExceededError'); };
   });
-  await (await feedbackControl(page, '#clear')).click();
+  await page.locator('footer').getByRole('button', {name:'Clear all feedback', exact:true}).click();
   assert.deepEqual((await exportFeedback(page)).notes, []);
   await page.evaluate(id=>Frame.agent.selectDesign(id),'sift');
   await page.evaluate(id=>Frame.agent.selectDesign(id),'starter');
@@ -1117,7 +1117,7 @@ test('undo/redo restores strokes, individual deletion, and clear with exact expo
   await page.keyboard.press('Control+Shift+Z');
   assert.equal((await savedFeedback(page)).lines.length, 0);
   await page.keyboard.press('Control+Z');
-  await (await feedbackControl(page, '#clear')).click();
+  await page.locator('footer').getByRole('button', {name:'Clear all feedback', exact:true}).click();
   assert.deepEqual(await savedFeedback(page), {version: 2, lines: [], notes: []});
   await page.keyboard.press('Control+Z');
   assert.deepEqual(await savedFeedback(page), original);
@@ -1236,7 +1236,7 @@ test('failed undo/redo saves stay in memory across designs and retry persists th
       return window.originalSetItem.call(this, key, value);
     };
   });
-  await (await feedbackControl(page, '#clear')).click();
+  await page.locator('footer').getByRole('button', {name:'Clear all feedback', exact:true}).click();
   await page.locator('#undo').click();
   assert.deepEqual((await exportFeedback(page)).notes, original.notes);
   await page.locator('#redo').click();
@@ -1548,7 +1548,7 @@ test('feedback import round-trips all metadata and geometry, is undoable, and re
   await beginMouse(page); await page.mouse.up(); await addNote(page, 'Round trip');
   const original = await exportFeedback(page, true);
   original.notes[0].elementAnchor = {elementId:'save',offset:[2,3]};
-  await (await feedbackControl(page, '#clear')).click();
+  await page.locator('footer').getByRole('button', {name:'Clear all feedback', exact:true}).click();
   await chooseImport(page, original);
   await page.locator('#confirm-import').click();
   assert.deepEqual(await exportFeedback(page,true), original);
@@ -1589,7 +1589,7 @@ test('empty feedback exports and failed imports remain recoverable through expor
   assert.deepEqual(empty.notes,[]);
   await addNote(page,'Recover imported note');
   const original = await exportFeedback(page,true);
-  await (await feedbackControl(page, '#clear')).click();
+  await page.locator('footer').getByRole('button', {name:'Clear all feedback', exact:true}).click();
   await page.evaluate(()=>{
     window.savedSetItem = Storage.prototype.setItem;
     Storage.prototype.setItem = function(key,value) {
