@@ -1,6 +1,7 @@
 // Linked, document-owned component definitions and instances for structured designs.
 // Generated element IDs remain stable, so feedback can stay anchored across edits.
 (function(root) {
+  const stateEntries = doc => (root.FrameDocument || require('./design-document.js')).stateEntries(doc);
   const copy = value => JSON.parse(JSON.stringify(value));
   const validId = value => typeof value === 'string' && /^[a-z0-9][a-z0-9_-]*$/i.test(value);
   const fail = message => { throw new Error(message); };
@@ -61,7 +62,7 @@
     const ids = new Set(remaining.map(node => node.id));
     if (generated.some(node => ids.has(node.id))) fail('Instance element ID conflicts with an existing element');
     const nextIds = new Set(generated.map(node => node.id));
-    for (const state of Object.values(doc.states || {})) for (const id of oldIds) if (!nextIds.has(id) && Object.hasOwn(state,id)) fail('Component edit would orphan a state override');
+    for (const [, state] of stateEntries(doc)) for (const id of oldIds) if (!nextIds.has(id) && Object.hasOwn(state,id)) fail('Component edit would orphan a state override');
     if (doc.elements.some(node => !oldIds.has(node.id) && oldIds.has(node.parentId) && !nextIds.has(node.parentId))) fail('Component edit would orphan a child');
     remaining.splice(first < 0 ? remaining.length : first, 0, ...generated);
     doc.elements = remaining; instance.generatedIds = generated.map(node => node.id);

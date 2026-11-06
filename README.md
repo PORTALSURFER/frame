@@ -43,47 +43,15 @@ Available today:
 - Keep marks aligned with design coordinates when the board resizes.
 - Save feedback per design in browser `localStorage` and export strokes and notes as JSON.
 
-The original Canvas examples are visual mockups. Instrument workstation adds a structured prototype with responsive layouts and interactive controls. Viewport/state selectors, zoom/pan/fit, structural checks, semantic checks of actual controls, and repeatable visual/interaction comparisons are available through the toolbar and browser API. See docs/agent-api.md for their scope and limitations.
+Frame opens as an empty design environment. Use **Open design file** to import a `.frame.json` file from your project. The **Designs** menu lists the designs in the current workspace. Use **Download design** to save a portable copy alongside the project source. Viewport presets, revisions and feedback are included in the file.
 
 ## Run locally
 
-Run `npm start`, then keep using <http://127.0.0.1:8765/> in the same tab. The
-launcher binds only to loopback and fails clearly if that port is already in use;
-it never chooses another port or opens extra tabs. It serves revalidated files so
-refreshing loads edits. JSON source watchers can use its ETags for unchanged files.
-`localhost`, `127.0.0.1` and different ports are distinct browser-storage origins.
-Changing addresses does not migrate saved projects or feedback. Export from each
-old address before consolidating work; keep the originals until recovery is verified.
+Run `npm start` and open <http://127.0.0.1:8765/>. Frame starts an empty workspace on loopback. To open a durable workspace, set `FRAME_DATA_DIR` to the project's local `.frame` folder and use a separate `FRAME_PORT` for each running project. For Pulse, use its `scripts/open-frame.sh` launcher.
 
-Open `index.html` in a browser, or serve this folder:
+Design revisions and feedback save in that project folder. An open review picks up newly saved revisions in place and keeps its viewport, state, and pan and zoom. **Save checkpoint** also records the current view for the next opening. If two sessions edit the same design from different revisions, Frame keeps both versions available for review.
 
-```sh
-python3 -m http.server 8765
-```
-
-Then open <http://127.0.0.1:8765/>. **Starter UI** is a neutral example. **Sift example** preserves the original VST mockup and its traced waveform as a separate design; it does not generate functional VST code.
-
-## Add a design
-
-Create a JavaScript file in `examples/` (or another folder) and load it after `frame.js` and before `app.js` in `index.html`:
-
-```js
-Frame.register({
-  id: "my-interface",
-  name: "My interface",
-  width: 1000,
-  height: 600,
-  paint(ctx) {
-    ctx.fillStyle = "#202526";
-    ctx.fillRect(0, 0, 1000, 600);
-    // Draw shapes, text, paths, gradients, and images here.
-  }
-});
-```
-
-The drawing coordinates use the registered width and height. Frame scales the board to fit the window and renders at device resolution. Edit the script and reload to see changes. Annotations remain aligned with the design's coordinates, even after resizing.
-
-`Frame.register` returns `true` for a valid design. Invalid definitions and duplicate IDs return `false` and are recorded in `Frame.errors`; duplicate IDs keep the original design. Frame shows registration errors in the footer and displays an empty state when no valid designs are available. Designs registered after startup are added to the picker automatically.
+The scripts under `examples/` are fixtures for tests and the opt-in review workflow. They are never loaded by the Frame workspace.
 
 If a design's paint function fails, Frame shows a render error with details and a **Retry render** action. Choose another design to continue working. Existing feedback remains available for export, and a successful retry restores the canvas and its marks.
 
@@ -112,7 +80,7 @@ Guides are embedded in ordinary scripts so the reader also works when opening `i
 
 ## Structured designs and agent operations
 
-The **Instrument workstation** example uses a serializable design document with stable element IDs, hierarchy, bounds, styles, reusable primitives, shared tokens, and viewport/state data. Register documents with Frame.registerDocument and edit them through Frame.agent. Agents can inspect elements, hit-test positions, apply atomic editing batches, refresh designs without reloading, and export PNGs with or without feedback. Marks on structured elements retain an element anchor and their original revision context. See [the browser API](docs/agent-api.md) for operations and limits.
+The opt-in **Instrument workstation** fixture uses a serializable design document with stable element IDs, hierarchy, bounds, styles, reusable primitives, shared tokens, and viewport/state data. Register documents with Frame.registerDocument and edit them through Frame.agent. Agents can inspect elements, hit-test positions, apply atomic editing batches, refresh designs without reloading, and export PNGs with or without feedback. Marks on structured elements retain an element anchor and their original revision context. See [the browser API](docs/agent-api.md) for operations and limits.
 
 ## Feedback
 
@@ -146,7 +114,7 @@ The Sift reference screenshot in `assets/` is source material for that example. 
 
 ## Revisions and portable handoff
 
-Structured design edits preserve snapshots with immutable revision IDs. The Revision picker restores a snapshot; Compare shows changes by element ID and side-by-side or overlay views. Snapshots persist in browser storage and are included in project downloads. A saved browser draft resumes when its source revision has not changed; changing the source revision starts a new source snapshot. Storage failures show a project notice, retry, and a download path instead of discarding the in-memory project.
+Structured design edits preserve snapshots with immutable revision IDs. The Revision picker restores a snapshot. The agent API can compare snapshots by element ID. Snapshots persist in browser storage and are included in project downloads. A saved browser draft resumes when its source revision has not changed; changing the source revision starts a new source snapshot. Storage failures show a project notice, retry, and a download path instead of discarding the in-memory project.
 
 Feedback retains the revision and viewport originally reviewed. Bound marks follow surviving element IDs when layouts move; removed or hidden targets and position-only marks are flagged for review. Moving a bound note updates its offset. These rules preserve human context instead of silently assigning a different element.
 
@@ -154,7 +122,7 @@ Download project bundles the document, embedded assets, all stored revisions, co
 
 ## Complete example
 
-For a guide-only Sift comparison, select **Sift · style studies**. The current pair is **sift-technical-futurist-r7** (the compact 1140×505 baseline with shaped panels and subtle gradients) and **sift-hardware-r5** (clearance-corrected insets and controls with a closer hardware treatment with crafted icons, eased metal insets, substantial irregular waveforms, and a single composite overview). The first experiments, **sift-technical-futurist-r1** and **sift-hardware-r2**, remain available as historical comparisons. Technical Futurist r3 and r6 remain available to compare the earlier style direction; Hardware r4 remains available to compare the inset and spacing correction. Expanded r8 remains a historical experiment; further refinement must preserve compactness. New or upgraded archives start on r7; later reloads preserve the revision you selected. Select a revision to load it immediately; **Compare revisions** shows them together. Each revision selects its corresponding guide. The State picker offers populated, idle, and recording-prototype states. Each comparison pair uses a shared synthetic signal generated from code, not screenshot-extracted waveforms. In the refined pair, provenance is stored in document metadata and explained here instead of appearing as decorative text inside the device. The revised written guides were used to generate the new pair; the screenshots informed the guide review rather than serving as rendering assets. Prototype buttons demonstrate state changes; they do not record, play, or export real audio. Existing Sift example and feedback are preserved.
+For a guide-only Sift comparison, select **Sift · style studies**. The current pair is **sift-technical-futurist-r7** (the compact 1140×505 baseline with shaped panels and subtle gradients) and **sift-hardware-r5** (clearance-corrected insets and controls with a closer hardware treatment with crafted icons, eased metal insets, substantial irregular waveforms, and a single composite overview). The first experiments, **sift-technical-futurist-r1** and **sift-hardware-r2**, remain available as historical comparisons. Technical Futurist r3 and r6 remain available to compare the earlier style direction; Hardware r4 remains available to compare the inset and spacing correction. Expanded r8 remains a historical experiment; further refinement must preserve compactness. New or upgraded archives start on r7; later reloads preserve the revision you selected. Select a revision to load it immediately. Each revision selects its corresponding guide. The State picker offers populated, idle, and recording-prototype states. Each comparison pair uses a shared synthetic signal generated from code, not screenshot-extracted waveforms. In the refined pair, provenance is stored in document metadata and explained here instead of appearing as decorative text inside the device. The revised written guides were used to generate the new pair; the screenshots informed the guide review rather than serving as rendering assets. Prototype buttons demonstrate state changes; they do not record, play, or export real audio. Existing Sift example and feedback are preserved.
 
 Run FRAME_BROWSER_PATH=/path/to/chromium npm run example (or npm run example with Playwright Chromium installed). The example opens Instrument workstation, places a human note through the UI, reads its element anchor, applies a targeted spacing edit, compares revisions and pixels, tests desktop and phone states, resolves the feedback, and exports before/after PNGs plus a portable project and review report into artifacts/. FRAME_OUTPUT_DIR can choose another output folder.
 
@@ -172,10 +140,10 @@ The suite covers drawing and pointer recovery, undo/clear, drawing limits, stora
 
 ## Frame inside Frame
 
-Select **Frame · workspace redesign** to review a Technical Futurist proposal for Frame itself. The 1280×800 structured prototype uses a compact header and canvas toolbar, a left feedback-tool strip, and a right feedback panel. It embeds the compact Sift r7 design as editable structured nodes rather than a screenshot. The two feedback cards are illustrative fixtures.
+The **Frame · workspace redesign** fixture captures a Technical Futurist proposal for Frame itself. The 1280×800 structured prototype uses a compact header and canvas toolbar, a left feedback-tool strip, and a right feedback panel. It embeds the compact Sift r7 design as editable structured nodes rather than a screenshot. The two feedback cards are illustrative fixtures.
 
 Use Frame's Interact tool to try selection/resolve states and the guide, project, review and export panels, or its Pen/Note tools to annotate the redesign. These are prototype state transitions; controls inside the proposal do not operate the surrounding app, export files, copy prompts or delete actual feedback. The compact workspace proposal is now implemented in Frame’s live interface, including a real feedback list. The proposal remains available for historical comparison. Guide, project and export menu copy describes the proposed grouping of existing capabilities. The prototype and real annotations can be downloaded as a portable project.
 
-Canvas navigation: scroll the mouse wheel over the canvas to zoom around the cursor (25–800%). Drag with the middle mouse button to pan in any feedback mode, including Interact. **Fit** resets the view. The chevron in the feedback panel header collapses it; a small chevron at the right edge reopens it. This expands the canvas, and the preference is remembered in this browser. Navigation changes do not edit annotations.
+Canvas navigation: scroll the mouse wheel over the canvas to zoom around the cursor (25–800%). Drag with the middle mouse button to pan in any feedback mode, including Interact. **Fit** resets the view. Use **Eraser** or press **E**, then drag across lines and note pins to remove them. Undo restores everything removed in the last sweep. Open **Feedback** in the header to review saved marks. The icon bar below the canvas holds drawing, selection, and history tools. Navigation changes do not edit annotations.
 
 Select **GainSnap · Sift Hardware** for the 200 × 424 `gainsnap-sift-hardware-r1` design study. It uses the written Sift Hardware guide with GainSnap’s gain, target, Peak/RMS output readouts, Match and Restart controls. Coral means output Peak and purple means output RMS; these roles adapt the guide to the product. The State picker offers manual/default, Peak selection, listening, matched, held-gain, remeasuring, and silence previews. Meter values are illustrative, not live audio. Inputs are editable prototype fields; Match/Restart and the knob preview representative states without implementing DSP, gain dragging, or numeric-to-meter coupling. This adds a Frame design only and does not modify the native GainSnap plug-in.

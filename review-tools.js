@@ -1,22 +1,98 @@
 (() => {
   const viewportPicker=document.getElementById("viewport-picker"),statePicker=document.getElementById("state-picker");
+  const viewPicker=document.getElementById("view-picker"),contextPicker=document.getElementById("context-picker");
   const controls=document.getElementById("prototype-controls"),pins=new Map(),baselines=new Map();
-  let designId=null,interaction=false;
-  const presets={desktop:{width:1000,height:700},tablet:{width:768,height:1024},phone:{width:360,height:740}};
+  let designId=null,interaction=false,availableViews=[];
+  const configure=document.getElementById("configure-viewports"),dialog=document.getElementById("viewport-dialog");
+  const sizes=document.getElementById("viewport-sizes"),sizeError=document.getElementById("viewport-error");
+  const addSize=document.getElementById("add-viewport");
+  const sizeKey=({width,height})=>width+"×"+height;
+  let configuredId=null,renderedPresets="";
+  function updateSizeButtons() {
+    addSize.disabled=sizes.children.length>=16;
+    for(const [i,row] of [...sizes.children].entries()) {
+      row.querySelector("legend").textContent="Size "+(i+1);
+      row.querySelector("button").disabled=sizes.children.length<=1;
+    }
+  }
+  function addSizeRow(preset={name:"",width:"",height:""}) {
+    const row=document.createElement("fieldset");
+    row.innerHTML='<legend></legend><label>Name <input name="name" maxlength="60" required></label>'+
+      '<label>Width <input name="width" type="number" min="1" max="8192" required></label>'+
+      '<label>Height <input name="height" type="number" min="1" max="8192" required></label>'+
+      '<button type="button" aria-label="Remove viewport size">Remove</button>';
+    for(const input of row.querySelectorAll("input"))input.value=preset[input.name];
+    row.querySelector("button").addEventListener("click",()=>{
+      const adjacent=row.nextElementSibling||row.previousElementSibling;
+      row.remove(); updateSizeButtons(); adjacent.querySelector("input").focus();
+    });
+    sizes.append(row);
+    updateSizeButtons();
+    return row;
+  }
+  configure.addEventListener("click",()=>{
+    configuredId=designId;
+    sizes.replaceChildren(); sizeError.textContent="";
+    for(const preset of Frame.project.getViewportPresets(configuredId))addSizeRow(preset);
+    dialog.showModal();
+  });
+  addSize.addEventListener("click",()=>addSizeRow().querySelector("input").focus());
+  document.getElementById("cancel-viewports").addEventListener("click",()=>dialog.close());
+  document.getElementById("viewport-form").addEventListener("submit",event=>{
+    event.preventDefault();
+    const presets=[...sizes.children].map(row=>Object.fromEntries([...row.querySelectorAll("input")].map(input=>
+      [input.name,input.type==="number"?input.valueAsNumber:input.value])));
+    try {Frame.project.setViewportPresets(configuredId,presets);dialog.close();}
+    catch(error){sizeError.textContent=error.message;}
+  });
   function structured(){return Frame.documents.has(designId);}
-  function refresh() {
+  function refreshNavigation(doc) {
+    const width=doc && Frame.currentViewport(designId).width;
+    const state=doc && Frame.currentState(designId);
+    availableViews=doc?.views ? FrameDocument.viewportViews(doc,width) : [];
+    const activeView=availableViews.find(view=>view.contexts.some(context=>context.id===state));
+    const contexts=activeView?.contexts||[];
+    statePicker.hidden=!!doc?.views;
+    viewPicker.hidden=!activeView;
+    contextPicker.hidden=contexts.length<2;
+    if(activeView) {
+      viewPicker.replaceChildren(...availableViews.map(view=>new Option(view.label,view.id)));
+      viewPicker.value=activeView.id;
+      contextPicker.replaceChildren(...contexts.map(context=>new Option(context.label,context.id)));
+      contextPicker.value=state;
+    } else if(doc) {
+      statePicker.replaceChildren(...FrameDocument.viewportStates(doc,width).map(id=>new Option(id,id)));
+      statePicker.value=state;
+    } else statePicker.replaceChildren();
+  }
+  function refresh(event) {
     if(Frame.restoringProject)return;
     const id=document.getElementById("design-picker").value;
     if(id!==designId){designId=id;pins.clear();controls.replaceChildren();}
-    const enabled=structured();viewportPicker.disabled=statePicker.disabled=!enabled;
+    const enabled=structured();configure.disabled=viewportPicker.disabled=statePicker.disabled=!enabled;
     document.getElementById("tool-interact").disabled=!enabled;
-    document.getElementById("check-design").disabled=!enabled;
+    refreshNavigation(Frame.documents.get(designId));
     if(enabled) {
-      const doc=Frame.agent.getDocument(designId);
-      statePicker.replaceChildren(...Object.keys(doc.states||{default:{}}).map(state=>{const o=document.createElement("option");o.value=o.textContent=state;return o;}));
-      statePicker.value=Frame.currentState(designId);
+      const presets=Frame.project.getViewportPresets(designId),signature=JSON.stringify(presets);
+      if(renderedPresets!==signature) {
+        renderedPresets=signature;
+        viewportPicker.replaceChildren(...presets.map(preset=>new Option(preset.name+" · "+preset.width+" × "+preset.height,sizeKey(preset))));
+      }
       const current=Frame.currentViewport(designId);
-      viewportPicker.value=Object.entries(presets).find(([,size])=>size.width===current.width&&size.height===current.height)?.[0]||"custom";
+      const matching=presets.find(preset=>sizeKey(preset)===sizeKey(current));
+      const active=matching||presets[0];
+      viewportPicker.value=sizeKey(active);
+      if(!matching&&(event?.type==="frame:design-selected"||event?.type==="frame:project-restored")) {
+        Frame.agent.setViewport(designId,{width:active.width,height:active.height});
+        return;
+      }
+    } else {
+      const design=Frame.designs.get(designId);
+      const signature=design?sizeKey(design):"";
+      if(renderedPresets!==signature) {
+        renderedPresets=signature;
+        viewportPicker.replaceChildren(...(design?[new Option(design.width+" × "+design.height,signature)]:[]));
+      }
     }
     renderControls();
   }
@@ -94,13 +170,17 @@
       return results;
     }
   };
-  viewportPicker.addEventListener("change",()=>{if(presets[viewportPicker.value])Frame.agent.setViewport(designId,presets[viewportPicker.value]);});
-  statePicker.addEventListener("change",()=>Frame.agent.setState(designId,statePicker.value));
-  document.getElementById("check-design").addEventListener("click",()=>{
-    const result=checks();document.getElementById("review-report").textContent=result.issues.length?result.issues.map(i=>i.elementId+" · "+i.type+": "+i.message).join("\n"):"No structural issues found in this viewport/state.";
-    document.getElementById("review-dialog").showModal();
+  viewportPicker.addEventListener("change",()=>{
+    if(!structured())return;
+    const preset=Frame.project.getViewportPresets(designId).find(preset=>sizeKey(preset)===viewportPicker.value);
+    if(preset)Frame.agent.setViewport(designId,{width:preset.width,height:preset.height});
   });
-  document.getElementById("close-review").addEventListener("click",()=>document.getElementById("review-dialog").close());
+  statePicker.addEventListener("change",()=>Frame.agent.setState(designId,statePicker.value));
+  viewPicker.addEventListener("change",()=>{
+    const view=availableViews.find(view=>view.id===viewPicker.value);
+    if(view)Frame.agent.setState(designId,view.contexts[0].id);
+  });
+  contextPicker.addEventListener("change",()=>Frame.agent.setState(designId,contextPicker.value));
   document.getElementById("download-image").addEventListener("click",async()=>{
     const status=document.getElementById("review-action-status");
     try {const image=await Frame.agent.exportImage({feedback:document.getElementById("image-feedback").checked});

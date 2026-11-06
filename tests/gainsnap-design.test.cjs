@@ -1,3 +1,4 @@
+const {readFixturePage}=require('../examples/fixture-page.cjs');
 const {test,before,after}=require('node:test');
 const assert=require('node:assert/strict');
 const http=require('node:http'),fs=require('node:fs/promises'),path=require('node:path');
@@ -8,7 +9,7 @@ before(async()=>{
  server=http.createServer(async(req,res)=>{
   const file=path.resolve(root,'.'+(new URL(req.url,'http://localhost').pathname==='/'?'/index.html':new URL(req.url,'http://localhost').pathname));
   if(!file.startsWith(root+path.sep)){res.writeHead(403).end();return;}
-  try{res.setHeader('Content-Type',file.endsWith('.js')?'application/javascript':file.endsWith('.css')?'text/css':'text/html');res.end(await fs.readFile(file));}catch{res.writeHead(404).end();}
+  try{res.setHeader('Content-Type',file.endsWith('.js')?'application/javascript':file.endsWith('.css')?'text/css':'text/html');res.end(await readFixturePage(file));}catch{res.writeHead(404).end();}
  });
  await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));url='http://127.0.0.1:'+server.address().port;
  browser=await chromium.launch({executablePath:process.env.FRAME_BROWSER_PATH||undefined});
@@ -16,7 +17,7 @@ before(async()=>{
 after(async()=>{await browser?.close();if(server)await new Promise(resolve=>server.close(resolve));});
 test('GainSnap Sift Hardware study preserves compact controls, state previews, editable inputs and exports',async t=>{
  const context=await browser.newContext({viewport:{width:1100,height:1000}});t.after(()=>context.close());const page=await context.newPage(),errors=[];page.on('pageerror',error=>errors.push(error.message));
- await page.goto(url);await page.locator('#design-picker').selectOption('gainsnap-sift-hardware');
+ await page.goto(url);await page.evaluate(id=>Frame.agent.selectDesign(id),'gainsnap-sift-hardware');
  const doc=await page.evaluate(()=>Frame.agent.getDocument('gainsnap-sift-hardware'));
  assert.equal(doc.revisionId,'gainsnap-sift-hardware-r5');
  const node=id=>doc.elements.find(n=>n.id===id);

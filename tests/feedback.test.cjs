@@ -1,3 +1,4 @@
+const {readFixturePage}=require('../examples/fixture-page.cjs');
 const {test, before, after} = require('node:test');
 const assert = require('node:assert/strict');
 const http = require('node:http');
@@ -19,7 +20,7 @@ before(async () => {
     try {
       const types = {'.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css'};
       response.setHeader('Content-Type', types[path.extname(filename)] || 'application/octet-stream');
-      response.end(await fs.readFile(filename));
+      response.end(await readFixturePage(filename));
     } catch {
       response.writeHead(404).end();
     }
@@ -48,8 +49,14 @@ async function openPage(t, options = {}) {
   t.after(() => assert.deepEqual(errors, [], 'no uncaught browser errors'));
   if (setup) await setup(page);
   await page.goto(baseURL);
-  if (selectDesign) await page.locator('#design-picker').selectOption(selectDesign);
+  if (selectDesign) await page.evaluate(id=>Frame.agent.selectDesign(id),selectDesign);
   return page;
+}
+
+async function feedbackControl(page, selector) {
+  const menu = page.locator('#feedback-menu');
+  if (await menu.getAttribute('open') === null) await menu.locator('summary').click();
+  return menu.locator(selector);
 }
 
 async function savedLines(page) {
@@ -65,6 +72,46 @@ async function beginMouse(page) {
   await page.mouse.down();
   await page.mouse.move(bounds.x + 150, bounds.y + 150, {steps: 3});
 }
+
+test('eraser sweeps across visible lines and note pins, with one undo and a recoverable cancel', async t => {
+  const page = await openPage(t);
+  await page.evaluate(() => {
+    const design = Frame.designs.get('starter'), feedback = Frame.agent.getFeedback();
+    for (const [x, status] of [[140, 'open'], [200, 'resolved'], [260, 'open'], [500, 'open']]) {
+      feedback.lines.push({...FrameFeedback.metadata('stroke', design), status, points:[[x, 80], [x, 240]]});
+    }
+    feedback.notes.push({...FrameFeedback.metadata('note', design), anchor:[320, 160], text:'Erase this pin'});
+    Frame.projectBridge.importFeedback(feedback);
+  });
+  await (await feedbackControl(page, '#feedback-filter')).selectOption('open');
+  await page.keyboard.press('e');
+  assert.equal(await page.getByRole('button', {name:'Eraser'}).getAttribute('aria-pressed'), 'true');
+  const board = await page.locator('#board').boundingBox();
+  const sweep = async () => {
+    await page.mouse.move(board.x + board.width * 80 / 960, board.y + board.height * 160 / 600);
+    await page.mouse.down();
+    await page.mouse.move(board.x + board.width * 370 / 960, board.y + board.height * 160 / 600);
+  };
+  await sweep();
+  assert.equal(await page.locator('#brush path:not([hidden])').count(), 1);
+  assert.equal(await page.locator('.note-pin:visible').count(), 0);
+  await page.keyboard.press('Escape');
+  await page.mouse.up();
+  assert.equal(await page.locator('#brush path:not([hidden])').count(), 3);
+  assert.equal(await page.locator('.note-pin:visible').count(), 1);
+  await sweep();
+  await page.mouse.up();
+  const marks = () => page.evaluate(() => Frame.agent.getFeedback());
+  assert.deepEqual((await marks()).lines.map(line => line.points[0][0]), [200, 500]);
+  assert.equal((await marks()).notes.length, 0);
+  await page.locator('#undo').click();
+  assert.equal((await marks()).lines.length, 4);
+  assert.equal((await marks()).notes.length, 1);
+  await page.locator('#redo').click();
+  await page.reload();
+  assert.equal((await marks()).lines.length, 2);
+  assert.equal((await marks()).notes.length, 0);
+});
 
 test('secondary mouse, touch, and pen events cannot replace, extend, or finish a stroke', async t => {
   const page = await openPage(t);
@@ -223,7 +270,7 @@ function projectFeedback(data) {
 }
 async function exportFeedback(page, raw = false) {
   const downloaded = page.waitForEvent('download');
-  await page.locator('#download').click();
+  await (await feedbackControl(page, '#download')).click();
   const download = await downloaded;
   const data = JSON.parse(await fs.readFile(await download.path(), 'utf8'));
   return raw ? data : projectFeedback(data);
@@ -248,19 +295,19 @@ test('the 1,000-line boundary blocks new strokes without losing feedback and und
   await page.reload();
   assert.equal(await page.locator('#brush path').count(), 1000);
   assert.match(await page.locator('#feedback-limit-notice').textContent(), /1,000-line limit reached/);
-  await page.locator('#design-picker').selectOption('sift');
+  await page.evaluate(id=>Frame.agent.selectDesign(id),'sift');
   assert.equal(await page.locator('#feedback-limit-notice').textContent(), '');
-  await page.locator('#design-picker').selectOption('starter');
+  await page.evaluate(id=>Frame.agent.selectDesign(id),'starter');
   assert.equal(await page.locator('#undo').isDisabled(), true);
   await page.locator('#tool-select').click();
   await page.locator('#brush path').last().focus();
-  await page.locator('#delete-selected').click();
+  await (await feedbackControl(page, '#delete-selected')).click();
   await page.locator('#tool-pen').click();
   assert.equal(await page.locator('#feedback-limit-notice').textContent(), '');
   await beginMouse(page);
   await page.mouse.up();
   assert.equal((await savedLines(page)).length, 1000);
-  await page.locator('#clear').click();
+  await (await feedbackControl(page, '#clear')).click();
   assert.equal(await page.locator('#feedback-limit-notice').textContent(), '');
   await beginMouse(page);
   await page.mouse.up();
@@ -324,7 +371,7 @@ test('older feedback above both limits is preserved through load, export, and la
   assert.deepEqual(await savedLines(page), legacy);
   await page.locator('#tool-select').click();
   await page.locator('#brush path').last().focus();
-  await page.locator('#delete-selected').click();
+  await (await feedbackControl(page, '#delete-selected')).click();
   const afterUndo = legacy.slice(0, -1);
   assert.deepEqual(await savedLines(page), afterUndo);
   await page.reload();
@@ -336,7 +383,7 @@ test('the original Sift storage key also preserves strokes longer than 5,000 poi
   const page = await openPage(t);
   const legacy = [Array.from({length: 5001}, (_, index) => [100 + index % 2, 150])];
   await seedFeedback(page, legacy, 'sift-ui-feedback-v1');
-  await page.locator('#design-picker').selectOption('sift');
+  await page.evaluate(id=>Frame.agent.selectDesign(id),'sift');
   assert.match(await page.locator('#feedback-limit-notice').textContent(), /Older feedback exceeds/);
   assert.deepEqual((await exportFeedback(page)).lines, legacy);
   await page.reload();
@@ -362,24 +409,24 @@ for (const failure of ['QuotaExceededError', 'SecurityError']) {
     const exported = await exportFeedback(page);
     assert.equal(exported.lines.length, 1);
     assert.deepEqual(await savedLines(page), []);
-    await page.locator('#design-picker').selectOption('sift');
+    await page.evaluate(id=>Frame.agent.selectDesign(id),'sift');
     assert.equal(await page.locator('#feedback-save-notice').textContent(), '');
     await beginMouse(page);
     await page.mouse.up();
     const sift = await exportFeedback(page);
-    await page.locator('#design-picker').selectOption('starter');
+    await page.evaluate(id=>Frame.agent.selectDesign(id),'starter');
     assert.deepEqual((await exportFeedback(page)).lines, exported.lines);
     assert.match(await page.locator('#feedback-save-notice').textContent(), /Feedback is unsaved/);
-    await page.locator('#retry-save').click();
+    await (await feedbackControl(page, '#retry-save')).click();
     assert.match(await page.locator('#feedback-save-notice').textContent(), /Feedback is unsaved/);
     await page.evaluate(() => { window.failFeedbackSave = false; });
-    await page.locator('#retry-save').click();
+    await (await feedbackControl(page, '#retry-save')).click();
     assert.equal(await page.locator('#feedback-save-notice').textContent(), '');
     assert.equal(await page.locator('#retry-save').isVisible(), false);
     assert.deepEqual(await savedLines(page), exported.lines);
-    await page.locator('#design-picker').selectOption('sift');
+    await page.evaluate(id=>Frame.agent.selectDesign(id),'sift');
     assert.deepEqual((await exportFeedback(page)).lines, sift.lines);
-    await page.locator('#retry-save').click();
+    await (await feedbackControl(page, '#retry-save')).click();
     await page.reload();
     assert.deepEqual((await exportFeedback(page)).lines, sift.lines);
   });
@@ -395,15 +442,15 @@ test('a failed clear remains exportable and retry persists the empty feedback', 
     window.restoreStorage = () => { Storage.prototype.setItem = original; };
     Storage.prototype.setItem = () => { throw new DOMException('Full', 'QuotaExceededError'); };
   });
-  await page.locator('#clear').click();
+  await (await feedbackControl(page, '#clear')).click();
   assert.deepEqual(await savedLines(page), saved);
   assert.deepEqual((await exportFeedback(page)).lines, []);
   assert.match(await page.locator('#feedback-save-notice').textContent(), /Feedback is unsaved/);
-  await page.locator('#design-picker').selectOption('sift');
-  await page.locator('#design-picker').selectOption('starter');
+  await page.evaluate(id=>Frame.agent.selectDesign(id),'sift');
+  await page.evaluate(id=>Frame.agent.selectDesign(id),'starter');
   assert.equal(await page.locator('#brush path').count(), 0);
   await page.evaluate(() => window.restoreStorage());
-  await page.locator('#retry-save').click();
+  await (await feedbackControl(page, '#retry-save')).click();
   assert.deepEqual(await savedLines(page), []);
   assert.equal(await page.locator('#feedback-save-notice').textContent(), '');
   await page.reload();
@@ -419,8 +466,8 @@ test('unavailable localStorage at startup reports a load failure while drawing/e
   await page.mouse.up();
   assert.match(await page.locator('#feedback-save-notice').textContent(), /Feedback is unsaved/);
   const exported = await exportFeedback(page);
-  await page.locator('#design-picker').selectOption('sift');
-  await page.locator('#design-picker').selectOption('starter');
+  await page.evaluate(id=>Frame.agent.selectDesign(id),'sift');
+  await page.evaluate(id=>Frame.agent.selectDesign(id),'starter');
   assert.deepEqual((await exportFeedback(page)).lines, exported.lines);
 });
 
@@ -441,7 +488,7 @@ test('a failed initial read never overwrites previously saved feedback after sto
   assert.match(await page.locator('#feedback-save-notice').textContent(), /unsaved/);
   assert.equal(await page.evaluate(() => localStorage.getItem('frame-feedback-v3:starter')), original);
   assert.equal((await exportFeedback(page)).lines.length, 1);
-  await page.locator('#retry-save').click();
+  await (await feedbackControl(page, '#retry-save')).click();
   assert.equal(await page.evaluate(() => localStorage.getItem('frame-feedback-v3:starter')), original);
 });
 
@@ -482,7 +529,7 @@ for (const mode of ['empty', 'invalid']) {
       }
     }});
     assert.equal(await page.locator('#design-status').isVisible(), true);
-    assert.equal(await page.locator('#design-status-title').textContent(), 'No designs available');
+    assert.equal(await page.locator('#design-status-title').textContent(), 'No design open');
     assert.equal(await page.locator('#design-picker').isDisabled(), true);
     assert.equal(await page.locator('#download').isDisabled(), true);
     assert.equal(await page.locator('#brush').isVisible(), false);
@@ -522,12 +569,12 @@ test('paint failures preserve feedback and allow switching, failed retry, and su
   assert.equal(await page.locator('#design-error-details').textContent(), 'Deliberate paint failure');
   await page.locator('#retry-render').click();
   assert.equal(await page.locator('#design-status').isVisible(), true);
-  await page.locator('#design-picker').selectOption('sift');
+  await page.evaluate(id=>Frame.agent.selectDesign(id),'sift');
   assert.equal(await page.locator('#design-status').isVisible(), false);
   await beginMouse(page);
   await page.mouse.up();
   assert.equal((await exportFeedback(page)).lines.length, 1);
-  await page.locator('#design-picker').selectOption('starter');
+  await page.evaluate(id=>Frame.agent.selectDesign(id),'starter');
   assert.deepEqual((await exportFeedback(page)).lines, previous);
   await page.evaluate(() => {
     Frame.designs.get('starter').paint = ctx => { ctx.fillStyle = '#77b6a7'; ctx.fillRect(0, 0, 960, 600); };
@@ -594,14 +641,14 @@ test('draw → resize → switch design → reload → export preserves feedback
   await page.setViewportSize({width: 600, height: 700});
   await assertMarksAligned(page, starter);
   assert.deepEqual(await savedLines(page), starter.lines);
-  await page.locator('#design-picker').selectOption('sift');
+  await page.evaluate(id=>Frame.agent.selectDesign(id),'sift');
   assert.equal(await page.locator('#brush path').count(), 0);
   await beginMouse(page);
   await page.mouse.up();
   const sift = await exportFeedback(page);
   assert.equal(sift.design, 'sift');
   await assertMarksAligned(page, sift);
-  await page.locator('#design-picker').selectOption('starter');
+  await page.evaluate(id=>Frame.agent.selectDesign(id),'starter');
   assert.deepEqual(await exportFeedback(page), starter);
   await assertMarksAligned(page, starter);
   await page.reload();
@@ -610,7 +657,7 @@ test('draw → resize → switch design → reload → export preserves feedback
   await assertMarksAligned(page, starter);
   await page.setViewportSize({width: 1280, height: 900});
   await assertMarksAligned(page, starter);
-  await page.locator('#design-picker').selectOption('sift');
+  await page.evaluate(id=>Frame.agent.selectDesign(id),'sift');
   assert.deepEqual(await exportFeedback(page), sift);
   await assertMarksAligned(page, sift);
 });
@@ -648,7 +695,7 @@ test('leaving prompts for unsaved feedback in another design and stops prompting
   await beginMouse(page);
   await page.mouse.up();
   const feedback = await exportFeedback(page);
-  await page.locator('#design-picker').selectOption('sift');
+  await page.evaluate(id=>Frame.agent.selectDesign(id),'sift');
   const prevented = await page.evaluate(() => {
     const event = new Event('beforeunload', {cancelable: true});
     window.dispatchEvent(event);
@@ -662,10 +709,10 @@ test('leaving prompts for unsaved feedback in another design and stops prompting
   await dialog.dismiss();
   const result = await navigation;
   assert.ok(result instanceof Error, 'declining the prompt cancels navigation');
-  await page.locator('#design-picker').selectOption('starter');
+  await page.evaluate(id=>Frame.agent.selectDesign(id),'starter');
   assert.deepEqual((await exportFeedback(page)).lines, feedback.lines);
   await page.evaluate(() => window.restoreStorage());
-  await page.locator('#retry-save').click();
+  await (await feedbackControl(page, '#retry-save')).click();
   assert.equal(await page.evaluate(() => {
     const event = new Event('beforeunload', {cancelable: true});
     window.dispatchEvent(event);
@@ -777,9 +824,9 @@ test('placed notes retain text and anchor across edit, resize, design switches, 
   assert.equal(edited.notes[0].text, 'More space, please.');
   await page.setViewportSize({width: 600, height: 700});
   await assertNoteAligned(page, edited.notes[0]);
-  await page.locator('#design-picker').selectOption('sift');
+  await page.evaluate(id=>Frame.agent.selectDesign(id),'sift');
   assert.equal(await page.locator('.note-pin').count(), 0);
-  await page.locator('#design-picker').selectOption('starter');
+  await page.evaluate(id=>Frame.agent.selectDesign(id),'starter');
   assert.deepEqual(await exportFeedback(page), edited);
   await page.reload();
   assert.deepEqual(await exportFeedback(page), edited);
@@ -863,7 +910,7 @@ test('stroke-only storage migrates on edit without overwriting its legacy backup
   assert.equal(stored.current.version, 3);
   assert.deepEqual(stored.current.lines.map(line => line.points), legacy);
   assert.equal(stored.current.notes.length, 1);
-  await page.locator('#clear').click();
+  await (await feedbackControl(page, '#clear')).click();
   await page.reload();
   assert.equal(await page.locator('#brush path').count(), 0);
   assert.equal(await page.locator('.note-pin').count(), 0, 'empty v2 feedback takes precedence over legacy marks');
@@ -883,11 +930,11 @@ test('notes remain exportable after a failed save and failed clear, then retry s
   const pending = await exportFeedback(page);
   assert.equal(pending.notes.length, 1);
   assert.match(await page.locator('#feedback-save-notice').textContent(), /Feedback is unsaved/);
-  await page.locator('#design-picker').selectOption('sift');
-  await page.locator('#design-picker').selectOption('starter');
+  await page.evaluate(id=>Frame.agent.selectDesign(id),'sift');
+  await page.evaluate(id=>Frame.agent.selectDesign(id),'starter');
   assert.deepEqual(await exportFeedback(page), pending);
   await page.evaluate(() => window.restoreStorage());
-  await page.locator('#retry-save').click();
+  await (await feedbackControl(page, '#retry-save')).click();
   await page.reload();
   assert.deepEqual(await exportFeedback(page), pending);
   await page.evaluate(() => {
@@ -895,13 +942,13 @@ test('notes remain exportable after a failed save and failed clear, then retry s
     window.restoreStorage = () => { Storage.prototype.setItem = original; };
     Storage.prototype.setItem = () => { throw new DOMException('Full', 'QuotaExceededError'); };
   });
-  await page.locator('#clear').click();
+  await (await feedbackControl(page, '#clear')).click();
   assert.deepEqual((await exportFeedback(page)).notes, []);
-  await page.locator('#design-picker').selectOption('sift');
-  await page.locator('#design-picker').selectOption('starter');
+  await page.evaluate(id=>Frame.agent.selectDesign(id),'sift');
+  await page.evaluate(id=>Frame.agent.selectDesign(id),'starter');
   assert.equal(await page.locator('.note-pin').count(), 0);
   await page.evaluate(() => window.restoreStorage());
-  await page.locator('#retry-save').click();
+  await (await feedbackControl(page, '#retry-save')).click();
   await page.reload();
   assert.equal(await page.locator('.note-pin').count(), 0);
 });
@@ -954,7 +1001,7 @@ test('deleting a selected middle stroke preserves other strokes and notes throug
   const board = await page.locator('#board').boundingBox();
   await page.mouse.click(board.x + 150, board.y + 200);
   assert.equal(await page.locator('#brush path.selected').getAttribute('data-line-index'), '1');
-  await page.locator('#delete-selected').click();
+  await (await feedbackControl(page, '#delete-selected')).click();
   const deleted = await exportFeedback(page);
   assert.deepEqual(deleted.lines, [lines[0], lines[2]]);
   assert.deepEqual(deleted.notes, original.notes);
@@ -982,8 +1029,8 @@ test('Backspace deletes a selected note without deleting strokes or other notes'
   assert.deepEqual(deleted.lines, original.lines);
   assert.deepEqual(deleted.notes, [original.notes[1]]);
   assert.equal(await page.locator('#delete-selected').isDisabled(), true);
-  await page.locator('#design-picker').selectOption('sift');
-  await page.locator('#design-picker').selectOption('starter');
+  await page.evaluate(id=>Frame.agent.selectDesign(id),'sift');
+  await page.evaluate(id=>Frame.agent.selectDesign(id),'starter');
   await page.reload();
   assert.deepEqual(await exportFeedback(page), deleted);
 });
@@ -1022,11 +1069,11 @@ test('a failed selected deletion stays deleted across design switches and retry 
   await page.keyboard.press('Delete');
   assert.deepEqual((await exportFeedback(page)).lines, [lines[1]]);
   assert.match(await page.locator('#feedback-save-notice').textContent(), /Feedback is unsaved/);
-  await page.locator('#design-picker').selectOption('sift');
-  await page.locator('#design-picker').selectOption('starter');
+  await page.evaluate(id=>Frame.agent.selectDesign(id),'sift');
+  await page.evaluate(id=>Frame.agent.selectDesign(id),'starter');
   assert.deepEqual((await exportFeedback(page)).lines, [lines[1]]);
   await page.evaluate(() => window.restoreStorage());
-  await page.locator('#retry-save').click();
+  await (await feedbackControl(page, '#retry-save')).click();
   await page.reload();
   assert.deepEqual((await exportFeedback(page)).lines, [lines[1]]);
 });
@@ -1044,7 +1091,7 @@ test('stroke selection uses screen-pixel tolerance after the design scales down'
   assert.equal(await page.locator('#delete-selected').isDisabled(), true);
   await page.mouse.click(x, y + 7);
   assert.equal(await page.locator('#brush path.selected').count(), 1);
-  await page.locator('#delete-selected').click();
+  await (await feedbackControl(page, '#delete-selected')).click();
   assert.deepEqual(await savedLines(page), []);
 });
 
@@ -1062,7 +1109,7 @@ test('undo/redo restores strokes, individual deletion, and clear with exact expo
   const original = await savedFeedback(page);
   await page.locator('#tool-select').click();
   await page.locator('#brush path').focus();
-  await page.locator('#delete-selected').click();
+  await (await feedbackControl(page, '#delete-selected')).click();
   assert.equal((await savedFeedback(page)).lines.length, 0);
   await page.locator('#undo').click();
   assert.deepEqual(await savedFeedback(page), original);
@@ -1070,7 +1117,7 @@ test('undo/redo restores strokes, individual deletion, and clear with exact expo
   await page.keyboard.press('Control+Shift+Z');
   assert.equal((await savedFeedback(page)).lines.length, 0);
   await page.keyboard.press('Control+Z');
-  await page.locator('#clear').click();
+  await (await feedbackControl(page, '#clear')).click();
   assert.deepEqual(await savedFeedback(page), {version: 2, lines: [], notes: []});
   await page.keyboard.press('Control+Z');
   assert.deepEqual(await savedFeedback(page), original);
@@ -1106,7 +1153,7 @@ test('notes undo through editing, arrow movement, dragging, deletion and creatio
   await page.mouse.up();
   const dragged = await savedFeedback(page);
   assert.notDeepEqual(dragged, nudged);
-  await page.locator('#delete-selected').click();
+  await (await feedbackControl(page, '#delete-selected')).click();
   for (const expected of [dragged, nudged, edited, original, {version: 2, lines: [], notes: []}]) {
     await page.locator('#undo').click();
     assert.deepEqual(await savedFeedback(page), expected);
@@ -1124,15 +1171,15 @@ test('per-design undo and redo survive switching without crossing histories', as
   await addNote(page, 'Starter feedback');
   const starter = await savedFeedback(page);
   await page.locator('#undo').click();
-  await page.locator('#design-picker').selectOption('sift');
+  await page.evaluate(id=>Frame.agent.selectDesign(id),'sift');
   assert.equal(await page.locator('#undo').isDisabled(), true);
   assert.equal(await page.locator('#redo').isDisabled(), true);
   await addNote(page, 'Sift feedback');
   const sift = await savedFeedback(page, 'sift');
-  await page.locator('#design-picker').selectOption('starter');
+  await page.evaluate(id=>Frame.agent.selectDesign(id),'starter');
   await page.locator('#redo').click();
   assert.deepEqual(await savedFeedback(page), starter);
-  await page.locator('#design-picker').selectOption('sift');
+  await page.evaluate(id=>Frame.agent.selectDesign(id),'sift');
   assert.deepEqual(await savedFeedback(page, 'sift'), sift);
   await page.locator('#undo').click();
   assert.equal((await savedFeedback(page, 'sift')).notes.length, 0);
@@ -1189,17 +1236,17 @@ test('failed undo/redo saves stay in memory across designs and retry persists th
       return window.originalSetItem.call(this, key, value);
     };
   });
-  await page.locator('#clear').click();
+  await (await feedbackControl(page, '#clear')).click();
   await page.locator('#undo').click();
   assert.deepEqual((await exportFeedback(page)).notes, original.notes);
   await page.locator('#redo').click();
   assert.equal((await exportFeedback(page)).notes.length, 0);
-  await page.locator('#design-picker').selectOption('sift');
-  await page.locator('#design-picker').selectOption('starter');
+  await page.evaluate(id=>Frame.agent.selectDesign(id),'sift');
+  await page.evaluate(id=>Frame.agent.selectDesign(id),'starter');
   await page.locator('#undo').click();
   assert.equal(await page.locator('.note-pin').count(), 1);
   await page.evaluate(() => { Storage.prototype.setItem = window.originalSetItem; });
-  await page.locator('#retry-save').click();
+  await (await feedbackControl(page, '#retry-save')).click();
   assert.equal(await page.locator('#retry-save').isHidden(), true);
   assert.deepEqual(await savedFeedback(page), original);
   await page.reload();
@@ -1312,7 +1359,7 @@ test('guide selection repaints opt-in designs and retains feedback and independe
   await page.locator('#styleguide-picker').selectOption('minimal');
   assert.deepEqual(await savedFeedback(page), original);
   assert.equal(await page.locator('.note-pin').count(), 1);
-  await page.locator('#design-picker').selectOption('guided');
+  await page.evaluate(id=>Frame.agent.selectDesign(id),'guided');
   assert.equal(await page.evaluate(() => window.paintedGuide), 'technical-futurist');
   await page.locator('#tool-pen').click();
   await beginMouse(page);
@@ -1322,9 +1369,9 @@ test('guide selection repaints opt-in designs and retains feedback and independe
   assert.equal(await page.locator('#brush path').count(), 1);
   await page.locator('#undo').click();
   assert.equal(await page.locator('#brush path').count(), 0);
-  await page.locator('#design-picker').selectOption('sift');
+  await page.evaluate(id=>Frame.agent.selectDesign(id),'sift');
   assert.equal(await page.locator('#styleguide-picker').inputValue(), 'technical-futurist');
-  await page.locator('#design-picker').selectOption('starter');
+  await page.evaluate(id=>Frame.agent.selectDesign(id),'starter');
   assert.equal(await page.locator('#styleguide-picker').inputValue(), 'minimal');
   await page.reload();
   assert.equal(await page.locator('#styleguide-picker').inputValue(), 'minimal');
@@ -1392,8 +1439,8 @@ test('guide selection survives unavailable storage in memory and clipboard error
     Object.defineProperty(navigator, 'clipboard', {configurable: true, value: {writeText: async () => { throw new Error('Denied'); }}});
   });
   await page.locator('#styleguide-picker').selectOption('minimal');
-  await page.locator('#design-picker').selectOption('sift');
-  await page.locator('#design-picker').selectOption('starter');
+  await page.evaluate(id=>Frame.agent.selectDesign(id),'sift');
+  await page.evaluate(id=>Frame.agent.selectDesign(id),'starter');
   assert.equal(await page.locator('#styleguide-picker').inputValue(), 'minimal');
   await page.locator('#view-styleguide').click();
   await page.locator('#copy-styleguide-prompt').click();
@@ -1463,8 +1510,8 @@ test('v3 mark identity and timestamps survive editing, history, switching, reloa
   await page.locator('#undo').click();
   assert.deepEqual((await exportFeedback(page, true)).notes, initial.notes);
   await page.locator('#redo').click();
-  await page.locator('#design-picker').selectOption('sift');
-  await page.locator('#design-picker').selectOption('starter');
+  await page.evaluate(id=>Frame.agent.selectDesign(id),'sift');
+  await page.evaluate(id=>Frame.agent.selectDesign(id),'starter');
   assert.deepEqual((await exportFeedback(page, true)).notes, edited.notes);
   await page.reload();
   const reloaded = await exportFeedback(page, true);
@@ -1493,7 +1540,7 @@ test('v2 backups remain untouched, migration IDs are stable before save, and cor
 });
 
 async function chooseImport(page, data) {
-  await page.locator('#import-feedback').click();
+  await (await feedbackControl(page, '#import-feedback')).click();
   await page.locator('#import-file').setInputFiles({name:'feedback.json',mimeType:'application/json',buffer:Buffer.from(typeof data === 'string' ? data : JSON.stringify(data))});
 }
 test('feedback import round-trips all metadata and geometry, is undoable, and rejects invalid replacements', async t => {
@@ -1501,7 +1548,7 @@ test('feedback import round-trips all metadata and geometry, is undoable, and re
   await beginMouse(page); await page.mouse.up(); await addNote(page, 'Round trip');
   const original = await exportFeedback(page, true);
   original.notes[0].elementAnchor = {elementId:'save',offset:[2,3]};
-  await page.locator('#clear').click();
+  await (await feedbackControl(page, '#clear')).click();
   await chooseImport(page, original);
   await page.locator('#confirm-import').click();
   assert.deepEqual(await exportFeedback(page,true), original);
@@ -1542,7 +1589,7 @@ test('empty feedback exports and failed imports remain recoverable through expor
   assert.deepEqual(empty.notes,[]);
   await addNote(page,'Recover imported note');
   const original = await exportFeedback(page,true);
-  await page.locator('#clear').click();
+  await (await feedbackControl(page, '#clear')).click();
   await page.evaluate(()=>{
     window.savedSetItem = Storage.prototype.setItem;
     Storage.prototype.setItem = function(key,value) {
@@ -1552,10 +1599,10 @@ test('empty feedback exports and failed imports remain recoverable through expor
   });
   await chooseImport(page,original); await page.locator('#confirm-import').click();
   assert.deepEqual(await exportFeedback(page,true),original);
-  await page.locator('#design-picker').selectOption('sift'); await page.locator('#design-picker').selectOption('starter');
+  await page.evaluate(id=>Frame.agent.selectDesign(id),'sift'); await page.evaluate(id=>Frame.agent.selectDesign(id),'starter');
   assert.equal(await page.locator('.note-pin').count(),1);
   await page.evaluate(()=>Storage.prototype.setItem=window.savedSetItem);
-  await page.locator('#retry-save').click(); await page.reload();
+  await (await feedbackControl(page, '#retry-save')).click(); await page.reload();
   assert.deepEqual(await exportFeedback(page,true),original);
 });
 
@@ -1563,13 +1610,13 @@ test('feedback resolution is filterable, undoable, and retained through export a
  const page=await openPage(t);await beginMouse(page);await page.mouse.up();await addNote(page,'Address this');
  const marks=await page.evaluate(()=>Frame.feedback.list());assert.equal(marks.length,2);assert.ok(marks.every(m=>m.status==='open'));
  await page.evaluate(id=>Frame.feedback.setStatus(id,'resolved'),marks[0].id);
- await page.locator('#feedback-filter').selectOption('open');
+ await (await feedbackControl(page, '#feedback-filter')).selectOption('open');
  assert.equal(await page.locator('#brush path:visible').count(),0);assert.equal(await page.locator('.note-pin:visible').count(),1);
  assert.equal((await exportFeedback(page,true)).lines[0].status,'resolved');
  await page.locator('#undo').click();assert.equal((await exportFeedback(page,true)).lines[0].status,'open');
  await page.locator('#redo').click();await page.reload();
  assert.equal((await exportFeedback(page,true)).lines[0].status,'resolved');
- await page.locator('#tool-select').click();await page.locator('.note-pin').focus();await page.locator('#resolve-selected').click();
+ await page.locator('#tool-select').click();await page.locator('.note-pin').focus();await (await feedbackControl(page, '#resolve-selected')).click();
  assert.equal((await exportFeedback(page,true)).notes[0].status,'resolved');
  await page.evaluate(id=>Frame.feedback.setStatus(id,'open'),marks[0].id);
  assert.equal((await exportFeedback(page,true)).lines[0].status,'open');
@@ -1585,7 +1632,7 @@ test('notes can be placed, moved and resolved entirely through keyboard with a v
  const note=(await exportFeedback(page,true)).notes[0];assert.deepEqual(note.anchor,[490,301]);
  await page.locator('.note-pin').focus();await page.keyboard.press('ArrowRight');
  assert.deepEqual((await exportFeedback(page,true)).notes[0].anchor,[491,301]);
- await page.locator('.note-pin').focus();await page.locator('#resolve-selected').focus();await page.keyboard.press('Enter');
+ await page.locator('.note-pin').focus();await (await feedbackControl(page, '#resolve-selected')).focus();await page.keyboard.press('Enter');
  assert.equal((await exportFeedback(page,true)).notes[0].status,'resolved');
  await page.setViewportSize({width:320,height:740});
  assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);

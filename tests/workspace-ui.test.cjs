@@ -1,3 +1,4 @@
+const {readFixturePage}=require('../examples/fixture-page.cjs');
 const {test,before,after}=require('node:test');
 const assert=require('node:assert/strict');
 const http=require('node:http'),fs=require('node:fs/promises'),path=require('node:path');
@@ -8,25 +9,28 @@ before(async()=>{
   const pathname=new URL(req.url,'http://localhost').pathname;
   const file=path.resolve(root,'.'+(pathname==='/'?'/index.html':pathname));
   if(!file.startsWith(root+path.sep)){res.writeHead(403).end();return;}
-  try{res.setHeader('Content-Type',file.endsWith('.js')?'application/javascript':file.endsWith('.css')?'text/css':'text/html');res.end(await fs.readFile(file));}catch{res.writeHead(404).end();}
+  try{res.setHeader('Content-Type',file.endsWith('.js')?'application/javascript':file.endsWith('.css')?'text/css':'text/html');res.end(await readFixturePage(file));}catch{res.writeHead(404).end();}
  });await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));url='http://127.0.0.1:'+server.address().port;
  browser=await chromium.launch({executablePath:process.env.FRAME_BROWSER_PATH||undefined});
 });
 after(async()=>{await browser?.close();if(server)await new Promise(resolve=>server.close(resolve));});
 test('live workspace feedback cards select, resolve, filter, undo, delete and persist actual annotations',async t=>{
  const context=await browser.newContext({viewport:{width:1280,height:800}});t.after(()=>context.close());
- const page=await context.newPage();await page.goto(url);await page.locator('#design-picker').selectOption('starter');
+ const page=await context.newPage();await page.goto(url);await page.evaluate(id=>Frame.agent.selectDesign(id),'starter');
  const board=await page.locator('#board').boundingBox();
  await page.mouse.move(board.x+100,board.y+100);await page.mouse.down();await page.mouse.move(board.x+150,board.y+150);await page.mouse.up();
+ const menu=page.locator('#feedback-menu summary');
+ await menu.click();
  const card=page.locator('.feedback-card');assert.equal(await card.count(),1);
  await card.click();assert.equal(await page.locator('#brush path.selected').count(),1);
  await page.locator('#resolve-selected').click();assert.equal(await card.getAttribute('data-status'),'resolved');
  await page.locator('#feedback-filter').selectOption('open');assert.equal(await card.isVisible(),false);
  assert.match(await page.locator('#feedback-empty').textContent(),/matches this filter/);
- await page.locator('#undo').click();assert.equal(await card.isVisible(),true);
- await page.reload();assert.equal(await card.count(),1);await card.click();await page.locator('#delete-selected').click();assert.equal(await card.count(),0);
+ await page.locator('#undo').click();await menu.click();assert.equal(await card.isVisible(),true);
+ await page.reload();await menu.click();assert.equal(await card.count(),1);await card.click();await page.locator('#delete-selected').click();assert.equal(await card.count(),0);
  await page.locator('#undo').click();assert.equal(await card.count(),1);
  await page.locator('#tool-note').click();await page.locator('#brush').focus();await page.keyboard.press('Enter');await page.locator('#note-text').fill('Keep this control clear');await page.locator('#note-save').click();
+ await menu.click();
  const note=page.locator('.feedback-card').filter({hasText:'Keep this control clear'});await note.dblclick();
  assert.equal(await page.locator('#note-dialog').isVisible(),true);assert.equal(await page.locator('#note-text').inputValue(),'Keep this control clear');await page.locator('#note-cancel').click();
 });
@@ -42,20 +46,37 @@ for(const width of [320,768,912,1280,1600])test(`workspace controls and canvas r
  });
  assert.deepEqual(await page.locator('.topbar').boundingBox(),topbar,'routine status must not resize the header');
  assert.equal(await page.locator('#live-document-status').isVisible(),false);
- const controls=await page.locator('.topbar select, #view-styleguide, .project-menu summary').evaluateAll(nodes=>nodes.map(node=>{
-  const {x,y,width,height}=node.getBoundingClientRect();
-  return {x,y,width,height};
- }));
- const separate=(a,b)=>a.x+a.width<=b.x||b.x+b.width<=a.x||a.y+a.height<=b.y||b.y+b.height<=a.y;
- assert.ok(controls.slice(0,3).every(control=>control.width>=100),'design, revision and styleguide selectors remain readable');
- for(const [i,control] of controls.entries())assert.ok(controls.slice(i+1).every(other=>separate(control,other)),'toolbar controls do not overlap');
+ const assertHeaderRow=async selectorCount=>{
+  const controls=await page.locator('.topbar .tools :is(select,button):visible, .topbar-menus summary:visible').evaluateAll(nodes=>nodes.map(node=>{
+   const {y,height}=node.getBoundingClientRect();
+   return {y,height};
+  }));
+  assert.equal(await page.locator('.topbar select:visible').count(),selectorCount,'review selectors are in the header');
+  assert.ok(Math.max(...controls.map(control=>control.y))<Math.min(...controls.map(control=>control.y+control.height)),'header controls share a single row');
+ };
+ await assertHeaderRow(4);
+ assert.equal(await page.getByRole('combobox',{name:'Design',exact:true}).count(),0,'the separate design picker is hidden');
+ await page.evaluate(()=>{
+  const {states,...doc}=Frame.agent.getDocument('instrument');
+  const contexts=Object.entries(states).map(([id,overrides])=>({id,label:id,overrides}));
+  Frame.agent.updateDocument({...doc,revisionId:'header-views',views:[{id:'preview',label:'Preview',contexts}]});
+  Frame.agent.selectDesign(doc.id);
+ });
+ await assertHeaderRow(5);
+ if(width>=912) {
+  const sizes=await page.locator('.tools').evaluate(node=>({content:node.scrollWidth,available:node.clientWidth}));
+  assert.ok(sizes.content<=sizes.available,JSON.stringify(sizes));
+ }
  assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true,'no horizontal page overflow');
- const stage=await page.locator('#stage').boundingBox(),panel=await page.locator('.feedback-panel').boundingBox(),rail=await page.locator('.tool-rail').boundingBox();
- assert.ok(stage.width>150&&stage.height>=300,'usable canvas');
- assert.ok(separate(stage,panel)&&separate(stage,rail),'panel and rail do not overlap the canvas');
+ const stage=await page.locator('#stage').boundingBox(),rail=await page.locator('.tool-rail').boundingBox();
+ assert.equal(stage.width,topbar.width,'the canvas takes the full workspace width');
+ assert.ok(stage.height>=300&&rail.y>=stage.y+stage.height,'tools sit below the canvas');
+ assert.equal(await page.locator('.tool-rail button svg').count(),8,'all eight canvas tools use icons');
+ assert.equal(await page.locator('.tool-rail #fit-view, .tool-rail #download-image').count(),2,'zoom and export belong to the bottom bar');
+ assert.equal(await page.locator('#compare-revisions, #check-design').count(),0);
  await fs.mkdir(path.join(root,'artifacts/workspace-ui'),{recursive:true});
  await page.screenshot({path:path.join(root,`artifacts/workspace-ui/workspace-${width}.png`),fullPage:true});
- if(width===1280){await page.locator('#design-picker').selectOption('sift-style-studies');await page.screenshot({path:path.join(root,'artifacts/workspace-ui/sift-workspace.png'),fullPage:true});}
+ if(width===1280){await page.evaluate(id=>Frame.agent.selectDesign(id),'sift-style-studies');await page.screenshot({path:path.join(root,'artifacts/workspace-ui/sift-workspace.png'),fullPage:true});}
  await page.evaluate(()=>Frame.setProjectStatus(document.getElementById('checkpoint-status'),'Checkpoint storage unavailable',true));
  assert.equal(await page.locator('.project-warning').isVisible(),true);
  await page.locator('.project-menu summary').click();
@@ -88,7 +109,7 @@ test('wheel zoom stays anchored to the cursor, respects limits, and preserves an
  await page.locator('#fit-view').click();assert.deepEqual(await page.evaluate(()=>Frame.view.get()),{zoom:1,panX:0,panY:0});
 });
 test('middle-drag pans over prototype controls in every mode without edits and recovers from cancellation',async t=>{
- const context=await browser.newContext({viewport:{width:1400,height:1000}});t.after(()=>context.close());const page=await context.newPage();await page.goto(url);await page.locator('#design-picker').selectOption('sift-style-studies');
+ const context=await browser.newContext({viewport:{width:1400,height:1000}});t.after(()=>context.close());const page=await context.newPage();await page.goto(url);await page.evaluate(id=>Frame.agent.selectDesign(id),'sift-style-studies');
  for(const mode of ['pen','note','select','interact']){
   await page.locator('#tool-'+mode).click();await page.locator('#fit-view').click();
   const bounds=await page.locator('#board').boundingBox();let point={x:bounds.x+100,y:bounds.y+100};
@@ -106,15 +127,24 @@ test('middle-drag pans over prototype controls in every mode without edits and r
  await page.mouse.up({button:'middle'});assert.deepEqual(await page.evaluate(()=>Frame.view.get()),original);
  await page.locator('#fit-view').click();assert.equal(await page.locator('#stage').evaluate(n=>n.classList.contains('is-panning')),false);
 });
-for(const width of [320,1280])test(`feedback sidebar toggles, restores, and preserves feedback at ${width}px`,async t=>{
+for(const width of [320,1280])test(`feedback menu overlays the canvas and preserves feedback at ${width}px`,async t=>{
  const context=await browser.newContext({viewport:{width,height:1000}});t.after(()=>context.close());const page=await context.newPage();await page.goto(url);
- const board=await page.locator('#board').boundingBox();await page.mouse.move(board.x+board.width/3,board.y+board.height/3);await page.mouse.down();await page.mouse.move(board.x+board.width/2,board.y+board.height/2);await page.mouse.up();
+ const board=await page.locator('#board').boundingBox();
+ await page.mouse.move(board.x+board.width/3,board.y+board.height/3);await page.mouse.down();await page.mouse.move(board.x+board.width/2,board.y+board.height/2);await page.mouse.up();
  const marks=await page.evaluate(()=>Frame.agent.getFeedback());
- const before=await page.locator('#stage').boundingBox(),height=await page.evaluate(()=>document.documentElement.scrollHeight);
- const toggle=page.locator('#toggle-feedback');assert.equal(await toggle.evaluate(n=>!!n.closest('#feedback-panel')),true);
- await toggle.click();assert.equal(await toggle.evaluate(n=>document.activeElement===n),true);assert.equal(await toggle.getAttribute('aria-expanded'),'false');assert.equal(await page.locator('#feedback-panel').isVisible(),false);
- await page.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))));
- if(width>760)assert.ok((await page.locator('#stage').boundingBox()).width>before.width+200);else assert.ok(await page.evaluate(()=>document.documentElement.scrollHeight)<height);
- assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);
- await page.reload();assert.equal(await toggle.getAttribute('aria-expanded'),'false');await toggle.press('Enter');assert.equal(await toggle.evaluate(n=>document.activeElement===n),true);assert.equal(await page.locator('#feedback-panel').isVisible(),true);assert.deepEqual(await page.evaluate(()=>Frame.agent.getFeedback()),marks);
+ assert.equal(marks.lines.length,1);
+ const stage=page.locator('#stage'),before=await stage.boundingBox();
+ const toggle=page.locator('#feedback-menu summary'),panel=page.locator('#feedback-panel');
+ assert.equal(await panel.isVisible(),false);
+ await toggle.press('Enter');
+ assert.equal(await panel.isVisible(),true);
+ assert.deepEqual(await stage.boundingBox(),before);
+ const popup=await panel.boundingBox();
+ assert.ok(popup.x>=0&&popup.x+popup.width<=width);
+ await toggle.press('Escape');
+ assert.equal(await panel.isVisible(),false);
+ assert.equal(await toggle.evaluate(node=>document.activeElement===node),true);
+ await page.reload();
+ assert.equal(await panel.isVisible(),false);
+ assert.deepEqual(await page.evaluate(()=>Frame.agent.getFeedback()),marks);
 });

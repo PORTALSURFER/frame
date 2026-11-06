@@ -13,6 +13,8 @@ test('archive codec round trips Unicode, repeated content, and dictionary resets
 test('compact archives preserve revision documents, states, ordering, and reject invalid references', () => {
   const doc={version:1,id:'d',name:'d',revisionId:'r1',width:20,height:20,states:{default:{a:{visible:true}}},elements:[{id:'a',type:'text',bounds:{x:0,y:0,width:4,height:4},text:'a'}]};
   const next=structuredClone(doc);next.revisionId='r2';
+  next.views=[{id:'issues',label:'Issues',contexts:[{id:'default',label:'Browse',overrides:next.states.default}]}];
+  delete next.states;
   const archive={version:1,designId:'d',sourceRevisionId:'r1',currentRevisionId:'r2',revisions:[{revisionId:'r1',document:doc},{revisionId:'r2',document:next}]};
   const packed=codec.pack(archive);
   assert.equal(packed.elements.length,1);assert.equal(packed.states.length,1);

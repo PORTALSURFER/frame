@@ -1,3 +1,4 @@
+const {readFixturePage}=require('../examples/fixture-page.cjs');
 const {test,before,after}=require('node:test');
 const assert=require('node:assert/strict'),http=require('node:http'),fs=require('node:fs/promises'),path=require('node:path');
 const {chromium}=require('playwright');
@@ -7,7 +8,7 @@ before(async()=>{
  server=http.createServer(async(req,res)=>{
   const name=path.resolve(root,'.'+(new URL(req.url,'http://localhost').pathname==='/'?'/index.html':new URL(req.url,'http://localhost').pathname));
   if(!name.startsWith(root+path.sep)){res.writeHead(403).end();return;}
-  try{res.setHeader('Content-Type',name.endsWith('.js')?'application/javascript':name.endsWith('.css')?'text/css':'text/html');res.end(await fs.readFile(name));}catch{res.writeHead(404).end();}
+  try{res.setHeader('Content-Type',name.endsWith('.js')?'application/javascript':name.endsWith('.css')?'text/css':'text/html');res.end(await (req.url==='/?blank'?fs.readFile(name):readFixturePage(name)));}catch{res.writeHead(404).end();}
  });
  await new Promise(r=>server.listen(0,'127.0.0.1',r));url='http://127.0.0.1:'+server.address().port;
  browser=await chromium.launch({executablePath:process.env.FRAME_BROWSER_PATH||undefined});
@@ -16,8 +17,18 @@ after(async()=>{await browser?.close();if(server)await new Promise(r=>server.clo
 async function pageFor(t){
  const context=await browser.newContext();t.after(()=>context.close());
  const page=await context.newPage();const errors=[];page.on('pageerror',e=>errors.push(e.message));t.after(()=>assert.deepEqual(errors,[]));
- await page.goto(url);await page.locator('#design-picker').selectOption('instrument');return page;
+ await page.goto(url);await page.evaluate(id=>Frame.agent.selectDesign(id),'instrument');return page;
 }
+test('a fresh workspace opens without designs and offers file import',async t=>{
+ const context=await browser.newContext();t.after(()=>context.close());
+ const page=await context.newPage(),errors=[];page.on('pageerror',error=>errors.push(error.message));
+ await page.goto(url+'/?blank');
+ await page.getByRole('heading',{name:'No design open'}).waitFor();
+ assert.deepEqual(await page.evaluate(()=>Frame.agent.listDesigns()),[]);
+ await page.getByRole('button',{name:'Open design file'}).click();
+ await page.getByRole('dialog',{name:'Import design'}).waitFor();
+ assert.deepEqual(errors,[]);
+});
 test('wheel zoom coalesces raster work and settles sharply without changing design coordinates',async t=>{
  const page=await pageFor(t);
  const result=await page.evaluate(async()=>{
@@ -299,7 +310,7 @@ test('revisions compare and restore exact documents, carry bound feedback and fl
  assert.deepEqual(result.comparison.changed.map(n=>n.id),['run']);
  assert.equal(result.removed.notes[0].needsReview,true);
  assert.equal(result.restored.revisionId,'instrument-r1');assert.equal(result.count,3);
- await page.reload();await page.locator('#design-picker').selectOption('instrument');
+ await page.reload();await page.evaluate(id=>Frame.agent.selectDesign(id),'instrument');
  assert.equal(await page.evaluate(()=>Frame.revisions.list('instrument').length),3);
 });
 test('portable projects round trip into a fresh browser with revisions, guide, state and feedback',async t=>{
@@ -346,18 +357,6 @@ test('revision IDs are immutable and invalid portable projects leave registries 
  });
  assert.equal(result.collision,true);assert.equal(result.unchanged,true);assert.equal(result.invalid,true);assert.equal(result.size,result.previous);
 });
-test('comparison UI presents snapshots and overlay without changing the selected revision',async t=>{
- const page=await pageFor(t);
- await page.evaluate(()=>Frame.agent.applyEdits('instrument',[{op:'update',id:'run',patch:{text:'COMPARE ME'}}]));
- const current=await page.evaluate(()=>Frame.agent.getDocument('instrument').revisionId);
- await page.locator('#compare-revisions').click();
- await page.locator('#compare-before').selectOption('instrument-r1');
- assert.match(await page.locator('#compare-summary').textContent(),/1 changed/);
- await page.locator('#compare-overlay').check();
- assert.equal(await page.locator('#revision-canvases').evaluate(el=>el.classList.contains('overlay')),true);
- await page.locator('#close-compare').click();
- assert.equal(await page.evaluate(()=>Frame.agent.getDocument('instrument').revisionId),current);
-});
 test('selecting a revision immediately loads it, preserves feedback and history, and persists after reload',async t=>{
  const page=await pageFor(t);
  const board=await page.locator('#board').boundingBox();
@@ -371,7 +370,7 @@ test('selecting a revision immediately loads it, preserves feedback and history,
  assert.deepEqual(await page.evaluate(()=>Frame.revisions.list('instrument')),before.history);
  await page.locator('#revision-picker').selectOption(edited);
  assert.equal(await page.evaluate(()=>Frame.agent.inspect('instrument').find(n=>n.id==='run').text),'NEW REVISION');
- await page.reload();await page.locator('#design-picker').selectOption('instrument');
+ await page.reload();await page.evaluate(id=>Frame.agent.selectDesign(id),'instrument');
  assert.equal(await page.locator('#revision-picker').inputValue(),edited);
  assert.equal(await page.evaluate(()=>Frame.agent.getDocument('instrument').revisionId),edited);
  assert.deepEqual(await page.evaluate(()=>Frame.agent.getFeedback().lines),before.feedback.lines);
@@ -388,16 +387,124 @@ test('embedded image assets decode before readiness and survive portable export'
  });
  assert.ok(result.size>1000);assert.equal(result.assets[0].id,'sample');
 });
+test('viewport sizes are named per design and survive a browser reload',async t=>{
+ const page=await pageFor(t),picker=page.locator('#viewport-picker');
+ const options=()=>picker.locator('option').allTextContents();
+ const settings=async()=>{await page.locator('.project-menu summary').click();await page.locator('#configure-viewports').click();};
+ assert.deepEqual(await options(),['Desktop · 1000 × 700','Tablet · 768 × 1024','Phone · 360 × 740']);
+ assert.equal(await picker.inputValue(),'1000×700');
+ await picker.selectOption('360×740');
+ await settings();
+ const dialog=page.getByRole('dialog',{name:'Viewport sizes'});
+ await dialog.getByRole('button',{name:'Add size'}).click();
+ const added=dialog.getByRole('group',{name:'Size 4'});
+ await added.getByRole('textbox',{name:'Name'}).fill('Phone');
+ await added.getByRole('spinbutton',{name:'Width'}).fill('393');
+ await added.getByRole('spinbutton',{name:'Height'}).fill('852');
+ await dialog.getByRole('button',{name:'Save sizes'}).click();
+ assert.match(await dialog.getByRole('alert').textContent(),/unique/);
+ await added.getByRole('textbox',{name:'Name'}).fill('Pulse mobile');
+ await dialog.getByRole('group',{name:'Size 3'}).getByRole('button',{name:'Remove viewport size'}).click();
+ await dialog.getByRole('button',{name:'Save sizes'}).click();
+ assert.equal(await picker.inputValue(),'393×852');
+ assert.deepEqual(await page.evaluate(()=>Frame.currentViewport('instrument')),{width:393,height:852});
+ assert.equal(await page.evaluate(()=>Frame.project.export('instrument').archive.viewportPresets[2].name),'Pulse mobile');
+ await page.reload();
+ assert.equal(await picker.inputValue(),'393×852');
+ assert.deepEqual(await options(),['Desktop · 1000 × 700','Tablet · 768 × 1024','Pulse mobile · 393 × 852']);
+ await page.evaluate(id=>Frame.agent.selectDesign(id),'sift-style-studies');
+ assert.ok((await options()).every(option=>!option.includes('Pulse mobile')));
+});
+test('one saved Pulse design switches layouts, states and feedback by viewport',async t=>{
+ const page=await pageFor(t),id='pulse-browser-reference';
+ await page.evaluate(async id=>{
+  const design=Frame.agent.getDocument('instrument');
+  const phone=Frame.components.text('phone-layout',{x:0,y:0,width:100,height:30},{text:'Phone',viewportLayout:'narrow'});
+  design.id=id;design.name='Pulse';design.viewportLayouts={maxWidth:799,narrow:['default','phone'],wide:Object.keys(design.states)};
+  for(const node of design.elements.filter(node=>!node.parentId))node.viewportLayout='wide';
+  design.elements.push(phone);design.states.phone={'phone-layout':{text:'Phone detail'}};
+  Frame.registerDocument(design);
+  Frame.agent.selectDesign(id);
+  Frame.project.setViewportPresets(id,[{name:'Desktop',width:1280,height:800},{name:'Phone',width:393,height:852}]);
+  const feedback=Frame.agent.getFeedback();
+  for(const width of [1280,393])feedback.lines.push({...FrameFeedback.metadata('stroke',Frame.designs.get(id)),reviewedViewport:{width,height:800},points:[[0,0],[10,10]]});
+  Frame.projectBridge.importFeedback(feedback);
+  await Frame.project.saveDurable(id,0);
+  Frame.agent.selectDesign('instrument');
+ },id);
+ await page.reload();
+ const menu=page.locator('.project-menu'),picker=page.locator('#viewport-picker');
+ await menu.locator('summary').click();
+ await menu.getByRole('button',{name:'Pulse',exact:true}).click();
+ await page.waitForFunction(id=>document.getElementById('design-picker').value===id,id);
+ await menu.locator('#open-designs').waitFor({state:'hidden'});
+ assert.equal(await menu.getAttribute('open'),null);
+ assert.equal(await picker.inputValue(),'1280×800');
+ await page.locator('#state-picker').selectOption('error');
+ await picker.selectOption('393×852');
+ assert.equal(await page.locator('#design-picker').inputValue(),id);
+ assert.equal(await page.locator('#state-picker').inputValue(),'default');
+ assert.deepEqual(await page.locator('#state-picker option').allTextContents(),['default','phone']);
+ assert.deepEqual(await page.evaluate(id=>Frame.agent.inspect(id).filter(node=>node.visible).map(node=>node.id),id),['phone-layout']);
+ assert.equal(await page.locator('#brush path:visible').count(),1);
+ await page.locator('#feedback-menu summary').click();
+ await page.locator('#clear').click();
+ await picker.selectOption('1280×800');
+ assert.equal(await page.locator('#state-picker').inputValue(),'error');
+ assert.equal(await page.locator('#brush path:visible').count(),1);
+ await menu.locator('summary').click();
+ await menu.getByRole('button',{name:'Browse designs'}).click();
+ const library=page.getByRole('dialog',{name:'Designs'});
+ await library.getByRole('button',{name:/^Pulse instrument-r1$/}).waitFor();
+ assert.equal(await page.evaluate(async()=>(await Frame.project.listDurable()).length),1);
+});
 test('saved viewport, state and input values resume with the browser draft',async t=>{
  const page=await pageFor(t);
  await page.evaluate(()=>{
   Frame.agent.setViewport('instrument',{width:360,height:740});
   Frame.agent.setState('instrument','error');Frame.agent.setValue('instrument','frequency','128');
  });
- await page.reload();await page.locator('#design-picker').selectOption('instrument');
+ await page.reload();await page.evaluate(id=>Frame.agent.selectDesign(id),'instrument');
  assert.deepEqual(await page.evaluate(()=>Frame.currentViewport('instrument')),{width:360,height:740});
  assert.equal(await page.evaluate(()=>Frame.currentState('instrument')),'error');
  assert.equal(await page.evaluate(()=>Frame.agent.getValues('instrument').frequency),'128');
+});
+
+test('view and context pickers scope options by screen and viewport, and restore the selection',async t=>{
+ const page=await pageFor(t);
+ await page.evaluate(()=>{
+  const id='instrument',doc=Frame.agent.getDocument(id);
+  const {states,...base}=doc;
+  Frame.agent.updateDocument({...base,revisionId:'grouped-r1',views:[
+   {id:'issues',label:'Issues',contexts:[
+    {id:'default',label:'Browse',overrides:states.default},
+    {id:'loading',label:'Selected rows',overrides:states.loading}
+   ]},
+   {id:'activity',label:'Activity',contexts:[{id:'error',label:'Unavailable',overrides:states.error}]}
+  ],viewportLayouts:{maxWidth:500,narrow:['default'],wide:['default','loading','error']}});
+ });
+ const view=page.getByRole('combobox',{name:'View',exact:true}),context=page.locator('#context-picker');
+ const viewport=page.getByRole('combobox',{name:'Viewport',exact:true});
+ const desktop=await viewport.inputValue();
+ assert.equal(await view.inputValue(),'issues');
+ assert.deepEqual(await context.locator('option').allTextContents(),['Browse','Selected rows']);
+ assert.equal(await page.locator('#state-picker').isHidden(),true);
+ await view.selectOption('activity');
+ assert.equal(await context.isHidden(),true);
+ assert.equal(await page.evaluate(()=>Frame.currentState('instrument')),'error');
+ await view.selectOption('issues');
+ assert.equal(await context.inputValue(),'default');
+ await context.selectOption('loading');
+ await viewport.selectOption('360×740');
+ assert.deepEqual(await view.locator('option').allTextContents(),['Issues']);
+ assert.equal(await context.isHidden(),true);
+ assert.equal(await page.evaluate(()=>Frame.currentState('instrument')),'default');
+ await viewport.selectOption(desktop);
+ assert.equal(await context.inputValue(),'loading');
+ await page.reload();
+ await page.evaluate(()=>Frame.agent.selectDesign('instrument'));
+ assert.equal(await view.inputValue(),'issues');
+ assert.equal(await context.inputValue(),'loading');
 });
 test('asset decode failure is a render error rather than a false ready signal',async t=>{
  const page=await pageFor(t);
@@ -422,21 +529,21 @@ test('project save failures retain revisions for export and retry persists the b
  });
  assert.match(await page.locator('#project-save-notice').textContent(),/unsaved/);
  assert.equal(await page.evaluate(()=>Frame.project.export('instrument').archive.revisions.length),2);
- await page.locator('#design-picker').selectOption('starter');
- await page.locator('#design-picker').selectOption('instrument');
+ await page.evaluate(id=>Frame.agent.selectDesign(id),'starter');
+ await page.evaluate(id=>Frame.agent.selectDesign(id),'instrument');
  assert.equal(await page.evaluate(()=>Frame.agent.getDocument('instrument').elements.find(n=>n.id==='status').text),'RECOVERABLE DRAFT');
  await page.evaluate(()=>{Storage.prototype.setItem=window.originalProjectSave;});
  assert.equal(await page.locator('.project-warning').isVisible(),true);
  await page.locator('.project-menu summary').click({timeout:5000});
  await page.locator('#retry-project-save').click({timeout:5000});
  assert.equal(await page.locator('#project-save-notice').textContent(),'');
- await page.reload();await page.locator('#design-picker').selectOption('instrument');
+ await page.reload();await page.evaluate(id=>Frame.agent.selectDesign(id),'instrument');
  assert.equal(await page.evaluate(()=>Frame.agent.getDocument('instrument').elements.find(n=>n.id==='status').text),'RECOVERABLE DRAFT');
 });
 test('unreadable saved project archives are protected while in-memory edits remain exportable',async t=>{
  const page=await pageFor(t);
  await page.evaluate(()=>localStorage.setItem('frame-project-v1:instrument','unreadable backup'));
- await page.reload();await page.locator('#design-picker').selectOption('instrument');
+ await page.reload();await page.evaluate(id=>Frame.agent.selectDesign(id),'instrument');
  await page.evaluate(()=>Frame.agent.applyEdits('instrument',[{op:'update',id:'status',patch:{text:'IN MEMORY'}}]));
  await page.locator('.project-menu summary').click({timeout:5000});
  await page.locator('#retry-project-save').click({timeout:5000});
@@ -469,10 +576,10 @@ test('a new source revision starts a snapshot and subsequent reloads retain edit
   const response=await route.fetch();
   await route.fulfill({response,body:(await response.text()).replace('instrument-r1','instrument-r2')});
  });
- await page.reload();await page.locator('#design-picker').selectOption('instrument');
+ await page.reload();await page.evaluate(id=>Frame.agent.selectDesign(id),'instrument');
  assert.equal(await page.evaluate(()=>Frame.agent.getDocument('instrument').revisionId),'instrument-r2');
  await page.evaluate(()=>Frame.agent.applyEdits('instrument',[{op:'update',id:'status',patch:{text:'NEW SOURCE DRAFT'}}]));
- await page.reload();await page.locator('#design-picker').selectOption('instrument');
+ await page.reload();await page.evaluate(id=>Frame.agent.selectDesign(id),'instrument');
  assert.equal(await page.evaluate(()=>Frame.agent.getDocument('instrument').elements.find(n=>n.id==='status').text),'NEW SOURCE DRAFT');
  assert.equal(await page.evaluate(()=>Frame.revisions.list('instrument').length),3);
 });

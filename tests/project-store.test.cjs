@@ -1,3 +1,4 @@
+const {readFixturePage}=require('../examples/fixture-page.cjs');
 const {test, before, after} = require('node:test');
 const assert = require('node:assert/strict');
 const http = require('node:http');
@@ -11,7 +12,7 @@ before(async () => {
     const pathname = new URL(req.url, 'http://localhost').pathname;
     const file = path.resolve(root, '.' + (pathname === '/' ? '/index.html' : pathname));
     if (!file.startsWith(root + path.sep)) { res.writeHead(403).end(); return; }
-    try { res.end(await fs.readFile(file)); } catch { res.writeHead(404).end(); }
+    try { res.end(await readFixturePage(file)); } catch { res.writeHead(404).end(); }
   });
   await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
   url = 'http://127.0.0.1:' + server.address().port;
@@ -26,7 +27,7 @@ async function pageFor(t) {
   const page = await context.newPage();
   const errors = []; page.on('pageerror', error => errors.push(error.message));
   t.after(() => assert.deepEqual(errors, []));
-  await page.goto(url); await page.locator('#design-picker').selectOption('instrument');
+  await page.goto(url); await page.evaluate(id=>Frame.agent.selectDesign(id),'instrument');
   return page;
 }
 async function saveRestartFixture(page) {
@@ -59,7 +60,7 @@ test('portable transfer copies history and feedback between origins with guide r
  const sourceOriginal=await source.evaluate(()=>JSON.stringify(Frame.project.export('instrument')));
  const portable=JSON.parse(sourceOriginal);portable.extension={source:'preserve opaque metadata'};portable.resume.extension='preserve resume metadata';
  const original=JSON.stringify(portable);
- const destination=await source.context().newPage();await destination.goto(transferURL);await destination.locator('#design-picker').selectOption('instrument');
+ const destination=await source.context().newPage();await destination.goto(transferURL);await destination.evaluate(id=>Frame.agent.selectDesign(id),'instrument');
  const result=await destination.evaluate(async input=>{
   await Frame.project.startup.ready;
   Frame.styleguides.set('sift-hardware',{...Frame.styleguides.get('sift-hardware'),prompt:'destination guide'});
@@ -339,7 +340,7 @@ test('automatic checkpoint failures remain unsaved until explicit retry and stal
  assert.equal(await page.evaluate(()=>Frame.project.automaticCheckpoints.status().state),'error');
  const saved=await page.evaluate(async()=>{Frame.project.writeDurable=write;return Frame.project.automaticCheckpoints.retry();});
  assert.equal(saved.state,'saved');
- const other=await page.context().newPage();await other.goto(url);await other.locator('#design-picker').selectOption('instrument');
+ const other=await page.context().newPage();await other.goto(url);await other.evaluate(id=>Frame.agent.selectDesign(id),'instrument');
  await other.evaluate(()=>Frame.project.automaticCheckpoints.enable('instrument'));
  const conflict=await page.evaluate(async()=>{
   Frame.agent.applyEdits('instrument',[{op:'update',id:'run',patch:{text:'stale tab'}}]);
@@ -425,7 +426,7 @@ test('compressed session history loads and can be checkpointed without changing 
   localStorage.setItem('frame-project-v1:instrument',FrameArchiveCodec.compress(JSON.stringify(FrameArchiveCodec.pack(archive))));
   return archive;
  });
- await page.reload();await page.locator('#design-picker').selectOption('instrument');
+ await page.reload();await page.evaluate(id=>Frame.agent.selectDesign(id),'instrument');
  const saved=await page.evaluate(async()=>{await Frame.project.saveDurable('instrument',0);return (await Frame.project.readDurable('instrument')).project.archive;});
  assert.deepEqual(saved,expected);
 });

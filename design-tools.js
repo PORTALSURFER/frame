@@ -6,7 +6,7 @@
   let bridge=null, renderPromise=Promise.resolve();
   function requireDocument(id) {const doc=documents.get(id);if(!doc) throw new Error("No structured document for design: "+id);return doc;}
   function view(id) {const doc=requireDocument(id);return viewports.get(id)||{width:doc.width,height:doc.height};}
-  function changed(id) {window.dispatchEvent(new CustomEvent("frame:design-updated",{detail:{id}}));}
+  function changed(id,documentChanged=false) {window.dispatchEvent(new CustomEvent("frame:design-updated",{detail:{id,documentChanged}}));}
   function registerDocument(input) {
     const doc=copy(FrameDocument.validate(input));
     if(Frame.designs.has(doc.id)) {Frame.errors.push({id:doc.id,message:doc.id+": Duplicate design id; the original design was kept"});window.dispatchEvent(new Event("frame:designs-changed"));return false;}
@@ -22,8 +22,8 @@
     Frame.validateRevision?.(doc);
     documents.set(doc.id,doc);
     Object.assign(Frame.designs.get(doc.id),{name:doc.name,width:viewports.get(doc.id)?.width||doc.width,height:viewports.get(doc.id)?.height||doc.height,revisionId:doc.revisionId});
-    if(!Object.hasOwn(doc.states||{default:{}},states.get(doc.id)||"default")) states.set(doc.id,"default");
-    changed(doc.id);return copy(doc);
+    if(!FrameDocument.hasState(doc,states.get(doc.id)||"default")) states.set(doc.id,"default");
+    changed(doc.id,true);return copy(doc);
   }
   function setViewport(id,viewport) {
     requireDocument(id);
@@ -31,7 +31,7 @@
     viewports.set(id,{width:viewport.width,height:viewport.height});Object.assign(Frame.designs.get(id),viewport);changed(id);return copy(viewport);
   }
   function setState(id,state) {
-    if(!Object.hasOwn(requireDocument(id).states||{default:{}},state)) throw new Error("Unknown state: "+state);
+    if(!FrameDocument.hasState(requireDocument(id),state)) throw new Error("Unknown state: "+state);
     states.set(id,state);changed(id);return state;
   }
   function setValue(id,elementId,value) {
@@ -39,7 +39,7 @@
     const inputs=values.get(id)||{};inputs[elementId]=String(value);values.set(id,inputs);changed(id);return inputs[elementId];
   }
   function inspect(id,options={}) {
-    let nodes=FrameDocument.inspect(requireDocument(id),view(id),states.get(id)||"default");
+    let nodes=FrameDocument.inspect(requireDocument(id),view(id),Frame.currentState(id));
     if(options.elementId) nodes=nodes.filter(node=>node.id===options.elementId);
     if(options.region) {const b=options.region;if(!["x","y","width","height"].every(k=>Number.isFinite(b[k]))||b.width<0||b.height<0) throw new Error("Invalid inspection region");
       nodes=nodes.filter(n=>n.bounds.x+n.bounds.width>=b.x&&n.bounds.x<=b.x+b.width&&n.bounds.y+n.bounds.height>=b.y&&n.bounds.y<=b.y+b.height);}
@@ -55,9 +55,12 @@
     ctx.scale(scale,scale);design.paint(ctx,{styleguide:Frame.activeStyleguide});
     if(feedback) {
       if(bridge.selectedId()!==design.id) throw new Error("Select the design before exporting its feedback overlay");
-      const marks=bridge.feedback();ctx.lineWidth=3;ctx.lineCap="round";ctx.strokeStyle="#ff3434";
-      for(const line of marks.lines) {ctx.beginPath();line.points.forEach(([x,y],i)=>ctx[i?"lineTo":"moveTo"](x,y));ctx.stroke();}
-      for(const note of marks.notes) {ctx.fillStyle="#362824";ctx.fillRect(note.anchor[0]-8,note.anchor[1]-8,220,50);ctx.fillStyle="#ffe2d4";ctx.font="12px monospace";ctx.fillText(note.text.split("\n")[0],note.anchor[0],note.anchor[1]+14,200);}
+      const marks=bridge.feedback(),doc=documents.get(design.id);
+      const matchesLayout=mark=>!mark.reviewedViewport||!doc?.viewportLayouts||
+        FrameDocument.viewportLayout(doc,mark.reviewedViewport.width)===FrameDocument.viewportLayout(doc,design.width);
+      ctx.lineWidth=3;ctx.lineCap="round";ctx.strokeStyle="#ff3434";
+      for(const line of marks.lines.filter(matchesLayout)) {ctx.beginPath();line.points.forEach(([x,y],i)=>ctx[i?"lineTo":"moveTo"](x,y));ctx.stroke();}
+      for(const note of marks.notes.filter(matchesLayout)) {ctx.fillStyle="#362824";ctx.fillRect(note.anchor[0]-8,note.anchor[1]-8,220,50);ctx.fillStyle="#ffe2d4";ctx.font="12px monospace";ctx.fillText(note.text.split("\n")[0],note.anchor[0],note.anchor[1]+14,200);}
     }
     const blob=await new Promise((resolve,reject)=>canvas.toBlob(b=>b?resolve(b):reject(new Error("Image export failed")),"image/png"));
     return {blob,width:canvas.width,height:canvas.height,designId:design.id,revisionId:design.revisionId??null,scale,feedback};
@@ -104,5 +107,9 @@ getFeedback:()=>copy(requireBridge().feedback()),exportImage,
   Frame.connectUI=api=>{bridge=api;};
   Frame.markRendering=promise=>{renderPromise=promise;promise.catch(()=>{});};
   Frame.currentViewport=id=>copy(view(id));
-  Frame.currentState=id=>states.get(id)||"default";
+  Frame.currentState=id=>{
+    const state=states.get(id)||"default";
+    const doc=documents.get(id);
+    return doc ? FrameDocument.resolveState(doc,view(id).width,state) : "default";
+  };
 })();

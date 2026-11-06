@@ -8,7 +8,7 @@
   async function prepare(){
     invalidate();const token=request;
     try{
-      if(!input)throw new Error('Choose a portable project file first');
+      if(!input)throw new Error('Choose a portable design file first');
       const candidate=await Frame.project.prepareTransfer(input,{designId:target.value.trim()||undefined});
       if(token!==request||!dialog.open)return;
       prepared=candidate.project;target.value=candidate.summary.targetId;confirm.disabled=false;
@@ -17,6 +17,9 @@
         (s.sourceGuide!==s.targetGuide?'Styleguide copied to '+s.targetGuide+'. ':'')+'The original and existing projects will be preserved. Import stores a checkpoint before opening.';
     }catch(error){if(token===request)status.textContent='Preview unavailable: '+error.message;}
   }
+  document.getElementById('open-first-design').addEventListener('click',()=>{
+    document.getElementById('import-project').click();
+  });
   document.getElementById('import-project').addEventListener('click',()=>{
     invalidate();input=null;file.value='';target.value='';status.textContent='';lock(false);dialog.showModal();
   });

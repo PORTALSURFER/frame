@@ -11,12 +11,65 @@
   const key=id=>"frame-project-v1:"+id;
   const maxProjectBytes = 128 * 1024 * 1024;
   let registering = false;
+  const defaultViewports=[
+    {name:"Desktop",width:1000,height:700},
+    {name:"Tablet",width:768,height:1024},
+    {name:"Phone",width:360,height:740}
+  ];
+  const sameSize=(a,b)=>a.width===b.width&&a.height===b.height;
+  function defaultPresets(size) {
+    const presets=copy(defaultViewports);
+    if(!presets.some(preset=>sameSize(preset,size))) {
+      const device=size.width<=480?"Phone":size.width<900&&size.height>size.width?"Tablet":"Desktop";
+      const preset=presets.find(preset=>preset.name===device);
+      preset.width=size.width; preset.height=size.height;
+    }
+    return presets;
+  }
+  function validatePresets(presets) {
+    const validDimensions=({width,height})=>[width,height].every(n=>Number.isInteger(n)&&n>=1&&n<=8192);
+    if(!Array.isArray(presets)||!presets.length||presets.length>16||
+       presets.some(p=>!p||typeof p.name!=="string"||!p.name.trim()||p.name.length>60||!validDimensions(p))) {
+      throw new Error("Enter 1–16 named sizes with whole-number dimensions from 1 to 8192.");
+    }
+    if(new Set(presets.map(p=>p.name.trim().toLowerCase())).size!==presets.length||
+       new Set(presets.map(p=>p.width+"×"+p.height)).size!==presets.length) {
+      throw new Error("Each size needs a unique name and resolution.");
+    }
+    return presets.map(({name,width,height})=>({name:name.trim(),width,height}));
+  }
+  function getViewportPresets(id) {
+    const archive=archives.get(id);
+    return copy(archive?.viewportPresets||defaultPresets(Frame.agent.getDocument(id)));
+  }
+  function setViewportPresets(id,input) {
+    const archive=archives.get(id);
+    if(!archive)throw new Error("Open a structured design to configure its viewport sizes.");
+    const presets=validatePresets(input);
+    const current=Frame.currentViewport(id);
+    const previous=getViewportPresets(id),index=previous.findIndex(preset=>sameSize(preset,current));
+    const next=presets.find(preset=>sameSize(preset,current))||
+      presets.find(preset=>preset.name===previous[index]?.name)||presets[index]||presets[0];
+    archive.viewportPresets=presets;
+    Frame.agent.setViewport(id,{width:next.width,height:next.height});
+    if(Frame.disk) {
+      persist(id);
+      window.dispatchEvent(new CustomEvent("frame:viewport-presets-changed",{detail:{id}}));
+    }
+  }
   function notify() {
     const status=document.getElementById("project-save-notice");
-    if(status)status.textContent=blocked.size?"Unreadable saved project data is protected. New checkpoints do not replace that original.":unsaved.size?"Project changes are unsaved. Download the project before closing or reloading, or retry project saving.":"";
-    const retry=document.getElementById("retry-project-save");if(retry)retry.hidden=!unsaved.size;
+    const needsAttention=Frame.disk?[...unsaved].some(id=>{
+      const save=Frame.project?.automaticCheckpoints?.status(id);
+      return !save?.enabled||!!save.error;
+    }):unsaved.size>0;
+    if(status)status.textContent=blocked.size?"Unreadable saved design data is protected. New checkpoints do not replace that original.":needsAttention?"Design changes are unsaved. Download the design before closing or reloading, or retry saving.":"";
+    const retry=document.getElementById("retry-project-save");if(retry)retry.hidden=!needsAttention;
   }
   function persist(id) {
+    if (Frame.disk) {
+      unsaved.add(id); notify(); return;
+    }
     try {if(blocked.has(id))throw new Error("Saved project is unreadable and protected");localStorage.setItem(key(id),JSON.stringify(archives.get(id)));unsaved.delete(id);}
     catch {unsaved.add(id);}
     notify();
@@ -34,6 +87,7 @@
   }
   function validateArchive(archive) {
     if(!archive||archive.version!==1||typeof archive.designId!=="string"||!Array.isArray(archive.revisions)||!archive.revisions.length)throw new Error("Invalid revision archive");
+    if(archive.viewportPresets!==undefined)validatePresets(archive.viewportPresets);
     const ids=new Set();
     for(const revision of archive.revisions) {
       FrameDocument.validate(revision.document);
@@ -50,6 +104,11 @@
     if(archive)archives.set(input.id,archive);
     const document=archive?.sourceRevisionId===input.revisionId?archive.revisions.find(r=>r.revisionId===archive.currentRevisionId).document:input;
     const context=archive?.sourceRevisionId===input.revisionId?copy(archive.context||null):null;
+    if(archive&&context?.viewport&&!archive.viewportPresets&&
+       [context.viewport.width,context.viewport.height].every(n=>Number.isInteger(n)&&n>=1&&n<=8192)) {
+      const presets=defaultPresets(document);
+      if(!presets.some(preset=>sameSize(preset,context.viewport)))archive.viewportPresets=defaultPresets(context.viewport);
+    }
     const previousRegistering = registering;
     registering = true;
     let result;
@@ -57,14 +116,14 @@
       result=originalRegister(document);
       if(result&&context) {
         if(context.viewport&&[context.viewport.width,context.viewport.height].every(n=>Number.isInteger(n)&&n>0&&n<=8192))Frame.agent.setViewport(input.id,context.viewport);
-        if(Object.hasOwn(document.states||{default:{}},context.state))Frame.agent.setState(input.id,context.state);
+        if(FrameDocument.hasState(document,context.state))Frame.agent.setState(input.id,context.state);
         if(context.values&&typeof context.values==="object") {
           const values=Object.fromEntries(Object.entries(context.values).filter(([id,value])=>typeof value==="string"&&document.elements.some(n=>n.id===id&&n.type==="input")));
           Frame.agent.setValues?.(input.id,values);
         }
       }
     } finally { registering = previousRegistering; }
-    if(result){record(document,input.revisionId);if(!archive)persist(input.id);refresh();}
+    if(result){record(document,input.revisionId);if(!archive && !Frame.disk)persist(input.id);refresh();}
     return result;
   };
   function currentId(){return document.getElementById("design-picker").value;}
@@ -79,16 +138,18 @@
       changed:[...next.keys()].filter(id=>old.has(id)).map(id=>({id,fields:[...new Set([...Object.keys(old.get(id)),...Object.keys(next.get(id))])].filter(k=>JSON.stringify(old.get(id)[k])!==JSON.stringify(next.get(id)[k]))})).filter(item=>item.fields.length),
       settings:["width","height","background","tokens","states"].filter(k=>JSON.stringify(before[k])!==JSON.stringify(after[k]))};
   }
-  function exportProject(id=currentId()) {
+  function exportProject(id=currentId(), {shareRevisions = false} = {}) {
     if(!Frame.documents.has(id))throw new Error("Portable export requires a structured design; custom Canvas code stays in its source files");
     if(currentId()!==id)throw new Error("Select the design before exporting its feedback");
     const doc=Frame.agent.getDocument(id),guide=Frame.activeStyleguide;
-    const project = {...copy(projectExtras.get(id)||{}),format:"frame-project",version:1,archive:copy(archives.get(id)),feedback:Frame.agent.getFeedback(),styleguide:guide?copy(guide):null,
+    const archive=archives.get(id);
+    const snapshot=shareRevisions?{...archive,revisions:archive.revisions.map(entry=>({...entry}))}:copy(archive);
+    const project = {...copy(projectExtras.get(id)||{}),format:"frame-project",version:1,archive:snapshot,feedback:Frame.agent.getFeedback(),styleguide:guide?copy(guide):null,
       viewport:Frame.currentViewport(id),state:Frame.currentState(id),values:Frame.agent.getValues?.(id)||{},assets:copy(doc.assets||[])};
     Frame.project.captureResume?.(project); return project;
   }
-  function validateProject(project) {
-    if(new TextEncoder().encode(JSON.stringify(project)).byteLength>maxProjectBytes)throw new Error("Project exceeds the 128 MB import limit");
+  function validateProject(project, {portable = true} = {}) {
+    if(portable && new TextEncoder().encode(JSON.stringify(project)).byteLength>maxProjectBytes)throw new Error("Project exceeds the 128 MB import limit");
     if(project?.format!=="frame-project"||project.version!==1)throw new Error("Unsupported project format");
     if (project.resume !== undefined) {
       const r=project.resume,v=r?.view;
@@ -101,7 +162,7 @@
     FrameFeedback.validate(project.feedback,{id:doc.id});
     if(project.feedback.width!==project.viewport?.width||project.feedback.height!==project.viewport?.height||
       ![project.viewport?.width,project.viewport?.height].every(n=>Number.isInteger(n)&&n>0&&n<=8192))throw new Error("Project viewport and feedback dimensions do not match");
-    if(!Object.hasOwn(doc.states||{default:{}},project.state))throw new Error("Project has an unknown interface state");
+    if(!FrameDocument.hasState(doc,project.state))throw new Error("Project has an unknown interface state");
     if(!project.values||typeof project.values!=="object"||Object.keys(project.values).some(id=>!doc.elements.some(n=>n.id===id&&n.type==="input")||typeof project.values[id]!=="string"))throw new Error("Invalid prototype input values");
     if(project.styleguide) {
       const guide=project.styleguide;
@@ -112,8 +173,16 @@
     if(JSON.stringify(project.assets||[])!==JSON.stringify(doc.assets||[]))throw new Error("Bundled assets differ from the current document");
     return project;
   }
-  function importProject(input, {preserveLegacy = false} = {}) {
-    const project=copy(validateProject(input)),id=project.archive.designId;
+  function seedImportedPresets(project) {
+    if(project.archive.viewportPresets)return;
+    const doc=project.archive.revisions.find(r=>r.revisionId===project.archive.currentRevisionId).document;
+    const presets=defaultPresets(doc);
+    project.archive.viewportPresets=presets.some(preset=>sameSize(preset,project.viewport))?presets:defaultPresets(project.viewport);
+  }
+  function importProject(input, {preserveLegacy = false, diskRecovery = false} = {}) {
+    const checked=validateProject(input,{portable:!(Frame.disk && diskRecovery)});
+    const project=Frame.disk && diskRecovery?checked:copy(checked),id=project.archive.designId;
+    seedImportedPresets(project);
     if(Frame.designs.has(id))throw new Error("Project ID already exists; choose an unused ID");
     if(project.styleguide&&Frame.styleguides.has(project.styleguide.id)&&JSON.stringify(Frame.styleguides.get(project.styleguide.id))!==JSON.stringify(project.styleguide))throw new Error("Bundled styleguide conflicts with an existing guide");
     const previousRestore=Frame.restoringProject;
@@ -145,18 +214,30 @@
   };
   Frame.revisions={
     acknowledgeCheckpoint: archive => {
-      if (JSON.stringify(archives.get(archive.designId)) !== JSON.stringify(archive)) return false;
+      const current=archives.get(archive.designId);
+      if (Frame.disk) {
+        if (!current || current.currentRevisionId!==archive.currentRevisionId || current.sourceRevisionId!==archive.sourceRevisionId ||
+            JSON.stringify(current.viewportPresets)!==JSON.stringify(archive.viewportPresets) ||
+            current.revisions.length!==archive.revisions.length ||
+            current.revisions.some((entry,index)=>entry.document!==archive.revisions[index].document)) return false;
+      } else if (JSON.stringify(current) !== JSON.stringify(archive)) return false;
       unsaved.delete(archive.designId); notify(); return true;
     },
     list:id=>copy((archives.get(id)?.revisions||[]).map(({revisionId,capturedAt,parentRevisionId,document})=>({revisionId,capturedAt,parentRevisionId,elementCount:document.elements.length}))),
     get:(id,revisionId)=>copy(revision(id,revisionId).document),
     restore:(id,revisionId)=>Frame.agent.updateDocument(copy(revision(id,revisionId).document)),
     compare,
-    retry:()=>{for(const id of [...unsaved])persist(id);}
+    retry:()=>{for(const id of [...unsaved]) {
+      if (Frame.disk) {
+        if(id===currentId()) Frame.project.automaticCheckpoints.ensure(id).catch(()=>{});
+      } else persist(id);
+    }}
   };
   function restoreStartup(input, expectedSelection) {
     const conflict=message=>{const error=new Error(message);error.name='ConflictError';throw error;};
-    const project=copy(validateProject(input)),id=project.archive.designId,old=archives.get(id);
+    const checked=validateProject(input,{portable:!Frame.disk});
+    const project=Frame.disk?checked:copy(checked),id=project.archive.designId,old=archives.get(id);
+    seedImportedPresets(project);
     if(currentId()!==expectedSelection || Frame.projectBridge.restorationEpoch()!==0 || !Frame.projectBridge.canCheckpoint()) conflict('The open review changed while loading; recover the checkpoint as a separate design.');
     if(Frame.designs.has(id) && !Frame.documents.has(id))conflict('A different source design uses this project ID; both versions are preserved.');
     if(old && (old.sourceRevisionId!==project.archive.sourceRevisionId || !project.archive.revisions.some(r=>r.revisionId===Frame.agent.getDocument(id).revisionId))) conflict('Source and checkpoint have diverged; both versions are preserved.');
@@ -183,13 +264,35 @@
     } finally { Frame.restoringProject=null; }
     window.dispatchEvent(new CustomEvent('frame:project-restored',{detail:{id}}));refresh();return id;
   }
-  Frame.project={export:exportProject,validate:validateProject,import:importProject,restoreStartup};
+  function followSavedRevision(project) {
+    const archive=project.archive,id=archive.designId,current=archives.get(id);
+    if(current.currentRevisionId===archive.currentRevisionId&&current.sourceRevisionId===archive.sourceRevisionId&&
+       current.revisions.length===archive.revisions.length&&JSON.stringify(current.viewportPresets)===JSON.stringify(archive.viewportPresets))return;
+    const doc=archive.revisions.find(entry=>entry.revisionId===archive.currentRevisionId).document;
+    const values=Frame.agent.getValues(id);
+    const inputs=new Set(doc.elements.filter(node=>node.type==="input").map(node=>node.id));
+    Frame.restoringProject=id;
+    try {
+      Frame.agent.updateDocument(doc);
+      Frame.agent.setValues(id,Object.fromEntries(Object.entries(values).filter(([key])=>inputs.has(key))));
+      archives.set(id,archive);
+    } finally { Frame.restoringProject=null; }
+    window.dispatchEvent(new CustomEvent("frame:design-updated",{detail:{
+      id,fromDisk:true,documentChanged:current.currentRevisionId!==archive.currentRevisionId
+    }}));
+    refresh();
+  }
+  Frame.project={export:exportProject,validate:validateProject,import:importProject,restoreStartup,getViewportPresets,setViewportPresets,followSavedRevision,
+    hasUnsavedRevision:id=>unsaved.has(id),
+    savedDesignCanFollow:(id,project)=>Frame.disk.canRetryProject({archive:archives.get(id)},project),
+    readSavedRevision:id=>Frame.disk.readProject(id,archives.get(id).revisions),
+    captureDurable:id=>exportProject(id,{shareRevisions:!!Frame.disk})};
   const picker=document.getElementById("revision-picker");
   function refresh() {
     if(!picker)return;
     const id=currentId(),enabled=Frame.documents.has(id);
     picker.disabled=!enabled;
-    for(const name of ["restore-revision","compare-revisions","download-project"])document.getElementById(name).disabled=!enabled;
+    for(const name of ["restore-revision","download-project"])document.getElementById(name).disabled=!enabled;
     picker.replaceChildren(...(archives.get(id)?.revisions||[]).map(r=>{const o=document.createElement("option");o.value=r.revisionId;o.textContent=r.revisionId;return o;}));
     picker.value=Frame.designs.get(id)?.revisionId||"";
     notify();
@@ -200,34 +303,16 @@
   if(picker) {
     picker.addEventListener("change",()=>Frame.revisions.restore(currentId(),picker.value));
     document.getElementById("restore-revision").addEventListener("click",()=>Frame.revisions.restore(currentId(),picker.value));
-    document.getElementById("compare-revisions").addEventListener("click",()=>{
-      const id=currentId(),all=Frame.revisions.list(id),latest=Frame.designs.get(id).revisionId;
-      for(const name of ["compare-before","compare-after"]) {
-        const select=document.getElementById(name);select.replaceChildren(...all.map(r=>{const o=document.createElement("option");o.value=o.textContent=r.revisionId;return o;}));select.value=name==="compare-before"?picker.value:latest;
-      }
-      showComparison();document.getElementById("compare-dialog").showModal();
-    });
-    document.getElementById("compare-before").addEventListener("change",showComparison);
-    document.getElementById("compare-after").addEventListener("change",showComparison);
-    document.getElementById("compare-overlay").addEventListener("change",()=>document.getElementById("revision-canvases").classList.toggle("overlay",document.getElementById("compare-overlay").checked));
-    document.getElementById("close-compare").addEventListener("click",()=>document.getElementById("compare-dialog").close());
     document.getElementById("download-project").addEventListener("click",()=>download(JSON.stringify(exportProject(),null,2),currentId()+".frame.json","application/json"));
     document.getElementById("retry-project-save").addEventListener("click",Frame.revisions.retry);
 
   }
-  function showComparison() {
-    const id=currentId(),before=document.getElementById("compare-before").value,after=document.getElementById("compare-after").value,result=compare(id,before,after);
-    document.getElementById("compare-summary").textContent=result.added.length+" added · "+result.removed.length+" removed · "+result.changed.length+" changed\n"+
-      [...result.added.map(id=>"+ "+id),...result.removed.map(id=>"- "+id),...result.changed.map(item=>item.id+": "+item.fields.join(", ")),...result.settings.map(key=>"Settings: "+key)].join("\n");
-    for(const [name,revisionId]of [["before",before],["after",after]]) {
-      const doc=revision(id,revisionId).document,canvas=document.getElementById("revision-"+name);canvas.width=doc.width;canvas.height=doc.height;
-      canvas.setAttribute("aria-label",name+" revision "+revisionId);FrameDocument.render(canvas.getContext("2d"),doc);
-    }
-  }
   window.addEventListener("frame:design-updated",e=>{
-    if(registering || Frame.restoringProject)return;
+    if(registering || Frame.restoringProject || e.detail.fromDisk)return;
+    if(Frame.disk&&!e.detail.documentChanged)return;
     if(Frame.documents.has(e.detail.id)){record(Frame.agent.getDocument(e.detail.id));persist(e.detail.id);refresh();}
   });
   window.addEventListener("frame:design-selected",refresh);
+  window.addEventListener("frame:automatic-checkpoint-status",notify);
   window.addEventListener("beforeunload",event=>{if(unsaved.size){event.preventDefault();event.returnValue="";}});
 })();

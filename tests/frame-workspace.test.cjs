@@ -1,3 +1,4 @@
+const {readFixturePage}=require('../examples/fixture-page.cjs');
 const {test,before,after}=require('node:test');
 const assert=require('node:assert/strict');
 const http=require('node:http'),fs=require('node:fs/promises'),path=require('node:path');
@@ -8,7 +9,7 @@ before(async()=>{
  server=http.createServer(async(req,res)=>{
   const file=path.resolve(root,'.'+(new URL(req.url,'http://localhost').pathname==='/'?'/index.html':new URL(req.url,'http://localhost').pathname));
   if(!file.startsWith(root+path.sep)){res.writeHead(403).end();return;}
-  try{res.setHeader('Content-Type',file.endsWith('.js')?'application/javascript':file.endsWith('.css')?'text/css':'text/html');res.end(await fs.readFile(file));}catch{res.writeHead(404).end();}
+  try{res.setHeader('Content-Type',file.endsWith('.js')?'application/javascript':file.endsWith('.css')?'text/css':'text/html');res.end(await readFixturePage(file));}catch{res.writeHead(404).end();}
  });
  await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));url='http://127.0.0.1:'+server.address().port;
  browser=await chromium.launch({executablePath:process.env.FRAME_BROWSER_PATH||undefined});
@@ -17,7 +18,7 @@ after(async()=>{await browser?.close();if(server)await new Promise(resolve=>serv
 test('Frame redesign is a structured guide-led prototype with usable state controls and persistent feedback',async t=>{
  const context=await browser.newContext({viewport:{width:1600,height:1200}});t.after(()=>context.close());
  const page=await context.newPage(),errors=[];page.on('pageerror',error=>errors.push(error.message));
- await page.goto(url);await page.locator('#design-picker').selectOption('frame-workspace');
+ await page.goto(url);await page.evaluate(id=>Frame.agent.selectDesign(id),'frame-workspace');
  const doc=await page.evaluate(()=>Frame.agent.getDocument('frame-workspace'));
  assert.equal(doc.styleguideId,'technical-futurist');assert.equal(doc.width,1280);assert.equal(doc.height,800);
  assert.ok(doc.elements.some(n=>n.id==='sample-wave-0'));assert.equal(doc.assets,undefined);
@@ -47,7 +48,7 @@ test('Frame redesign is a structured guide-led prototype with usable state contr
  assert.deepEqual(stable(await page.evaluate(()=>Frame.agent.getFeedback().lines)),marks);
  const project=await page.evaluate(()=>Frame.project.export('frame-workspace'));
  await fs.writeFile(path.join(output,'frame-workspace.frame.json'),JSON.stringify(project,null,2));
- await page.reload();await page.locator('#design-picker').selectOption('frame-workspace');
+ await page.reload();await page.evaluate(id=>Frame.agent.selectDesign(id),'frame-workspace');
  assert.deepEqual(stable(await page.evaluate(()=>Frame.agent.getFeedback().lines)),marks);
  assert.deepEqual(errors,[]);
 });

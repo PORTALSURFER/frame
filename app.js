@@ -21,9 +21,7 @@
   const download = document.getElementById("download");
   const retrySave = document.getElementById("retry-save");
   const count = document.getElementById("mark-count");
-  const sidebarToggle = document.getElementById("toggle-feedback");
-  const feedbackPanel = document.getElementById("feedback-panel");
-  const app = document.querySelector(".app");
+  const feedbackMenu = document.getElementById("feedback-menu");
   const sizeLabel = document.getElementById("design-size");
   const limitNotice = document.getElementById("feedback-limit-notice");
   const saveNotice = document.getElementById("feedback-save-notice");
@@ -58,6 +56,7 @@
   let active = null;
   let activePath = null;
   let activePointerId = null;
+  let erasing = null;
   let pointLimitReached = false;
   let zoom = 1, panX = 0, panY = 0, panDrag = null;
   let paintGeneration = 0;
@@ -100,7 +99,134 @@
     const loadedLines = data.lines.map(({points, ...metadata}) => { lineMetadata.set(points, metadata); return points; });
     return {lines: loadedLines, notes: data.notes, unsaved: false, notice: ""};
   }
+  const diskFeedback = new Map();
+  function feedbackDocument(id, session) {
+    return FrameFeedback.document(Frame.designs.get(id),
+      session.feedback.lines.map(line => ({...lineMetadata.get(line), points: line})), session.feedback.notes);
+  }
+  function updateDiskFeedback(id, session) {
+    if (design?.id === id && sessions.get(id) === session) updateControls();
+  }
+  function diskFeedbackError(id, session, error) {
+    session.feedback.unsaved = true;
+    session.feedback.notice = 'Feedback is unsaved on disk: ' + error.message + ' Download feedback before closing or reloading.';
+    pendingFeedback.set(id, session.feedback);
+    updateDiskFeedback(id, session);
+  }
+  const feedbackMarks = data => JSON.stringify([data?.lines || [], data?.notes || []]);
+  function feedbackGestureActive(id) {
+    return design?.id === id && (activePointerId !== null || noteDrag || noteDraft);
+  }
+  function installDiskFeedback(id, session, data) {
+    const imported = unpack(structuredClone(data));
+    Object.assign(session.feedback, imported, {blocked: false});
+    session.history = {undo:[],redo:[]};
+    if (design?.id === id) {
+      lines = imported.lines; notes = imported.notes; history = session.history;
+      selectedLine = null; selectedNote = null; redrawMarks();
+    }
+  }
+  async function reconcileDiskFeedback(id, session, disk, error) {
+    const record = await Frame.disk.read('feedback', id);
+    if (!record) throw error;
+    const saved = FrameFeedback.read(record.data, {id});
+    if (feedbackGestureActive(id)) {
+      setTimeout(() => flushDiskFeedback(id, session, disk), 100);
+      return false;
+    }
+    const pending = disk.next;
+    const merged = FrameFeedback.merge(disk.saved, pending, saved);
+    if (!merged) {
+      error.message = 'The same annotation was changed in another session. Your changes are still in this tab.';
+      throw error;
+    }
+    if (feedbackMarks(merged) !== feedbackMarks(pending)) installDiskFeedback(id, session, merged);
+    disk.generation = record.generation;
+    disk.saved = saved;
+    disk.next = feedbackMarks(merged) === feedbackMarks(saved) ? null : merged;
+    if (!disk.next) acknowledgeDiskFeedback(id, session);
+    return true;
+  }
+  function acknowledgeDiskFeedback(id, session) {
+    session.feedback.unsaved = false;
+    session.feedback.notice = '';
+    pendingFeedback.delete(id);
+  }
+  function flushDiskFeedback(id, session, disk) {
+    if (disk.running || disk.generation === undefined || !disk.next || disk.conflict) return;
+    const data = disk.next;
+    disk.running = true;
+    Frame.disk.save('feedback', id, disk.generation, data).then(receipt => {
+      disk.generation = receipt.generation;
+      disk.saved = data;
+      if (disk.next === data) {
+        disk.next = null;
+        acknowledgeDiskFeedback(id, session);
+      }
+      return true;
+    }).catch(error => {
+      if (error.name !== 'ConflictError') throw error;
+      return reconcileDiskFeedback(id, session, disk, error);
+    }).catch(error => {
+      disk.conflict = error.name === 'ConflictError';
+      diskFeedbackError(id, session, error);
+      return false;
+    }).then(saved => {
+      disk.running = false;
+      if (saved && disk.next) flushDiskFeedback(id, session, disk);
+      updateDiskFeedback(id, session);
+    });
+  }
+  function loadDiskFeedback(id, session) {
+    let disk = diskFeedback.get(id);
+    if (!disk) {
+      disk = {saved: structuredClone(feedbackDocument(id, session))};
+      diskFeedback.set(id, disk);
+    }
+    if (disk.loading || disk.generation !== undefined) return disk;
+    disk.loading = true;
+    Frame.disk.read('feedback', id).then(record => {
+      const data = record && FrameFeedback.read(record.data, {id});
+      const install = () => {
+        if (feedbackGestureActive(id)) {
+          setTimeout(install, 100); return;
+        }
+        disk.loading = false;
+        if (record) {
+          const merged = disk.next ? FrameFeedback.merge(disk.saved, disk.next, data) : data;
+          if (!merged) {
+            disk.conflict = true;
+            diskFeedbackError(id, session, new Error('Disk feedback changed while opening this design.'));
+            return;
+          }
+          installDiskFeedback(id, session, merged);
+          if (disk.next) disk.next = merged;
+        }
+        disk.generation = record?.generation || 0;
+        if (record) disk.saved = data;
+        if (!record && !disk.next) {
+          const migrate = () => {
+            if (disk.generation !== 0 || disk.next || session.feedback.blocked ||
+                !(session.feedback.lines.length || session.feedback.notes.length)) return;
+            disk.next = structuredClone(feedbackDocument(id, session));
+            pendingFeedback.set(id, session.feedback);
+            flushDiskFeedback(id, session, disk);
+          };
+          if (Frame.project.startup?.ready) Frame.project.startup.ready.then(migrate);
+          else migrate();
+        }
+        flushDiskFeedback(id, session, disk);
+        updateDiskFeedback(id, session);
+      };
+      install();
+    }).catch(error => {
+      disk.loading = false;
+      diskFeedbackError(id, session, error);
+    });
+    return disk;
+  }
   function load() {
+    if (Frame.disk) return unpack(FrameFeedback.read([], design));
     let saved;
     try {
       saved = localStorage.getItem(storageKey()) ?? localStorage.getItem(`frame-feedback-v2:${design.id}`) ??
@@ -111,6 +237,14 @@
       return {lines: [], notes: [], unsaved: false, blocked: true,
         notice: "Saved feedback could not be loaded. Drawing and download still work. Existing saved data will not be overwritten."};
     }
+  }
+  function feedbackInViewport(mark) {
+    const doc=Frame.documents.get(design?.id);
+    return !mark?.reviewedViewport||!doc?.viewportLayouts||
+      FrameDocument.viewportLayout(doc,mark.reviewedViewport.width)===FrameDocument.viewportLayout(doc,design.width);
+  }
+  function feedbackVisible(mark) {
+    return feedbackInViewport(mark)&&(statusFilter.value==="all"||mark?.status===statusFilter.value);
   }
   function renderFeedbackList() {
     const marks = [...lines.map((line, index) => ({mark:line, metadata:lineMetadata.get(line), title:`Line ${index + 1}`, text:"Drawn annotation", type:"line"})),
@@ -139,7 +273,7 @@
       [...card.children].forEach((child, index) => { if (child.textContent !== values[index]) child.textContent = values[index]; });
       card.dataset.status = status;
       card.setAttribute("aria-pressed", String(item.mark === selectedLine || item.mark === selectedNote));
-      card.hidden = statusFilter.value !== "all" && status !== statusFilter.value;
+      card.hidden = !feedbackVisible(item.metadata);
       if (!card.hidden) visible++;
     }
     for (const [mark, card] of feedbackCards) if (!present.has(mark)) { card.remove(); feedbackCards.delete(mark); }
@@ -150,24 +284,26 @@
     document.getElementById("import-feedback").disabled = !design;
     for (const button of toolButtons) button.disabled = !designReady || (button.dataset.feedbackTool === "interact" && !Frame.documents.has(design?.id));
     selectionStatus.textContent = selectedNote ? `Note ${notes.indexOf(selectedNote) + 1} selected. Drag it or use arrow keys to move.` : selectedLine ? `Line ${lines.indexOf(selectedLine) + 1} selected.` : "";
-    undo.disabled = !active && !noteDrag?.moved && history.undo.length === 0;
-    redo.disabled = !!active || !!noteDrag?.moved || history.redo.length === 0;
-    undo.title = active ? "Undo drawing line" : noteDrag?.moved ? "Undo moving note" : history.undo.at(-1)?.label || "Undo";
+    undo.disabled = activePointerId === null && !noteDrag?.moved && history.undo.length === 0;
+    redo.disabled = activePointerId !== null || !!noteDrag?.moved || history.redo.length === 0;
+    undo.title = erasing ? "Undo erasing feedback" : active ? "Undo drawing line" : noteDrag?.moved ? "Undo moving note" : history.undo.at(-1)?.label || "Undo";
     redo.title = history.redo.at(-1)?.label ? `Redo: ${history.redo.at(-1).label}` : "Redo";
-    clear.disabled = lines.length === 0 && notes.length === 0;
+
     download.disabled = !design;
     const selected = selectedNote || (selectedLine && lineMetadata.get(selectedLine));
     resolveSelected.disabled = !selected;
     resolveSelected.textContent = selected?.status === "resolved" ? "Reopen" : "Mark resolved";
     deleteSelected.disabled = !designReady || (!selectedLine && !selectedNote);
     retrySave.hidden = !feedback.unsaved;
-    retrySave.disabled = active !== null || noteDrag !== null;
+    retrySave.disabled = !!feedbackGestureActive(design?.id);
     saveNotice.textContent = feedback.notice;
-    const marks = [...lines.map(line=>lineMetadata.get(line)), ...notes];
+    const marks = [...lines.map(line=>lineMetadata.get(line)), ...notes].filter(feedbackInViewport);
+    clear.disabled = marks.length === 0;
+    const visibleLines=marks.filter(mark=>mark.type==="stroke").length,visibleNotes=marks.length-visibleLines;
     const openCount = marks.filter(mark=>mark.status!=="resolved").length;
     count.title = openCount + " open · " + (marks.length-openCount) + " resolved";
-    count.textContent = `${lines.length} ${lines.length === 1 ? "line" : "lines"}`;
-    if (notes.length) count.textContent += ` · ${notes.length} ${notes.length === 1 ? "note" : "notes"}`;
+    count.textContent = `${visibleLines} ${visibleLines === 1 ? "line" : "lines"}`;
+    if (visibleNotes) count.textContent += ` · ${visibleNotes} ${visibleNotes === 1 ? "note" : "notes"}`;
     const notices = [];
     if (lines.length > MAX_LINES || lines.some(line => line.length > MAX_LINE_POINTS)) {
       notices.push("Older feedback exceeds the drawing limits. All marks are preserved and can be downloaded.");
@@ -186,6 +322,16 @@
     edited();
     feedback.lines = lines;
     feedback.notes = notes;
+    if (Frame.disk) {
+      const session = sessions.get(design.id);
+      const disk = loadDiskFeedback(design.id, session);
+      disk.next = structuredClone(currentDocument());
+      pendingFeedback.set(design.id, feedback);
+      flushDiskFeedback(design.id, session, disk);
+      updateControls();
+      window.dispatchEvent(new CustomEvent('frame:feedback-changed', {detail: {id: design.id}}));
+      return;
+    }
     try {
       if (feedback.blocked) throw new Error("Saved data is protected");
       localStorage.setItem(storageKey(), JSON.stringify(currentDocument()));
@@ -210,14 +356,14 @@
     return {lines:[...lines],lineState:lines.map(line=>JSON.parse(JSON.stringify(lineMetadata.get(line)))),
       notes:notes.map(note=>({...JSON.parse(JSON.stringify(note)),note}))};
   }
-  function record(before, label) {
+  function record(before, label, updateTimestamps = true) {
     let after = snapshot();
     const unchanged = before.lines.length === after.lines.length && before.lines.every((line,i)=>line===after.lines[i]&&JSON.stringify(before.lineState[i])===JSON.stringify(after.lineState[i])) &&
       before.notes.length === after.notes.length && before.notes.every((entry,i)=>entry.note===after.notes[i].note&&JSON.stringify({...entry,note:undefined})===JSON.stringify({...after.notes[i],note:undefined}));
-    if (unchanged) return;
+    if (unchanged) return false;
     for (const entry of before.notes) {
       const note = notes.find(note => note === entry.note);
-      if (note && (note.text !== entry.text || note.status !== entry.status || note.anchor.some((value, axis) => value !== entry.anchor[axis]))) note.updatedAt = new Date().toISOString();
+      if (updateTimestamps && note && (note.text !== entry.text || note.status !== entry.status || note.anchor.some((value, axis) => value !== entry.anchor[axis]))) note.updatedAt = new Date().toISOString();
     }
     for(const entry of before.notes) {
       const note=notes.find(note=>note===entry.note);
@@ -230,6 +376,7 @@
     history.undo.push({before, after, label});
     if (history.undo.length > MAX_HISTORY) history.undo.shift();
     history.redo = [];
+    return true;
   }
   function restore(state) {
     lines = [...state.lines];
@@ -247,7 +394,7 @@
     save();
   }
   function travelHistory(direction) {
-    finishLine();
+    finishBrush();
     finishNoteDrag();
     closeNoteEditor();
     const entry = history[direction].pop();
@@ -295,7 +442,7 @@
     path.setAttribute("aria-pressed", points === selectedLine ? "true" : "false");
     path.classList.toggle("selected", points === selectedLine);
     path.classList.toggle("resolved", lineMetadata.get(points)?.status === "resolved");
-    path.toggleAttribute("hidden", statusFilter.value !== "all" && lineMetadata.get(points)?.status !== statusFilter.value);
+    path.toggleAttribute("hidden", !feedbackVisible(lineMetadata.get(points)) || !!erasing?.lines.has(points));
   }
   function selectLine(line) {
     selectedLine = line;
@@ -314,7 +461,7 @@
   }
   function deleteSelection() {
     if (!selectedLine && !selectedNote) return;
-    finishLine();
+    finishBrush();
     finishNoteDrag();
     closeNoteEditor();
     const before = snapshot();
@@ -332,8 +479,8 @@
       pin.classList.toggle("selected", note === selectedNote);
       pin.setAttribute("aria-pressed", note === selectedNote ? "true" : "false");
       pin.classList.toggle("resolved", note.status === "resolved");
-      pin.hidden = statusFilter.value !== "all" && note.status !== statusFilter.value;
-      pin.tabIndex = mode === "pen" ? -1 : 0;
+      pin.hidden = !feedbackVisible(note) || !!erasing?.notes.has(note);
+      pin.tabIndex = mode === "pen" || mode === "erase" ? -1 : 0;
     }
   }
   function positionNote(pin, note) {
@@ -434,27 +581,60 @@
     noteDialog.showModal();
     noteText.focus();
   }
+  function distanceToSegmentSquared(x, y, ax, ay, bx, by) {
+    const dx = bx - ax, dy = by - ay;
+    const lengthSquared = dx * dx + dy * dy;
+    const t = lengthSquared ? Math.max(0, Math.min(1, ((x - ax) * dx + (y - ay) * dy) / lengthSquared)) : 0;
+    return (x - ax - t * dx) ** 2 + (y - ay - t * dy) ** 2;
+  }
+  function segmentsWithin(ax, ay, bx, by, cx, cy, dx, dy, radius) {
+    if (Math.max(ax, bx) + radius < Math.min(cx, dx) || Math.max(cx, dx) + radius < Math.min(ax, bx) ||
+        Math.max(ay, by) + radius < Math.min(cy, dy) || Math.max(cy, dy) + radius < Math.min(ay, by)) return false;
+    const side = (x, y, x1, y1, x2, y2) => (x2 - x1) * (y - y1) - (y2 - y1) * (x - x1);
+    if (side(cx, cy, ax, ay, bx, by) * side(dx, dy, ax, ay, bx, by) < 0 &&
+        side(ax, ay, cx, cy, dx, dy) * side(bx, by, cx, cy, dx, dy) < 0) return true;
+    const limit = radius * radius;
+    return distanceToSegmentSquared(ax, ay, cx, cy, dx, dy) <= limit ||
+      distanceToSegmentSquared(bx, by, cx, cy, dx, dy) <= limit ||
+      distanceToSegmentSquared(cx, cy, ax, ay, bx, by) <= limit ||
+      distanceToSegmentSquared(dx, dy, ax, ay, bx, by) <= limit;
+  }
+  function lineWithin(line, from, to, scaleX, scaleY, radius) {
+    for (let index = 0; index < line.length; index++) {
+      const a = line[Math.max(0, index - 1)], b = line[index];
+      if (segmentsWithin(...from, ...to, a[0] * scaleX, a[1] * scaleY, b[0] * scaleX, b[1] * scaleY, radius)) return true;
+    }
+    return false;
+  }
   function lineAt(event) {
     const {boardBounds, scaleX, scaleY} = geometry();
-    const x = event.clientX - boardBounds.left;
-    const y = event.clientY - boardBounds.top;
+    const point = [event.clientX - boardBounds.left, event.clientY - boardBounds.top];
     for (let index = lines.length - 1; index >= 0; index--) {
       const line = lines[index];
-      if (statusFilter.value !== "all" && lineMetadata.get(line).status !== statusFilter.value) continue;
-      for (let point = 0; point < line.length; point++) {
-        const a = line[Math.max(0, point - 1)];
-        const b = line[point];
-        const ax = a[0] * scaleX, ay = a[1] * scaleY;
-        const dx = (b[0] - a[0]) * scaleX, dy = (b[1] - a[1]) * scaleY;
-        const lengthSquared = dx * dx + dy * dy;
-        const ratio = lengthSquared ? Math.max(0, Math.min(1, ((x - ax) * dx + (y - ay) * dy) / lengthSquared)) : 0;
-        if (Math.hypot(x - ax - ratio * dx, y - ay - ratio * dy) <= 8) return line;
-      }
+      if (feedbackVisible(lineMetadata.get(line)) && lineWithin(line, point, point, scaleX, scaleY, 8)) return line;
     }
     return null;
   }
+  function sweepEraser(event) {
+    const {boardBounds, scaleX, scaleY} = geometry();
+    const point = [event.clientX - boardBounds.left, event.clientY - boardBounds.top];
+    const from = erasing.point || point;
+    erasing.point = point;
+    const count = erasing.lines.size + erasing.notes.size;
+    for (const line of lines) {
+      if (!erasing.lines.has(line) && feedbackVisible(lineMetadata.get(line)) &&
+          lineWithin(line, from, point, scaleX, scaleY, 10)) erasing.lines.add(line);
+    }
+    for (const note of notes) {
+      const [x, y] = note.anchor;
+      if (feedbackVisible(note) && distanceToSegmentSquared(x * scaleX, y * scaleY, ...from, ...point) <= 24 ** 2) {
+        erasing.notes.add(note);
+      }
+    }
+    if (erasing.lines.size + erasing.notes.size !== count) redrawMarks();
+  }
   function setMode(next) {
-    finishLine();
+    finishBrush();
     finishNoteDrag();
     closeNoteEditor();
     finishPan();
@@ -469,6 +649,10 @@
       : mode === "note" ? "Click to place a note. Or Tab to the canvas, use arrows to position, and Enter to place. Click a note to edit or drag to move."
       : "Click a line or note to select it, or use Tab. Double-click a note to edit. Escape deselects.";
     if (mode === "interact") instructions.textContent = "Use prototype controls and Tab to test interaction. Feedback tools resume annotation.";
+    if (mode === "erase") {
+      brush.setAttribute("aria-label", "Erase feedback marks");
+      instructions.textContent = "Drag across lines or note pins to erase them. Undo restores the last sweep.";
+    }
     if (mode === "pan") instructions.textContent = "Drag to pan, or middle-drag in any tool. Scroll to zoom. Fit restores the board.";
     selectLine(null);
     updateKeyboardCursor();
@@ -605,11 +789,12 @@
     designErrorDetails.textContent = details;
     designErrorDetails.parentElement.hidden = !details;
     retryRender.hidden = !canRetry;
+    document.getElementById("open-first-design").hidden = !!design;
     updateControls();
   }
   function selectDesign(id) {
     edited();
-    if (active) finishLine();
+    finishBrush();
     finishNoteDrag();
     closeNoteEditor();
     importDraft = null; importRequest++;
@@ -630,6 +815,7 @@
     ({feedback, history} = sessions.get(id));
     lines = feedback.lines;
     notes = feedback.notes;
+    if (Frame.disk) loadDiskFeedback(id, sessions.get(id));
     pointLimitReached = false;
     previousElements = Frame.documents.has(design.id) ? Frame.agent.inspect(design.id) : [];
     window.dispatchEvent(new CustomEvent("frame:design-selected", {detail: {design}}));
@@ -637,8 +823,27 @@
     fitBoard();
     if(!booting && !Frame.restoringProject)try { localStorage.setItem("frame-last-design", id); } catch { /* optional */ }
   }
-  function finishLine() {
-    if (!active) return;
+  function finishBrush(cancelErase = false) {
+    if (activePointerId === null) return;
+    const pointerId = activePointerId;
+    activePointerId = null;
+    if (brush.hasPointerCapture(pointerId)) brush.releasePointerCapture(pointerId);
+    if (erasing) {
+      const erased = erasing;
+      erasing = null;
+      if (cancelErase || (!erased.lines.size && !erased.notes.size)) {
+        redrawMarks();
+        return;
+      }
+      const before = snapshot();
+      lines = lines.filter(line => !erased.lines.has(line));
+      notes = notes.filter(note => !erased.notes.has(note));
+      pointLimitReached = false;
+      record(before, "Erase feedback");
+      redrawMarks();
+      save();
+      return;
+    }
     if (active.length === 1) active.push([active[0][0] + 0.1, active[0][1] + 0.1]);
     activePath.setAttribute("d", pathData(active));
     lineMetadata.get(active).updatedAt = new Date().toISOString();
@@ -646,9 +851,6 @@
     strokeBefore = null;
     active = null;
     activePath = null;
-    const pointerId = activePointerId;
-    activePointerId = null;
-    if (brush.hasPointerCapture(pointerId)) brush.releasePointerCapture(pointerId);
     save();
   }
 
@@ -700,25 +902,14 @@
     panY += (event.clientY - bounds.y - bounds.height / 2) * (1 - ratio);
     zoom = nextZoom; fitBoard(true);
   }, {passive:false});
-  function setSidebarCollapsed(collapsed) {
-    const hadFocus = document.activeElement === sidebarToggle;
-    app.classList.toggle("feedback-collapsed", collapsed);
-    feedbackPanel.hidden = collapsed;
-    sidebarToggle.setAttribute("aria-expanded", String(!collapsed));
-    sidebarToggle.setAttribute("aria-label", collapsed ? "Show feedback" : "Hide feedback");
-    sidebarToggle.title = collapsed ? "Show feedback" : "Hide feedback";
-    const toggleParent = collapsed ? feedbackPanel.parentElement : feedbackPanel.querySelector(".feedback-heading");
-    if (sidebarToggle.parentElement !== toggleParent) toggleParent.append(sidebarToggle);
-    if (hadFocus) sidebarToggle.focus({preventScroll:true});
-  }
-  let sidebarCollapsed = false;
-  try { sidebarCollapsed = localStorage.getItem("frame-feedback-sidebar-collapsed") === "true"; } catch { /* optional preference */ }
-  setSidebarCollapsed(sidebarCollapsed);
-  sidebarToggle.addEventListener("click", () => {
-    finishLine(); finishNoteDrag(); finishPan();
-    sidebarCollapsed = !sidebarCollapsed;
-    setSidebarCollapsed(sidebarCollapsed);
-    try { localStorage.setItem("frame-feedback-sidebar-collapsed", String(sidebarCollapsed)); } catch { /* layout still works without storage */ }
+  document.addEventListener("pointerdown", event => {
+    if (feedbackMenu.open && !feedbackMenu.contains(event.target)) feedbackMenu.open = false;
+  });
+  feedbackMenu.addEventListener("keydown", event => {
+    if (event.key !== "Escape" || !feedbackMenu.open) return;
+    event.stopPropagation();
+    feedbackMenu.open = false;
+    feedbackMenu.querySelector("summary").focus();
   });
 
   brush.addEventListener("pointerdown", (event) => {
@@ -737,6 +928,14 @@
       selectLine(lineAt(event));
       return;
     }
+    if (mode === "erase") {
+      activePointerId = event.pointerId;
+      erasing = {lines:new Set(), notes:new Set(), point:null};
+      brush.setPointerCapture(event.pointerId);
+      sweepEraser(event);
+      updateControls();
+      return;
+    }
     if (lines.length >= MAX_LINES) {
       updateControls();
       return;
@@ -752,7 +951,13 @@
     updateControls();
   });
   function updateActive(event) {
-    if (!active || event.pointerId !== activePointerId) return;
+    if (event.pointerId !== activePointerId) return;
+    if (erasing) {
+      const samples = event.getCoalescedEvents?.();
+      for (const sample of samples?.length ? samples : [event]) sweepEraser(sample);
+      return;
+    }
+    if (!active) return;
     if (event.shiftKey) {
       active.splice(1, active.length - 1, pointFromEvent(event));
     } else {
@@ -764,7 +969,7 @@
           active.push(next);
           if (active.length >= MAX_LINE_POINTS) {
             pointLimitReached = true;
-            finishLine();
+            finishBrush();
             return;
           }
         }
@@ -781,25 +986,25 @@
     if (panDrag && panDrag.pointerId === event.pointerId) { movePan(event); finishPan(); return; }
     if (event.pointerId !== activePointerId) return;
     updateActive(event);
-    finishLine();
+    finishBrush();
   });
   function finishPointer(event) {
     if (panDrag?.pointerId === event.pointerId) {
       finishPan(event.type === "pointercancel");
     }
-    if (event.pointerId === activePointerId) finishLine();
+    if (event.pointerId === activePointerId) finishBrush(event.type === "pointercancel");
   }
   brush.addEventListener("pointercancel", finishPointer);
   brush.addEventListener("lostpointercapture", finishPointer);
   undo.addEventListener("click", () => travelHistory("undo"));
   redo.addEventListener("click", () => travelHistory("redo"));
   clear.addEventListener("click", () => {
-    finishLine();
+    finishBrush();
     finishNoteDrag();
     closeNoteEditor();
     const before = snapshot();
-    lines = [];
-    notes = [];
+    lines = lines.filter(line=>!feedbackInViewport(lineMetadata.get(line)));
+    notes = notes.filter(note=>!feedbackInViewport(note));
     record(before, "Clear feedback");
     selectedLine = null;
     selectedNote = null;
@@ -840,7 +1045,7 @@
   });
   function setFeedbackStatus(id, status) {
     if (!["open","resolved"].includes(status)) throw new Error("Status must be open or resolved");
-    finishLine(); finishNoteDrag();
+    finishBrush(); finishNoteDrag();
     const note = notes.find(mark=>mark.id===id);
     const line = lines.find(line=>lineMetadata.get(line).id===id);
     const mark = note || (line && lineMetadata.get(line));
@@ -861,13 +1066,17 @@
   });
   statusFilter.addEventListener("change",()=>{selectLine(null);redrawMarks();updateControls();});
   deleteSelected.addEventListener("click", deleteSelection);
-  retrySave.addEventListener("click", save);
+  retrySave.addEventListener("click", () => {
+    const disk = diskFeedback.get(design?.id);
+    if (disk) disk.conflict = false;
+    save();
+  });
   retryRender.addEventListener("click", () => {
     paintDesign();
     fitBoard();
   });
   download.addEventListener("click", () => {
-    finishLine();
+    finishBrush();
     finishNoteDrag();
     const data = JSON.stringify(currentDocument(), null, 2);
     const url = URL.createObjectURL(new Blob([data], {type: "application/json"}));
@@ -878,7 +1087,7 @@
     setTimeout(() => URL.revokeObjectURL(url), 1000);
   });
   document.getElementById("import-feedback").addEventListener("click", () => {
-    finishLine(); finishNoteDrag(); closeNoteEditor();
+    finishBrush(); finishNoteDrag(); closeNoteEditor();
     importDraft = null; importRequest++;
     importFile.value = ""; importError.textContent = ""; importPreview.textContent = "";
     confirmImport.disabled = true;
@@ -934,9 +1143,13 @@
       save();
       return;
     }
-    if (event.key === "Escape") selectLine(null);
+    if (event.key === "Escape") {
+      if (erasing) finishBrush(true);
+      selectLine(null);
+    }
     if (designReady && !event.metaKey && !event.ctrlKey && !event.altKey) {
       if (event.key.toLowerCase() === "p") setMode("pen");
+      if (event.key.toLowerCase() === "e") setMode("erase");
       if (event.key.toLowerCase() === "v") setMode("select");
       if (event.key.toLowerCase() === "h") setMode("pan");
       if (event.key.toLowerCase() === "i" && Frame.documents.has(design?.id)) setMode("interact");
@@ -952,7 +1165,7 @@
     }
   });
   window.addEventListener("beforeunload", (event) => {
-    if (active || noteDrag?.moved || (noteDraft && noteText.value !== (noteDraft.note?.text || "")) || pendingFeedback.size) {
+    if (activePointerId !== null || noteDrag?.moved || (noteDraft && noteText.value !== (noteDraft.note?.text || "")) || pendingFeedback.size) {
       event.preventDefault();
       event.returnValue = "";
     }
@@ -972,7 +1185,7 @@
     picker.disabled = Frame.designs.size === 0;
     if (!Frame.designs.size) {
       sizeLabel.textContent = "";
-      showDesignStatus("No designs available", "Add a valid design, then reload Frame.");
+      showDesignStatus("No design open", "Open a design file from your project.");
       return;
     }
     if (design && Frame.designs.get(design.id) === design) {
@@ -987,13 +1200,13 @@
     get: () => ({zoom, panX, panY}),
     set: value => {
       if (!value || !Number.isFinite(value.zoom) || value.zoom < 0.25 || value.zoom > 8 || !Number.isFinite(value.panX) || !Number.isFinite(value.panY)) throw new Error("Invalid view");
-      finishLine(); finishNoteDrag(); finishPan(); ({zoom,panX,panY}=value); fitBoard(); return Frame.view.get();
+      finishBrush(); finishNoteDrag(); finishPan(); ({zoom,panX,panY}=value); fitBoard(); return Frame.view.get();
     },
-    fit: () => { finishLine(); finishNoteDrag(); finishPan(); zoom=1;panX=panY=0;fitBoard(); },
+    fit: () => { finishBrush(); finishNoteDrag(); finishPan(); zoom=1;panX=panY=0;fitBoard(); },
     setMode
   };
   function zoomByButton(nextZoom) {
-    finishLine(); finishNoteDrag(); finishPan();
+    finishBrush(); finishNoteDrag(); finishPan();
     zoom = nextZoom;
     fitBoard(true);
   }
@@ -1011,9 +1224,12 @@
       return !target || target.visible!==node.visible || JSON.stringify(node.bounds)!==JSON.stringify(target.bounds);
     });
     if(!moved){previousElements=next;return;}
-    finishLine();finishNoteDrag();
+    finishBrush();finishNoteDrag();
+    if (selectedLine&&!feedbackInViewport(lineMetadata.get(selectedLine))) selectedLine=null;
+    if (selectedNote&&!feedbackInViewport(selectedNote)) selectedNote=null;
     const before=snapshot();
     function carry(mark, points) {
+      if(!feedbackInViewport(mark))return points;
       if(!mark.elementAnchor) {mark.needsReview=true;mark.reviewReason="Position-only feedback needs review after layout changes";return points;}
       const target=nextById.get(mark.elementAnchor.elementId),old=oldById.get(mark.elementAnchor.elementId);
       if(!target || target.visible===false) {mark.needsReview=true;mark.reviewReason="The anchored element is removed or hidden";return points;}
@@ -1029,17 +1245,23 @@
     }
     lines=lines.map(line=>{const metadata={...lineMetadata.get(line)},points=carry(metadata,line);lineMetadata.set(points,metadata);return points;});
     for(const note of notes)carry(note);
-    record(before,"Carry feedback to changed layout");redrawMarks();save();previousElements=next;
+    if (record(before,"Carry feedback to changed layout",false)) save();
+    redrawMarks();previousElements=next;
     document.getElementById("feedback-revision-notice").textContent=[...lines.map(line=>lineMetadata.get(line)),...notes].filter(mark=>mark.needsReview).length+" marks need review after layout changes.";
   }
   Frame.projectBridge={
-    canCheckpoint: () => !active && !noteDrag && !noteDraft && !panDrag,
+    canCheckpoint: () => activePointerId === null && !noteDrag && !noteDraft && !panDrag,
     restorationEpoch: () => restorationEpoch,
     restoreCheckpointFeedback: data => {
+      if (Frame.disk && diskFeedback.get(design.id)?.generation > 0) return;
       const imported=unpack(data), protectedOriginal=feedback.blocked;
-      feedback={...imported,blocked:protectedOriginal,notice:protectedOriginal?'Checkpoint restored; unreadable legacy feedback remains protected.':''};
+      const restored={...imported,blocked:protectedOriginal,notice:protectedOriginal?'Checkpoint restored; unreadable legacy feedback remains protected.':''};
+      if(Frame.disk)Object.assign(feedback,restored);
+      else feedback=restored;
       lines=feedback.lines;notes=feedback.notes;history={undo:[],redo:[]};
-      sessions.set(design.id,{feedback,history});pendingFeedback.delete(design.id);
+      if(Frame.disk)sessions.get(design.id).history=history;
+      else sessions.set(design.id,{feedback,history});
+      pendingFeedback.delete(design.id);
     },
     acknowledgeCheckpoint: data => {
       const session = sessions.get(data.design), target = Frame.designs.get(data.design);
@@ -1063,20 +1285,21 @@
     selectedId: () => design?.id,
     isReady: () => designReady,
     selectDesign,
-    feedback: () => { finishLine(); finishNoteDrag(); return currentDocument(); }
+    feedback: () => { finishBrush(); finishNoteDrag(); return currentDocument(); }
   });
   window.addEventListener("frame:design-updated", event => {
     if(Frame.restoringProject)return;
     if (design?.id !== event.detail.id) return;
     edited();
-    carryFeedback();
-    finishLine(); finishNoteDrag(); closeNoteEditor();
+    if (event.detail.documentChanged) carryFeedback();
+    else if (Frame.documents.has(design.id)) previousElements=Frame.agent.inspect(design.id);
+    finishBrush(); finishNoteDrag(); closeNoteEditor();
     sizeLabel.textContent = design.width + " × " + design.height;
     paintDesign(); fitBoard(); refreshDesigns();
   });
   window.addEventListener("frame:styleguide-selected", () => {
     edited();if(Frame.restoringProject)return;
-    finishLine();
+    finishBrush();
     finishNoteDrag();
     closeNoteEditor();
     if (design) { paintDesign(); fitBoard(); }

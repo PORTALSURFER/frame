@@ -7,15 +7,70 @@
   const validId = value => typeof value === "string" && /^[a-z0-9][a-z0-9_-]*$/i.test(value);
   const colors = {background: "#0D0F10", surface: "#121314", text: "#D5D8D6", muted: "#868C8A", accent: "#E86938", border: "#3E4443"};
   const tokens = {colors, spacing: {small: 8, medium: 16, large: 24}, typography: {family: "monospace", size: 14}};
+  function viewportLayout(doc, width) {
+    return doc.viewportLayouts && (width<=doc.viewportLayouts.maxWidth?"narrow":"wide");
+  }
+  function stateEntries(doc) {
+    return doc.views
+      ? doc.views.flatMap(view => view.contexts.map(context => [context.id, context.overrides]))
+      : Object.entries(doc.states || {default: {}});
+  }
+  function hasState(doc, state) {
+    return doc.views
+      ? doc.views.some(view => view.contexts.some(context => context.id === state))
+      : Object.hasOwn(doc.states || {default: {}}, state);
+  }
+  function viewportStates(doc, width) {
+    const layout=viewportLayout(doc,width);
+    return layout ? doc.viewportLayouts[layout] : stateEntries(doc).map(([id]) => id);
+  }
+  function viewportViews(doc, width) {
+    const available = new Set(viewportStates(doc, width));
+    return (doc.views || []).map(({id, label, contexts}) => ({
+      id, label, contexts: contexts.filter(context => available.has(context.id)).map(({id, label}) => ({id, label}))
+    })).filter(view => view.contexts.length);
+  }
+  function resolveState(doc, width, state) {
+    const mode = viewportLayout(doc, width);
+    if (!mode || doc.viewportLayouts[mode].includes(state)) return state;
+    const view = doc.views?.find(view => view.contexts.some(context => context.id === state));
+    return view?.contexts.find(context => doc.viewportLayouts[mode].includes(context.id))?.id || "default";
+  }
   function validate(doc) {
     if (!doc || doc.version !== 1 || !validId(doc.id) || typeof doc.name !== "string" || !doc.name.trim() ||
         ![doc.width, doc.height].every(value => Number.isInteger(value) && value > 0) ||
         !validId(doc.revisionId) || !Array.isArray(doc.elements)) fail("Expected a version 1 design with id, name, positive integer size, revisionId, and elements");
+    if (doc.views !== undefined) {
+      if (doc.states !== undefined || !Array.isArray(doc.views) || !doc.views.length) fail("Design views replace the flat states map");
+      const viewIds = new Set(), contextIds = new Set();
+      const named = entry => entry && validId(entry.id) && typeof entry.label === "string" && entry.label.trim();
+      for (const view of doc.views) {
+        if (!named(view) || viewIds.has(view.id) || !Array.isArray(view.contexts) || !view.contexts.length) fail("Invalid design view");
+        viewIds.add(view.id);
+        for (const context of view.contexts) {
+          if (!named(context) || contextIds.has(context.id)) fail("Invalid or duplicate view context");
+          contextIds.add(context.id);
+        }
+      }
+      if (!contextIds.has("default")) fail("View contexts require a default entry");
+    } else if (doc.states !== undefined && (!doc.states || typeof doc.states !== "object" || Array.isArray(doc.states) || !Object.hasOwn(doc.states, "default"))) {
+      fail("States require a default entry");
+    }
+    const states = stateEntries(doc);
+    const stateIds = new Set(states.map(([id]) => id));
+    if (doc.viewportLayouts!==undefined) {
+      const layouts=doc.viewportLayouts;
+      const validStates=states=>Array.isArray(states)&&states.includes("default")&&
+        new Set(states).size===states.length&&states.every(state=>stateIds.has(state));
+      if (!layouts||!Number.isInteger(layouts.maxWidth)||layouts.maxWidth<1||
+          !validStates(layouts.narrow)||!validStates(layouts.wide)) fail("Invalid viewport layouts");
+    }
     if (doc.elements.length > 10000) fail("Design exceeds the 10,000-element limit");
     const ids = new Set();
     for (const node of doc.elements) {
       if (!node || !validId(node.id) || ids.has(node.id) || !types.has(node.type)) fail("Element IDs must be unique and element types must be supported");
       ids.add(node.id);
+      if (node.viewportLayout!==undefined&&(!doc.viewportLayouts||!["narrow","wide"].includes(node.viewportLayout))) fail(node.id+": invalid viewport layout");
       if (!node.bounds || !["x", "y", "width", "height"].every(key => finite(node.bounds[key])) || node.bounds.width < 0 || node.bounds.height < 0) fail(node.id + ": invalid bounds");
       if (node.text !== undefined && typeof node.text !== "string") fail(node.id + ": text must be a string");
       if (node.flowGrow !== undefined && (!finite(node.flowGrow) || node.flowGrow < 0)) fail(node.id + ": invalid flowGrow");
@@ -47,10 +102,9 @@
         if (byId.get(parent).type !== "container") fail(node.id + ": parent must be a container");
         parent = byId.get(parent).parentId;
       }
-      if (node.action && !Object.hasOwn(doc.states || {default: {}}, node.action.state)) fail(node.id + ": unknown action state");
+      if (node.action && !stateIds.has(node.action.state)) fail(node.id + ": unknown action state");
     }
-    if (doc.states && (typeof doc.states !== "object" || Array.isArray(doc.states) || !Object.hasOwn(doc.states, "default"))) fail("States require a default entry");
-    for (const [state, overrides] of Object.entries(doc.states || {default: {}})) {
+    for (const [state, overrides] of states) {
       if (!validId(state) || !overrides || typeof overrides !== "object" || Array.isArray(overrides)) fail("Invalid state");
       for (const [elementId, override] of Object.entries(overrides)) {
         if (!byId.has(elementId) || !override || typeof override !== "object" || Array.isArray(override) ||
@@ -76,9 +130,15 @@
     return Promise.all(doc.elements.filter(node=>node.type==="image").map(node=>ensureImage(doc.assets.find(asset=>asset.id===node.assetId).data).promise));
   }
   function layout(doc, viewport = {width: doc.width, height: doc.height}, state = "default") {
-    if (!Object.hasOwn(doc.states || {default: {}}, state)) fail("Unknown state: " + state);
+    if (!hasState(doc, state)) fail("Unknown state: " + state);
     const width = viewport.width, height = viewport.height;
     if (![width, height].every(value => Number.isInteger(value) && value > 0)) fail("Viewport needs positive integer dimensions");
+    const viewportMode=viewportLayout(doc,width);
+    const activeState = resolveState(doc, width, state);
+    const stateOverrides = doc.views
+      ? stateEntries(doc).find(([id]) => id === activeState)[1]
+      : doc.states?.[activeState];
+    const matchesViewport=node=>!node.viewportLayout||node.viewportLayout===viewportMode;
     const resolved = new Map();
     const byId = new Map(doc.elements.map(node => [node.id, node]));
     const childrenByParent = new Map();
@@ -87,7 +147,7 @@
     function slots(parent, frame) {
       if (flowCache.has(parent.id)) return flowCache.get(parent.id);
       const flow=parent.flow, gap=typeof flow.gap === "string" ? doc.tokens.spacing[flow.gap] : (flow.gap ?? 4);
-      const children=(childrenByParent.get(parent.id)||[]).filter(n=>n.visible!==false && (doc.states||{})[state]?.[n.id]?.visible!==false);
+      const children=(childrenByParent.get(parent.id)||[]).filter(n=>matchesViewport(n) && n.visible!==false && stateOverrides?.[n.id]?.visible!==false);
       const size=(n,reference=frame)=>{
         const b={...n.bounds}, patch={...n.responsive};
         for(const bp of [...(n.breakpoints||[])].sort((a,b)=>b.maxWidth-a.maxWidth)) if(width<=bp.maxWidth)Object.assign(patch,bp.bounds);
@@ -120,7 +180,7 @@
       if (resolved.has(node.id)) return resolved.get(node.id);
       const parent = node.parentId ? resolve(byId.get(node.parentId)) : null;
       const frame = parent?.bounds || {x: 0, y: 0, width, height};
-      const overrides = (doc.states || {})[state]?.[node.id] || {};
+      const overrides = stateOverrides?.[node.id] || {};
       const patch = {...node.responsive};
       for (const breakpoint of [...(node.breakpoints || [])].sort((a, b) => b.maxWidth - a.maxWidth)) if (width <= breakpoint.maxWidth) Object.assign(patch, breakpoint.bounds);
       const bounds = {...node.bounds};
@@ -128,7 +188,7 @@
       if (node.parentId && byId.get(node.parentId)?.flow) Object.assign(bounds, slots(byId.get(node.parentId), frame).get(node.id) || {});
       bounds.x += frame.x; bounds.y += frame.y;
       const result = {...node, ...overrides, style: {...node.style, ...overrides.style}, bounds,
-        visible: node.visible !== false && overrides.visible !== false && (!parent || parent.visible)};
+        visible: matchesViewport(node) && node.visible !== false && overrides.visible !== false && (!parent || parent.visible)};
       resolved.set(node.id, result);
       return result;
     }
@@ -156,7 +216,7 @@
         let changed = true;
         while (changed) { changed = false; for (const node of next.elements) if (removed.has(node.parentId) && !removed.has(node.id)) { removed.add(node.id); changed = true; } }
         next.elements = next.elements.filter(node => !removed.has(node.id));
-        for (const overrides of Object.values(next.states || {})) for (const id of removed) delete overrides[id];
+        for (const [, overrides] of stateEntries(next)) for (const id of removed) delete overrides[id];
       } else fail("Unknown operation: " + operation.op);
     }
     next.revisionId = "r-" + crypto.randomUUID();
@@ -243,6 +303,7 @@
     }
     return layout(doc, viewport, state).map(node => ({...node, children: children.get(node.id) || []}));
   }
-  const api = {prepareAssets, validate, layout, hitTest, edit, render, inspect, components, tokens, clone};
+  const api = {prepareAssets, validate, layout, hitTest, edit, render, inspect, components, tokens, clone,
+    viewportLayout, viewportStates, viewportViews, stateEntries, hasState, resolveState};
   if (typeof module !== "undefined") module.exports = api; else root.FrameDocument = api;
 })(typeof window === "undefined" ? globalThis : window);
