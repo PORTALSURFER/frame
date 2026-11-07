@@ -14,7 +14,7 @@ The intended toolset covers four activities:
 
 - **Create:** Build screens, layouts, components, and design variations through a predictable, programmatic interface.
 - **Review:** Render designs and inspect visual details, hierarchy, spacing, typography, and consistency.
-- **Test:** Preview different screen sizes and interface states, exercise interactions, and check usability and accessibility where the design supports them.
+- **Test:** Preview different screen sizes and visual states, and check visual consistency and readability.
 - **Refine:** Read human feedback in context, make targeted changes, and compare revisions.
 
 The aim is a short loop from an idea to a visible design, from feedback to a change, and from a change to a checked result.
@@ -133,7 +133,7 @@ The Sift reference screenshot in `assets/` is source material for that example. 
 
 ## Revisions and portable handoff
 
-Structured design edits preserve snapshots with immutable revision IDs. The Revision picker opens a read-only historical preview. History offers thumbnails, before/after views, an overlay, and synchronized zoom/pan. **Restore this revision** explicitly changes the current design; browsing history leaves its document, feedback, viewport and canvas view intact. The agent API can compare snapshots by element ID. Snapshots persist in browser storage and are included in project downloads. A saved browser draft resumes when its source revision has not changed; changing the source revision starts a new source snapshot. Storage failures show a project notice, retry, and a download path instead of discarding the in-memory project.
+Structured design edits preserve snapshots with immutable revision IDs. History provides read-only revision browsing with thumbnails, before/after views, an overlay, and synchronized zoom/pan. **Restore this revision** explicitly changes the current design; browsing history leaves its document, feedback, viewport and canvas view intact. The agent API can compare snapshots by element ID. Snapshots persist in browser storage and are included in project downloads. A saved browser draft resumes when its source revision has not changed; changing the source revision starts a new source snapshot. Storage failures show a project notice, retry, and a download path instead of discarding the in-memory project.
 
 Feedback retains the revision and viewport originally reviewed. Bound marks follow surviving element IDs when layouts move; removed or hidden targets and position-only marks are flagged for review. Moving a bound note updates its offset. These rules preserve human context instead of silently assigning a different element.
 
