@@ -33,6 +33,23 @@ The red pen and placed annotations are available. Structured designs also preser
 
 Frame uses plain HTML, CSS, JavaScript, and Canvas 2D, with no build step. Agents create and edit structured documents through the browser API or register custom Canvas scripts; humans review designs and place feedback over them.
 
+### Switching local workspaces
+
+The disk-backed server supports selecting another project folder without changing
+its browser origin. `GET /__frame/workspace` returns `{version:1,id,dataDirectory}`.
+Send `POST /__frame/workspace` with JSON `{dataDirectory:"/absolute/project/.frame"}`
+and an `Origin` header matching the loopback server to select it. The folder must
+already exist outside the served application folder. Project launchers should
+also verify that their design files are tracked by Git before selecting a folder.
+
+The open tab saves pending work to its original workspace before reloading in
+place with the selected workspace. Unfinished interactions and save conflicts
+delay switching. Workspace selection does not copy or merge design histories.
+Browser disk requests carry `X-Frame-Workspace` with the ID from `disk-config.js`;
+external disk clients must send that header too. Unscoped legacy requests remain
+bound to the server's initial workspace, and unknown workspace IDs fail rather
+than redirecting a save. Keep Frame installed separately from project designs.
+
 Available today:
 
 - Register and render multiple designs from JavaScript.
