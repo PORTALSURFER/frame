@@ -375,7 +375,7 @@ test('revision IDs are immutable and invalid portable projects leave registries 
  });
  assert.equal(result.collision,true);assert.equal(result.unchanged,true);assert.equal(result.invalid,true);assert.equal(result.size,result.previous);
 });
-test('selecting a revision immediately loads it, preserves feedback and history, and persists after reload',async t=>{
+test('explicitly restoring a previewed revision preserves feedback and history, and persists after reload',async t=>{
  const page=await pageFor(t);
  const board=await page.locator('#board').boundingBox();
  await page.mouse.move(board.x+100,board.y+100);await page.mouse.down();await page.mouse.move(board.x+150,board.y+150);await page.mouse.up();
@@ -383,10 +383,12 @@ test('selecting a revision immediately loads it, preserves feedback and history,
  const edited=await page.evaluate(()=>Frame.agent.applyEdits('instrument',[{op:'update',id:'run',patch:{text:'NEW REVISION'}}]).revisionId);
  const before=await page.evaluate(()=>({feedback:Frame.agent.getFeedback(),history:Frame.revisions.list('instrument')}));
  await page.locator('#revision-picker').selectOption('instrument-r1');
+ await page.locator('#restore-history-revision').click();
  assert.deepEqual(await page.evaluate(()=>({revision:Frame.agent.getDocument('instrument').revisionId,text:Frame.agent.inspect('instrument').find(n=>n.id==='run').text})),{revision:'instrument-r1',text:original});
  assert.deepEqual(await page.evaluate(()=>Frame.agent.getFeedback().lines),before.feedback.lines);
  assert.deepEqual(await page.evaluate(()=>Frame.revisions.list('instrument')),before.history);
  await page.locator('#revision-picker').selectOption(edited);
+ await page.locator('#restore-history-revision').click();
  assert.equal(await page.evaluate(()=>Frame.agent.inspect('instrument').find(n=>n.id==='run').text),'NEW REVISION');
  await page.reload();await page.evaluate(id=>Frame.agent.selectDesign(id),'instrument');
  assert.equal(await page.locator('#revision-picker').inputValue(),edited);

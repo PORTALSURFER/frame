@@ -32,6 +32,7 @@
   <script src="startup-restore.js" defer></script>
   <script src="workspace-sync.js" defer></script>
   <script src="workspace-ui.js" defer></script>
+  <script src="revision-review.js" defer></script>
   <script src="project-transfer.js" defer></script>
   <script src="project-transfer-ui.js" defer></script>
   <script src="source-store.js" defer></script>
@@ -50,6 +51,7 @@
         <label class="review-picker">State<select id="state-picker" aria-label="State" title="Interface state"></select></label>
         <label class="review-picker">Revision<select id="revision-picker" aria-label="Revision" title="Revision"></select></label>
         <label class="review-picker">Design guide<select id="styleguide-picker" aria-label="Design guide" title="Styleguide"></select></label>
+        <button id="revision-history" type="button" disabled>History</button>
         <button id="view-styleguide" type="button" title="Read design guidance; choosing a guide does not restyle the design" aria-label="View guide" disabled>Guide</button>
       </div>
       <div class="topbar-menus">
@@ -65,7 +67,7 @@
           <button id="recover-checkpoint" type="button">Recover checkpoint</button>
           <button id="import-project" type="button">Import design</button>
           <button id="source-settings" type="button">Source connection</button>
-          <button id="restore-revision" type="button">Restore revision</button>
+          <button id="restore-revision" type="button">Revision history</button>
           <button id="retry-project-save" type="button" hidden>Retry project save</button>
           <div class="project-statuses" role="group" aria-label="Design status">
             <output id="live-document-status" role="status"></output>
