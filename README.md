@@ -177,3 +177,5 @@ brief. The handoff distinguishes illustrations, Frame prototype interactions and
 explicit recorded runtime evidence; it does not establish native application parity.
 
 Keyboard review: Tab between selectors, then use arrows, Home, or End to preview choices immediately. Enter, Space, or Alt+Down retains the native picker. History provides read-only revision browsing; restoration requires an explicit action. Pen, Eraser, Note, Pan, Select feedback, and Inspect stay directly available on the canvas toolbar.
+
+You can also point at a preview selector and press Up or Down to focus it and preview immediately, without clicking. Hover alone leaves focus unchanged. Tab, text editing, and open dialogs preserve their normal keyboard behavior. Clicking still opens the native dropdown; Enter confirms its highlighted choice.
