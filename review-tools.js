@@ -117,8 +117,10 @@
       if(node.type==="button")el.textContent=node.text||node.label;
       else if(document.activeElement!==el)el.value=node.value??node.text??"";
       const b=node.bounds,s=node.style,colors={...Frame.tokens.colors,...Frame.documents.get(designId).tokens?.colors};
+      const scale=board.width/design.width;
       Object.assign(el.style,{left:b.x/design.width*100+"%",top:b.y/design.height*100+"%",width:b.width/design.width*100+"%",height:b.height/design.height*100+"%",
         fontSize:(s.fontSize||14)*board.width/design.width+"px",fontFamily:s.fontFamily||"monospace",color:colors[s.color]||s.color||colors.text,
+        padding:(s.padding??8)*scale+"px",borderRadius:(s.radius??0)*scale+"px",borderWidth:(s.stroke==="none"?0:(s.lineWidth??1))*scale+"px",
         backgroundColor:colors[s.fill]||s.fill||colors.surface,borderColor:colors[s.stroke]||s.stroke||colors.border,opacity:s.opacity??1});
     }
   }

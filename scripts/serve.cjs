@@ -4,7 +4,7 @@ const fs = require('node:fs/promises');
 const path = require('node:path');
 const os = require('node:os');
 const {mkdtempSync} = require('node:fs');
-const {createDiskStore} = require('./disk-store.cjs');
+const {createWorkspaces} = require('./workspaces.cjs');
 const types = {'.html':'text/html; charset=utf-8','.js':'text/javascript; charset=utf-8','.css':'text/css; charset=utf-8',
   '.json':'application/json','.png':'image/png','.jpg':'image/jpeg','.jpeg':'image/jpeg','.webp':'image/webp',
   '.svg':'image/svg+xml','.woff':'font/woff','.woff2':'font/woff2','.ttf':'font/ttf','.md':'text/plain; charset=utf-8'};
@@ -15,10 +15,7 @@ function createServer(root = path.resolve(__dirname, '..'), {dataDirectory} = {}
     disk = ready.then(async base => {
       const directory = path.resolve(dataDirectory);
       if (directory === base || directory.startsWith(base + path.sep)) throw new Error('Frame data must be outside the served folder.');
-      await fs.mkdir(directory, {recursive: true, mode: 0o700});
-      const real = await fs.realpath(directory);
-      if (real === base || real.startsWith(base + path.sep)) throw new Error('Frame data must be outside the served folder.');
-      return createDiskStore(real);
+      return createWorkspaces(base, directory);
     });
     disk.catch(error => console.error(error.message));
   }
@@ -26,11 +23,12 @@ function createServer(root = path.resolve(__dirname, '..'), {dataDirectory} = {}
     res.setHeader('X-Content-Type-Options','nosniff');
     try {
       const base = await ready, pathname = decodeURIComponent(new URL(req.url,'http://127.0.0.1').pathname);
-      if (disk && pathname.startsWith('/__frame/')) { await (await disk)(req, res, pathname); return; }
+      if (disk && pathname.startsWith('/__frame/')) { await (await disk).handle(req, res, pathname); return; }
       if (!['GET','HEAD'].includes(req.method)) { res.writeHead(405,{Allow:'GET, HEAD'}).end(); return; }
       if (disk && pathname === '/disk-config.js') {
         res.writeHead(200, {'Content-Type':types['.js'], 'Cache-Control':'no-store'});
-        res.end(req.method === 'HEAD' ? undefined : 'window.FrameDiskEnabled = true;');
+        const workspace = (await disk).descriptor();
+        res.end(req.method === 'HEAD' ? undefined : 'window.FrameDiskEnabled = true; window.FrameDiskWorkspace = ' + JSON.stringify(workspace) + ';');
         return;
       }
       if (pathname.includes('\0') || pathname.split(/[\\/]/).some(part=>part.startsWith('.'))) { res.writeHead(403).end(); return; }
