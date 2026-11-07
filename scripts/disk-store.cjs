@@ -3,10 +3,11 @@ const path = require('node:path');
 const {createHash, randomUUID} = require('node:crypto');
 const FrameDocument = require('../design-document.js');
 const FrameFeedback = require('../feedback.js');
+const FrameConceptModel = require('../concept-model.js');
 
 const validId = /^[a-z0-9][a-z0-9_-]{0,127}$/i;
 const validHash = /^[a-f0-9]{64}$/;
-const limits = {projects: 32 << 20, revisions: 32 << 20, feedback: 64 << 20, sources: 16 << 10};
+const limits = {projects: 32 << 20, revisions: 32 << 20, feedback: 64 << 20, sources: 16 << 10, concepts: 1 << 20};
 const hash = bytes => createHash('sha256').update(bytes).digest('hex');
 const failure = (status, message) => Object.assign(new Error(message), {status});
 const assert = (condition, message) => { if (!condition) throw failure(400, message); };
@@ -100,6 +101,7 @@ function createDiskStore(dataDirectory) {
   async function validate(kind, id, data) {
     if (kind === 'projects') await validateProject(id, data);
     else if (kind === 'feedback') FrameFeedback.validate(data, {id});
+    else if (kind === 'concepts') FrameConceptModel.validate(data, {id});
     else assert(data?.id === id && data.version === 1 && typeof data.enabled === 'boolean' &&
       typeof data.url === 'string' && data.url.length <= 4096 && typeof data.revisionId === 'string' &&
       validHash.test(data.digest) && Number.isInteger(data.interval) && data.interval >= 250 && data.interval <= 60000,
