@@ -7,6 +7,23 @@
     const now = new Date().toISOString();
     return {id: crypto.randomUUID(), type, designId: design.id, revisionId: design.revisionId ?? null, createdAt: now, updatedAt: now, status: "open"};
   }
+  function validateReview(mark) {
+    const review=mark.review;
+    if(review===undefined)return;
+    if(!review || !id(review.revisionId) || typeof review.summary!=='string' || !review.summary.trim() || review.summary.length>2000 ||
+        !timestamp(review.proposedAt) || !review.proposedAt || !['pending','accepted','reopened'].includes(review.decision) ||
+        (review.decision==='pending' ? review.decidedAt!==null : !review.decidedAt || !timestamp(review.decidedAt) || review.decidedAt<review.proposedAt) ||
+        (review.decision==='accepted' && mark.status!=='resolved') || (review.decision==='reopened' && mark.status!=='open')) throw new Error('Invalid feedback review');
+  }
+  function propose(mark, revisionId, summary, now=new Date().toISOString()) {
+    const next={...mark,status:'open',updatedAt:now,review:{revisionId,summary:typeof summary==='string'?summary.trim():summary,proposedAt:now,decision:'pending',decidedAt:null}};
+    validateReview(next);return next;
+  }
+  function decide(mark, decision, now=new Date().toISOString()) {
+    if(!mark.review || !['accepted','reopened'].includes(decision))throw new Error('Propose a revision before recording a review decision');
+    const next={...mark,status:decision==='accepted'?'resolved':'open',updatedAt:now,review:{...mark.review,decision,decidedAt:now}};
+    validateReview(next);return next;
+  }
   function validate(data, design) {
     if (data?.version !== 3) throw new Error("Unsupported feedback version");
     if (!id(data.design) || data.design !== design.id) throw new Error("Feedback belongs to a different design");
@@ -19,6 +36,8 @@
             !(mark.revisionId === null || id(mark.revisionId)) || !timestamp(mark.createdAt) || !timestamp(mark.updatedAt) ||
             (mark.createdAt && mark.updatedAt && mark.updatedAt < mark.createdAt)) throw new Error("Invalid or duplicate feedback metadata");
         if (mark.status !== undefined && !["open", "resolved"].includes(mark.status)) throw new Error("Invalid feedback status");
+        validateReview(mark);
+        if(mark.reviewedState!==undefined && !id(mark.reviewedState))throw new Error('Invalid reviewed state');
         ids.add(mark.id);
         if (mark.elementAnchor !== undefined && (!mark.elementAnchor || !id(mark.elementAnchor.elementId) ||
             (mark.elementAnchor.offset !== undefined && !pair(mark.elementAnchor.offset)))) throw new Error("Invalid element anchor");
@@ -80,7 +99,7 @@
     }
     return result;
   }
-  const api = {metadata, validate, read, importDocument, document, merge};
+  const api = {metadata, validate, read, importDocument, document, merge, propose, decide};
   if (typeof module !== "undefined") module.exports = api;
   else root.FrameFeedback = api;
 })(typeof window === "undefined" ? globalThis : window);

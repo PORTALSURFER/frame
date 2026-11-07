@@ -62,3 +62,18 @@ In disk-backed workspaces, Frame reconciles edits to different annotation IDs
 when another session saves first. Conflicting changes to the same annotation
 stay in the current tab and can be downloaded for review. Switching context or
 viewport does not write feedback.
+
+Feedback can include an optional `review` with `revisionId` (the proposed fix),
+`summary` (1–2,000 characters), `proposedAt`, `decision` (`pending`, `accepted`,
+`reopened`) and `decidedAt` (null while pending). Proposal and decision timestamps
+are canonical ISO UTC. The original mark's `revisionId`, anchor and reviewed
+viewport remain the annotation context. New structured marks also retain
+`reviewedState`; historic unknown states remain unknown.
+
+`Frame.feedback.propose(id, {revisionId, summary})` checks that the proposed
+revision exists before changing the mark. Proposals remain open. `accept(id)`
+records acceptance and resolves the mark; `reopen(id)` preserves the proposal and
+records the decision to reopen it. These operations participate in ordinary
+feedback undo/redo, saving, merging and portable export. They record review
+intent, not authenticated reviewer identity. Existing `setStatus(id, 'resolved')`
+never creates acceptance; resolving and accepting remain distinguishable.
