@@ -52,6 +52,15 @@ for(const width of [320,768,912,1280,1600])test(`workspace controls and canvas r
    return {y,height};
   }));
   assert.equal(await page.locator('.topbar select:visible').count(),selectorCount,'review selectors are in the header');
+  const labels=await page.locator('.review-picker:visible').evaluateAll(nodes=>nodes.map(label=>({
+   text:label.firstChild.textContent.trim(),name:label.querySelector('select').getAttribute('aria-label'),
+   labelTop:label.getBoundingClientRect().top,selectTop:label.querySelector('select').getBoundingClientRect().top
+  })));
+  assert.equal(labels.length,selectorCount,'hidden selectors leave no orphan labels');
+  for(const label of labels){
+   assert.equal(label.text,label.name,'each dropdown has its visible accessible label');
+   assert.ok(label.selectTop>label.labelTop,'labels sit above their dropdowns');
+  }
   assert.ok(Math.max(...controls.map(control=>control.y))<Math.min(...controls.map(control=>control.y+control.height)),'header controls share a single row');
  };
  await assertHeaderRow(4);
