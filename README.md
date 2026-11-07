@@ -149,3 +149,10 @@ Canvas navigation: scroll the mouse wheel over the canvas to zoom around the cur
 Select **GainSnap · Sift Hardware** for the 200 × 424 `gainsnap-sift-hardware-r1` design study. It uses the written Sift Hardware guide with GainSnap’s gain, target, Peak/RMS output readouts, Match and Restart controls. Coral means output Peak and purple means output RMS; these roles adapt the guide to the product. The State picker offers manual/default, Peak selection, listening, matched, held-gain, remeasuring, and silence previews. Meter values are illustrative, not live audio. Inputs are editable prototype fields; Match/Restart and the knob preview representative states without implementing DSP, gain dragging, or numeric-to-meter coupling. This adds a Frame design only and does not modify the native GainSnap plug-in.
 
 The Feedback header shows the open count for the current viewport. **Pin feedback** keeps the panel beside the canvas (as an overlay on narrow windows); the preference resumes at this browser address. Selecting feedback highlights its target. **Show original** opens its recorded revision and **Review change** compares it with a proposed fix. **Accept fix** and **Reopen** record review decisions; ordinary resolved marks retain their legacy meaning.
+
+**Inspect** selects a structured element without adding feedback. Its inspector
+shows stable identity, bounds, component membership and behavior scope.
+**Designs → Inspect & handoff** also supports keyboard selection, shared-token
+inspection, and downloads of a portable JSON handoff with assets or a Markdown
+brief. The handoff distinguishes illustrations, Frame prototype interactions and
+explicit recorded runtime evidence; it does not establish native application parity.

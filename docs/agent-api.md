@@ -269,3 +269,30 @@ The reviewer can accept or reopen it. `Frame.feedback.accept(markId)` and
 `Frame.feedback.reopen(markId)` record those decisions with undo and persistence;
 they do not authenticate the caller as a human. Legacy resolution is never treated
 as acceptance. A new proposal clears an earlier decision and needs review again.
+
+## Implementation handoff
+
+Choose **Inspect** and click an element, or open **Designs → Inspect & handoff**
+for keyboard selection. Inspection exposes resolved bounds/styles, stable IDs,
+component definition and instance identity, and prototype behavior. It never edits
+the document or annotations.
+
+For the selected design, `Frame.handoff.report(id)` returns a versioned
+`frame-implementation-handoff` with exact revision, viewport, state, input values,
+resolved elements, layout declarations, screens/states, shared tokens, component
+library, embedded assets, feedback and acceptance checks. `inspect(id, elementId)`
+returns one element. `export(id, {format: 'json' | 'markdown'})` returns portable
+JSON with assets or a concise Markdown brief. Exports are deterministic for the
+same document and review context; they do not save, resolve feedback or certify
+application behavior.
+
+An element is `illustrated` unless it has a Frame input or declared state
+transition (`frame-interactive`). Optional `document.metadata.runtimeEvidence`
+records reported external checks. Each record requires `elementId`, `revisionId`,
+`state`, `viewport: {width,height}`, `result: 'passed' | 'failed'`, canonical ISO
+`checkedAt`, and nonempty `platform`, `applicationVersion`, `source` and `reference`.
+Only the latest check matching this exact revision, element, state and viewport
+can yield `runtime-verified`, and only when it passed. A later matching failure
+supersedes a pass. Other checks remain listed with their original context.
+Frame validates record shape; it does not authenticate the report or execute the
+external check. Omit evidence until the target application was actually checked.
