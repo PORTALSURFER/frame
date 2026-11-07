@@ -37,7 +37,7 @@ test('compact prototype controls preserve declared padding and border geometry a
     style:{padding:0,radius:3,lineWidth:.5,stroke:'#555555',fontSize:8},action:{type:'set-state',state:'default'}}]});
   Frame.agent.selectDesign('compact-controls');Frame.view.set({zoom:1.5,panX:0,panY:0});
  });
- await page.locator('#tool-interact').click();
+ await page.locator('.project-menu summary').click();await page.locator('#tool-interact').click();
  const result=await page.getByRole('button',{name:'Compact choice',exact:true}).evaluate(el=>{
   const style=getComputedStyle(el),scale=document.getElementById('board').getBoundingClientRect().width/300;
   return {padding:parseFloat(style.paddingTop),radius:parseFloat(style.borderTopLeftRadius),border:parseFloat(style.borderTopWidth),height:el.getBoundingClientRect().height,scale};
@@ -267,7 +267,7 @@ test('responsive viewport reflows elements rather than just shrinking a fixed dr
  assert.equal(result.size.width,360);
 });
 test('actual prototype inputs and buttons support keyboard interaction without drawing feedback',async t=>{
- const page=await pageFor(t);await page.locator('#tool-interact').click();
+ const page=await pageFor(t);await page.locator('.project-menu summary').click();await page.locator('#tool-interact').click();
  await page.locator('[data-element-id="frequency"]').fill('128');
  await page.locator('[data-element-id="reset"]').focus();await page.keyboard.press('Enter');
  assert.equal(await page.locator('[data-element-id="frequency"]').inputValue(),'128');
@@ -382,12 +382,12 @@ test('explicitly restoring a previewed revision preserves feedback and history, 
  const original=await page.evaluate(()=>Frame.agent.getDocument('instrument').elements.find(n=>n.id==='run').text);
  const edited=await page.evaluate(()=>Frame.agent.applyEdits('instrument',[{op:'update',id:'run',patch:{text:'NEW REVISION'}}]).revisionId);
  const before=await page.evaluate(()=>({feedback:Frame.agent.getFeedback(),history:Frame.revisions.list('instrument')}));
- await page.locator('#revision-picker').selectOption('instrument-r1');
+ await page.locator('#revision-history').click();await page.locator('#review-after').selectOption('instrument-r1');
  await page.locator('#restore-history-revision').click();
  assert.deepEqual(await page.evaluate(()=>({revision:Frame.agent.getDocument('instrument').revisionId,text:Frame.agent.inspect('instrument').find(n=>n.id==='run').text})),{revision:'instrument-r1',text:original});
  assert.deepEqual(await page.evaluate(()=>Frame.agent.getFeedback().lines),before.feedback.lines);
  assert.deepEqual(await page.evaluate(()=>Frame.revisions.list('instrument')),before.history);
- await page.locator('#revision-picker').selectOption(edited);
+ await page.locator('#revision-history').click();await page.locator('#review-after').selectOption(edited);
  await page.locator('#restore-history-revision').click();
  assert.equal(await page.evaluate(()=>Frame.agent.inspect('instrument').find(n=>n.id==='run').text),'NEW REVISION');
  await page.reload();await page.evaluate(id=>Frame.agent.selectDesign(id),'instrument');

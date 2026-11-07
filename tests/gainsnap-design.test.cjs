@@ -58,7 +58,7 @@ test('GainSnap Sift Hardware study preserves compact controls, state previews, e
  }
  }
  await page.locator('#state-picker').selectOption('default');
- await page.locator('#tool-interact').click();await page.getByRole('button',{name:'MATCH',exact:true}).click();assert.equal(await page.evaluate(()=>Frame.currentState('gainsnap-sift-hardware')),'listening');
+ await page.locator('.project-menu summary').click();await page.locator('#tool-interact').click();await page.getByRole('button',{name:'MATCH',exact:true}).click();assert.equal(await page.evaluate(()=>Frame.currentState('gainsnap-sift-hardware')),'listening');
  await page.locator('#state-picker').selectOption('matched');await page.getByRole('button',{name:'MATCH',exact:true}).click();assert.equal(await page.evaluate(()=>Frame.currentState('gainsnap-sift-hardware')),'held');assert.equal(await page.getByRole('textbox',{name:'Gain in dB',exact:true}).inputValue(),'+6.0');
  await page.locator('#state-picker').selectOption('matched');await page.getByRole('button',{name:'Restart matching',exact:true}).click();assert.equal(await page.evaluate(()=>Frame.currentState('gainsnap-sift-hardware')),'remeasuring');assert.equal(await page.getByRole('textbox',{name:'Gain in dB',exact:true}).inputValue(),'+6.0');
  await page.getByRole('textbox',{name:'Target in dBFS',exact:true}).fill('-14.0');assert.equal(await page.getByRole('textbox',{name:'Target in dBFS',exact:true}).inputValue(),'-14.0');

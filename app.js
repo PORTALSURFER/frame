@@ -1198,7 +1198,6 @@
       if (event.key.toLowerCase() === "e") setMode("erase");
       if (event.key.toLowerCase() === "v") setMode("select");
       if (event.key.toLowerCase() === "h") setMode("pan");
-      if (event.key.toLowerCase() === "i" && Frame.documents.has(design?.id)) setMode("interact");
       if (event.key.toLowerCase() === "n") setMode("note");
     }
     if ((event.metaKey || event.ctrlKey) && !event.altKey) {

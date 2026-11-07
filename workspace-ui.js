@@ -2,9 +2,7 @@
 (() => {
   const title = document.getElementById('workspace-title');
   const output = document.getElementById('workspace-save-state');
-  const annotate = document.getElementById('mode-annotate');
   const activeTool = document.getElementById('active-tool');
-  let annotationTool = 'pen';
   function refresh() {
     const id = document.getElementById('design-picker').value, design = Frame.designs.get(id);
     title.textContent = design?.name || 'No design open';
@@ -21,11 +19,9 @@
     if (output.textContent === 'Unsaved changes' || output.textContent === 'Auto-save off') output.dataset.state = 'unsaved';
   }
   function modeChanged(mode) {
-    if (mode !== 'interact') annotationTool = mode;
-    annotate.setAttribute('aria-pressed', String(mode !== 'interact'));
     activeTool.textContent = ({pen:'Pen',erase:'Eraser',note:'Note',pan:'Pan',select:'Select feedback',interact:'Prototype interaction'})[mode];
   }
-  annotate.addEventListener('click', () => Frame.view.setMode(annotationTool));
+  document.getElementById('tool-interact').addEventListener('click', () => {document.querySelector('.project-menu').open = false;});
   window.addEventListener('frame:feedback-mode', event => modeChanged(event.detail.mode));
   for (const event of ['frame:design-selected','frame:design-updated','frame:project-restored','frame:feedback-save-status','frame:automatic-checkpoint-status']) window.addEventListener(event, refresh);
   new MutationObserver(refresh).observe(document.querySelector('.project-statuses'), {subtree:true,childList:true,characterData:true,attributes:true,attributeFilter:['data-warning']});

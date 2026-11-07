@@ -10,7 +10,7 @@ test('history previews and comparison never mutate the live design, feedback, st
     Frame.view.set({zoom:1.25,panX:20,panY:10});
     return {doc:Frame.agent.getDocument('instrument'),marks:Frame.agent.getFeedback(),view:Frame.view.get(),storage:localStorage.getItem('frame-project-v1:instrument'),epoch:Frame.projectBridge.restorationEpoch()};
   });
-  await page.locator('#revision-picker').selectOption('instrument-r1');
+  await page.locator('#revision-history').click();await page.locator('#review-after').selectOption('instrument-r1');
   await page.waitForFunction(()=>document.getElementById('revision-review').dataset.rendering==='false');
   assert.equal(await page.locator('#revision-picker').inputValue(),'named-r2');
   assert.equal(await page.locator('#revision-timeline canvas').count(),2);
@@ -23,7 +23,7 @@ test('history previews and comparison never mutate the live design, feedback, st
   assert.equal(await page.locator('#review-before-image').getAttribute('style'),await page.locator('#review-after-image').getAttribute('style'));
   await page.locator('#close-revision-review').click();
   assert.deepEqual(await page.evaluate(()=>({doc:Frame.agent.getDocument('instrument'),marks:Frame.agent.getFeedback(),view:Frame.view.get(),storage:localStorage.getItem('frame-project-v1:instrument'),epoch:Frame.projectBridge.restorationEpoch()})),before);
-  await page.locator('#revision-picker').selectOption('instrument-r1');await page.locator('#restore-history-revision').click();
+  await page.locator('#revision-history').click();await page.locator('#review-after').selectOption('instrument-r1');await page.locator('#restore-history-revision').click();
   assert.equal(await page.evaluate(()=>Frame.agent.getDocument('instrument').revisionId),'instrument-r1');
   assert.equal(await page.locator('#revision-review').isVisible(),false);
   assert.equal(await page.evaluate(()=>Frame.revisions.get('instrument','named-r2').metadata.revisionTitle),'Roomier transport');

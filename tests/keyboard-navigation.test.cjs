@@ -62,3 +62,19 @@ test('ordinary text editing keeps arrow navigation', async t => {
   await page.keyboard.press('ArrowLeft'); await page.keyboard.type('X');
   assert.equal(await input.inputValue(), 'abXc');
 });
+
+test('history arrows preview revisions immediately without restoring the live design', async t => {
+  const page = await open(t);
+  const before = await page.evaluate(() => {
+    Frame.agent.applyEdits('instrument', [{op:'update', id:'title', patch:{text:'New title'}}]);
+    return {doc:Frame.agent.getDocument('instrument'), marks:Frame.agent.getFeedback(), view:Frame.view.get()};
+  });
+  assert.equal(await page.locator('#revision-picker').isVisible(), false);
+  await page.locator('#revision-history').click();
+  const after = page.locator('#review-after'); await after.focus(); await page.keyboard.press('ArrowUp');
+  await page.waitForFunction(() => document.getElementById('revision-review').dataset.rendering === 'false');
+  assert.equal(await after.inputValue(), 'instrument-r1');
+  assert.equal(await after.evaluate(n => n === document.activeElement), true);
+  assert.equal(await page.locator('#restore-history-revision').isEnabled(), true);
+  assert.deepEqual(await page.evaluate(() => ({doc:Frame.agent.getDocument('instrument'), marks:Frame.agent.getFeedback(), view:Frame.view.get()})), before);
+});

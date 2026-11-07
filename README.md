@@ -2,6 +2,8 @@
 
 Frame is a UI design tool built specifically for AI agents. Its goal is to give AI the right tools to create, review, test, and refine interface designs quickly, with a simple visual toolkit for humans to give feedback.
 
+The [product brief](docs/product-brief.md) defines Frame's visual concepting and feedback loop. Screen and state previews show appearance without requiring application behavior. Legacy prototype interaction remains available from the Designs menu.
+
 AI handles the design work; humans guide it by pointing directly at what needs to change. Circle an element with a red pen, place a note beside a button, or mark an area that feels too crowded. Frame should give the AI enough visual and structured context to understand that feedback and turn it into a precise revision.
 
 ## The vision
@@ -173,3 +175,5 @@ shows stable identity, bounds, component membership and behavior scope.
 inspection, and downloads of a portable JSON handoff with assets or a Markdown
 brief. The handoff distinguishes illustrations, Frame prototype interactions and
 explicit recorded runtime evidence; it does not establish native application parity.
+
+Keyboard review: Tab between selectors, then use arrows, Home, or End to preview choices immediately. Enter, Space, or Alt+Down retains the native picker. History provides read-only revision browsing; restoration requires an explicit action. Pen, Eraser, Note, Pan, Select feedback, and Inspect stay directly available on the canvas toolbar.
