@@ -29,6 +29,24 @@ test('a fresh workspace opens without designs and offers file import',async t=>{
  await page.getByRole('dialog',{name:'Import design'}).waitFor();
  assert.deepEqual(errors,[]);
 });
+test('compact prototype controls preserve declared padding and border geometry at zoom',async t=>{
+ const page=await pageFor(t);
+ await page.evaluate(()=>{
+  Frame.registerDocument({version:1,id:'compact-controls',name:'Compact controls',revisionId:'r1',width:300,height:200,
+   elements:[{id:'small',type:'button',label:'Compact choice',text:'sine',bounds:{x:10,y:10,width:60,height:12},
+    style:{padding:0,radius:3,lineWidth:.5,stroke:'#555555',fontSize:8},action:{type:'set-state',state:'default'}}]});
+  Frame.agent.selectDesign('compact-controls');Frame.view.set({zoom:1.5,panX:0,panY:0});
+ });
+ await page.locator('#tool-interact').click();
+ const result=await page.getByRole('button',{name:'Compact choice',exact:true}).evaluate(el=>{
+  const style=getComputedStyle(el),scale=document.getElementById('board').getBoundingClientRect().width/300;
+  return {padding:parseFloat(style.paddingTop),radius:parseFloat(style.borderTopLeftRadius),border:parseFloat(style.borderTopWidth),height:el.getBoundingClientRect().height,scale};
+ });
+ assert.equal(result.padding,0);
+ assert.ok(Math.abs(result.radius-3*result.scale)<.01);
+ assert.ok(Math.abs(result.border-.5*result.scale)<=1);
+ assert.ok(Math.abs(result.height-12*result.scale)<.1);
+});
 test('wheel zoom coalesces raster work and settles sharply without changing design coordinates',async t=>{
  const page=await pageFor(t);
  const result=await page.evaluate(async()=>{
