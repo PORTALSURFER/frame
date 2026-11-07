@@ -42,3 +42,16 @@ test('comparison falls back explicitly for missing historic states and refuses s
   assert.match(await page.locator('#revision-review-status').textContent(),/design changed during review/);
   assert.equal(await page.evaluate(()=>Frame.agent.inspect('instrument',{elementId:'title'})[0].text),'Concurrent change');
 });
+
+test('fallback revision titles stay readable and comparison includes screen-level contracts',async t=>{
+  const page=await open(t);
+  const result=await page.evaluate(()=>{
+    const before=Frame.agent.getDocument('instrument');
+    const changed=Frame.agent.applyEdits(before.id,[{op:'update',id:'run',patch:{text:'Start'}}]);
+    const doc=Frame.agent.getDocument(before.id),{states,...base}=doc;
+    Frame.agent.updateDocument({...base,revisionId:'screens-r3',views:[{id:'main',label:'Main',contexts:Object.entries(states).map(([id,overrides])=>({id,label:id,overrides}))}]});
+    return {title:Frame.revisions.list(before.id).find(r=>r.revisionId===changed.revisionId).title,diff:Frame.revisions.compare(before.id,changed.revisionId,'screens-r3')};
+  });
+  assert.equal(result.title,'1 element updated');
+  assert.ok(result.diff.settings.includes('views'));assert.ok(result.diff.settings.includes('states'));
+});

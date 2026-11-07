@@ -114,7 +114,7 @@
     return {designId:id,beforeRevisionId:beforeId,afterRevisionId:afterId,
       added:[...next.keys()].filter(id=>!old.has(id)),removed:[...old.keys()].filter(id=>!next.has(id)),
       changed:[...next.keys()].filter(id=>old.has(id)).map(id=>({id,fields:[...new Set([...Object.keys(old.get(id)),...Object.keys(next.get(id))])].filter(k=>JSON.stringify(old.get(id)[k])!==JSON.stringify(next.get(id)[k]))})).filter(item=>item.fields.length),
-      settings:["width","height","background","tokens","states"].filter(k=>JSON.stringify(before[k])!==JSON.stringify(after[k]))};
+      settings:[...new Set([...Object.keys(before),...Object.keys(after)])].filter(k=>!["id","revisionId","elements"].includes(k)&&JSON.stringify(before[k])!==JSON.stringify(after[k]))};
   }
   function exportProject(id=currentId(), {shareRevisions = false} = {}) {
     if(!Frame.documents.has(id))throw new Error("Portable export requires a structured design; custom Canvas code stays in its source files");
@@ -197,7 +197,7 @@
     if(!entry.parentRevisionId || !archives.get(id)?.revisions.some(r=>r.revisionId===entry.parentRevisionId))return 'Initial design';
     const diff=compare(id,entry.parentRevisionId,entry.revisionId);
     const ids=[...diff.added,...diff.changed.map(n=>n.id),...diff.removed];
-    return ids.length ? `Updated ${ids.slice(0,2).join(', ')}${ids.length>2?` +${ids.length-2}`:''}` : 'Updated design settings';
+    return ids.length ? `${ids.length} ${ids.length===1?'element':'elements'} updated` : diff.settings.includes('views')||diff.settings.includes('states') ? 'Updated screens and states' : 'Updated design settings';
   }
   Frame.revisions={
     acknowledgeCheckpoint: archive => {
