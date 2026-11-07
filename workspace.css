@@ -5,9 +5,11 @@ body { background:var(--ui-bg); color:var(--ui-ink); font-family:"Helvetica Neue
 .topbar { display:flex; flex-direction:row; align-items:center; min-height:0; padding:0 0 3px; gap:8px; border-bottom:1px solid var(--ui-line); background:transparent; }
 .brand { flex:none; text-decoration:none; color:#e8e8e2; background:transparent; clip-path:none; }
 .brand strong { font-size:22px; letter-spacing:-.7px; font-weight:700; }
-.tools { display:flex; flex:1 1 auto; flex-wrap:nowrap; align-items:center; justify-content:flex-start; min-width:0; gap:5px; padding:3px; overflow-x:auto; scrollbar-width:thin; }
+.tools { display:flex; flex:1 1 auto; flex-wrap:nowrap; align-items:flex-end; justify-content:flex-start; min-width:0; gap:5px; padding:3px; overflow-x:auto; scrollbar-width:thin; }
 .tools > * { flex:none; white-space:nowrap; }
 .app label { color:var(--ui-muted); font-size:10px; letter-spacing:0; }
+.tools .review-picker { display:flex; flex-direction:column; gap:3px; line-height:12px; }
+.tools .review-picker:has(select[hidden]) { display:none; }
 .app select { background-color:#302f2e; border-color:var(--ui-line); color:var(--ui-ink); font:12px "Helvetica Neue",Arial,system-ui,sans-serif; height:32px; padding:0 30px 0 10px; max-width:100%; min-width:0; border-radius:4px; }
 .app button:not(.prototype-control):not(.note-pin),dialog button { background:linear-gradient(#424140,#333230); border:1px solid #51504e; border-radius:4px; color:var(--ui-ink); padding:7px 10px; min-height:32px; font:11px "Helvetica Neue",Arial,system-ui,sans-serif; }
 .app button:not(.prototype-control):not(.note-pin):hover:not(:disabled),dialog button:hover:not(:disabled) { border-color:var(--ui-accent); background:#484745; }
