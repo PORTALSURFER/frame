@@ -58,7 +58,7 @@
   let activePointerId = null;
   let erasing = null;
   let pointLimitReached = false;
-  let zoom = 1, panX = 0, panY = 0, panDrag = null;
+  let zoom = 1, panX = 0, panY = 0, panDrag = null, spacePan = false;
   let paintGeneration = 0;
   let pendingZoomPaint = null;
   let mode = "pen";
@@ -317,6 +317,7 @@
     if (notes.length >= MAX_NOTES) notices.push("1,000-note limit reached. Delete a note to add another.");
     limitNotice.textContent = notices.join(" ");
     renderFeedbackList();
+    window.dispatchEvent(new Event("frame:feedback-save-status"));
   }
   function save() {
     edited();
@@ -645,7 +646,7 @@
     stage.dataset.feedbackMode = mode;
     for (const button of toolButtons) button.setAttribute("aria-pressed", button.dataset.feedbackTool === mode ? "true" : "false");
     instructions.textContent = mode === "pen"
-      ? "Draw red lines anywhere. Hold Shift for a straight line. Marks save per design in this browser."
+      ? "Draw red lines anywhere. Hold Shift for a straight line. Hold Space to pan; scroll to zoom."
       : mode === "note" ? "Click to place a note. Or Tab to the canvas, use arrows to position, and Enter to place. Click a note to edit or drag to move."
       : "Click a line or note to select it, or use Tab. Double-click a note to edit. Escape deselects.";
     if (mode === "interact") instructions.textContent = "Use prototype controls and Tab to test interaction. Feedback tools resume annotation.";
@@ -870,9 +871,9 @@
   }
   // Capture on the stage so middle-drag works over notes and prototype controls too.
   stage.addEventListener("pointerdown", event => {
-    if (!designReady || event.button !== 1 || event.pointerType !== "mouse" || activePointerId !== null || noteDrag || panDrag) return;
+    if (!designReady || !(event.button === 1 || (spacePan && event.button === 0)) || event.pointerType !== "mouse" || activePointerId !== null || noteDrag || panDrag) return;
     event.preventDefault(); event.stopPropagation();
-    panDrag = {pointerId:event.pointerId, target:stage, start:[event.clientX,event.clientY], original:[panX,panY]};
+    panDrag = {button:event.button, pointerId:event.pointerId, target:stage, start:[event.clientX,event.clientY], original:[panX,panY]};
     stage.classList.add("is-panning");
     stage.setPointerCapture(event.pointerId);
   }, true);
@@ -880,7 +881,7 @@
     if (panDrag?.target !== stage || panDrag.pointerId !== event.pointerId) return;
     event.preventDefault(); event.stopPropagation();
     movePan(event);
-    if (!(event.buttons & 4)) finishPan();
+    if (!(event.buttons & (panDrag.button === 1 ? 4 : 1))) finishPan();
   }, true);
   stage.addEventListener("pointerup", event => {
     if (panDrag?.target !== stage || panDrag.pointerId !== event.pointerId) return;
@@ -889,6 +890,17 @@
   for (const type of ["pointercancel", "lostpointercapture"]) stage.addEventListener(type, event => {
     if (panDrag?.target === stage && panDrag.pointerId === event.pointerId) finishPan(type === "pointercancel");
   }, true);
+  const textEditing = target => target?.isContentEditable || target?.closest?.("input,textarea,select,[data-text-editor],.prototype-control");
+  document.addEventListener("keydown", event => {
+    if (event.key !== " " || event.defaultPrevented || event.isComposing || event.metaKey || event.ctrlKey || event.altKey || textEditing(event.target)) return;
+    // Keep keyboard activation of controls and note placement intact.
+    if (event.target.closest?.("button,summary,a") || (mode === "note" && event.target === brush)) return;
+    if (!designReady || activePointerId !== null || noteDrag) return;
+    event.preventDefault(); spacePan = true; stage.classList.add("space-pan");
+  });
+  const releaseSpace = () => {spacePan = false;stage.classList.remove("space-pan");finishPan();};
+  document.addEventListener("keyup", event => {if (event.key === " ") releaseSpace();});
+  window.addEventListener("blur", releaseSpace);
   stage.addEventListener("auxclick", event => { if (event.button === 1) event.preventDefault(); });
   stage.addEventListener("wheel", event => {
     if (!designReady || !event.deltaY || event.target.closest("input,textarea,select,[contenteditable]")) return;
@@ -1058,6 +1070,10 @@
   }
   Frame.feedback = {
     list: (status="all") => { if (!["all","open","resolved"].includes(status)) throw new Error("Unknown feedback filter"); return JSON.parse(JSON.stringify([...currentDocument().lines,...notes].filter(mark=>status==="all"||mark.status===status))); },
+    saveStatus: () => {
+      const disk = diskFeedback.get(design?.id);
+      return {pending: !!(disk?.loading || disk?.running || disk?.next), error: feedback.notice || null};
+    },
     setStatus: setFeedbackStatus
   };
   resolveSelected.addEventListener("click", () => {

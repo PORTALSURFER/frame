@@ -547,7 +547,7 @@ test('view and context pickers scope options by screen and viewport, and restore
    {id:'activity',label:'Activity',contexts:[{id:'error',label:'Unavailable',overrides:states.error}]}
   ],viewportLayouts:{maxWidth:500,narrow:['default'],wide:['default','loading','error']}});
  });
- const view=page.getByRole('combobox',{name:'View',exact:true}),context=page.locator('#context-picker');
+ const view=page.getByRole('combobox',{name:'Screen',exact:true}),context=page.locator('#context-picker');
  const viewport=page.getByRole('combobox',{name:'Viewport',exact:true});
  const desktop=await viewport.inputValue();
  assert.equal(await view.inputValue(),'issues');
