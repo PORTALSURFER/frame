@@ -49,6 +49,8 @@ test('disk workspaces follow saved revisions without leaving the review or overw
   const saved = await editor.evaluate(async () => {
     const doc = Frame.agent.getDocument('disk-review');
     doc.revisionId = 'r2';
+    doc.width = 900;
+    doc.height = 200;
     doc.elements[0].text = 'Saved in the other tab';
     Frame.agent.updateDocument(doc);
     return Frame.project.automaticCheckpoints.flush();
@@ -57,6 +59,7 @@ test('disk workspaces follow saved revisions without leaving the review or overw
   await review.waitForFunction(() => document.getElementById('revision-picker').value==='r2',undefined,{timeout:6000});
   assert.equal(await selected(review),'r2');
   assert.equal(await review.locator('#viewport-picker').inputValue(),'393×852');
+  assert.equal(await review.locator('#viewport-picker option').first().textContent(),'Design size · 900 × 200');
   assert.deepEqual(await review.evaluate(() => Frame.view.get()),view);
   assert.equal(await review.locator('#project-save-notice').textContent(),'');
 

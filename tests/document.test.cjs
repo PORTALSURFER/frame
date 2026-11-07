@@ -17,6 +17,17 @@ const doc = {version:1,id:'demo',name:'Demo',revisionId:'r1',width:800,height:60
  model.components.text('label',{x:10,y:10,width:100,height:30},{parentId:'panel',text:'Ready'}),
  model.components.button('run',{x:10,y:60,width:100,height:40},{parentId:'panel',text:'Run',action:{type:'set-state',state:'loading'}})
 ]};
+test('design viewport presets validate names and dimensions without changing the document',()=>{
+ const sized={...doc,viewportPresets:[{name:' Device ',width:930,height:200}]};
+ assert.equal(model.validate(sized),sized);
+ assert.equal(sized.viewportPresets[0].name,' Device ');
+ for(const presets of [null,[],[{name:'',width:930,height:200}],[{name:'Device',width:930.5,height:200}],
+  [{name:'Device',width:8193,height:200}],
+  [{name:'Device',width:930,height:200},{name:'device',width:1100,height:200}],
+  [{name:'Device',width:930,height:200},{name:'Duplicate',width:930,height:200}]]) {
+  assert.throws(()=>model.validate({...doc,viewportPresets:presets}));
+ }
+});
 test('hierarchical responsive layout resolves logical bounds and named state overrides',()=>{
  model.validate(doc);
  const nodes=model.layout(doc,{width:320,height:600},'loading');

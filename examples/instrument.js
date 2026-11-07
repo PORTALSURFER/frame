@@ -3,6 +3,7 @@
   const C=Frame.components;
   Frame.registerDocument({
     version:1,id:"instrument",name:"Instrument workstation",revisionId:"instrument-r1",width:1000,height:700,
+    viewportPresets:[{name:"Desktop",width:1000,height:700},{name:"Tablet",width:768,height:1024},{name:"Phone",width:360,height:740}],
     tokens:{colors:{accent:"#E86938"},typography:{family:"monospace",size:14}},
     states:{
       default:{},

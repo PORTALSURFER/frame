@@ -20,6 +20,8 @@
     const doc=copy(FrameDocument.validate(input)), current=requireDocument(doc.id);
     if(doc.revisionId===current.revisionId&&JSON.stringify(doc)!==JSON.stringify(current)) throw new Error("Changed documents need a new revisionId");
     Frame.validateRevision?.(doc);
+    const viewport = viewports.get(doc.id);
+    if (viewport?.width === current.width && viewport.height === current.height) viewports.delete(doc.id);
     documents.set(doc.id,doc);
     Object.assign(Frame.designs.get(doc.id),{name:doc.name,width:viewports.get(doc.id)?.width||doc.width,height:viewports.get(doc.id)?.height||doc.height,revisionId:doc.revisionId});
     if(!FrameDocument.hasState(doc,states.get(doc.id)||"default")) states.set(doc.id,"default");

@@ -7,6 +7,18 @@
   const validId = value => typeof value === "string" && /^[a-z0-9][a-z0-9_-]*$/i.test(value);
   const colors = {background: "#0D0F10", surface: "#121314", text: "#D5D8D6", muted: "#868C8A", accent: "#E86938", border: "#3E4443"};
   const tokens = {colors, spacing: {small: 8, medium: 16, large: 24}, typography: {family: "monospace", size: 14}};
+  function validateViewportPresets(presets) {
+    const validDimensions = preset => [preset.width, preset.height].every(n => Number.isInteger(n) && n >= 1 && n <= 8192);
+    if (!Array.isArray(presets) || !presets.length || presets.length > 16 ||
+        presets.some(p => !p || typeof p.name !== "string" || !p.name.trim() || p.name.length > 60 || !validDimensions(p))) {
+      fail("Enter 1–16 named sizes with whole-number dimensions from 1 to 8192.");
+    }
+    if (new Set(presets.map(p => p.name.trim().toLowerCase())).size !== presets.length ||
+        new Set(presets.map(p => p.width + "×" + p.height)).size !== presets.length) {
+      fail("Each size needs a unique name and resolution.");
+    }
+    return presets.map(({name, width, height}) => ({name: name.trim(), width, height}));
+  }
   function viewportLayout(doc, width) {
     return doc.viewportLayouts && (width<=doc.viewportLayouts.maxWidth?"narrow":"wide");
   }
@@ -40,6 +52,7 @@
     if (!doc || doc.version !== 1 || !validId(doc.id) || typeof doc.name !== "string" || !doc.name.trim() ||
         ![doc.width, doc.height].every(value => Number.isInteger(value) && value > 0) ||
         !validId(doc.revisionId) || !Array.isArray(doc.elements)) fail("Expected a version 1 design with id, name, positive integer size, revisionId, and elements");
+    if (doc.viewportPresets !== undefined) validateViewportPresets(doc.viewportPresets);
     if (doc.views !== undefined) {
       if (doc.states !== undefined || !Array.isArray(doc.views) || !doc.views.length) fail("Design views replace the flat states map");
       const viewIds = new Set(), contextIds = new Set();
@@ -304,6 +317,6 @@
     return layout(doc, viewport, state).map(node => ({...node, children: children.get(node.id) || []}));
   }
   const api = {prepareAssets, validate, layout, hitTest, edit, render, inspect, components, tokens, clone,
-    viewportLayout, viewportStates, viewportViews, stateEntries, hasState, resolveState};
+    viewportLayout, viewportStates, viewportViews, stateEntries, hasState, resolveState, validateViewportPresets};
   if (typeof module !== "undefined") module.exports = api; else root.FrameDocument = api;
 })(typeof window === "undefined" ? globalThis : window);
