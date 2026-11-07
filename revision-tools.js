@@ -114,7 +114,7 @@
     return {designId:id,beforeRevisionId:beforeId,afterRevisionId:afterId,
       added:[...next.keys()].filter(id=>!old.has(id)),removed:[...old.keys()].filter(id=>!next.has(id)),
       changed:[...next.keys()].filter(id=>old.has(id)).map(id=>({id,fields:[...new Set([...Object.keys(old.get(id)),...Object.keys(next.get(id))])].filter(k=>JSON.stringify(old.get(id)[k])!==JSON.stringify(next.get(id)[k]))})).filter(item=>item.fields.length),
-      settings:["width","height","background","tokens","states"].filter(k=>JSON.stringify(before[k])!==JSON.stringify(after[k]))};
+      settings:[...new Set([...Object.keys(before),...Object.keys(after)])].filter(k=>!["id","revisionId","elements"].includes(k)&&JSON.stringify(before[k])!==JSON.stringify(after[k]))};
   }
   function exportProject(id=currentId(), {shareRevisions = false} = {}) {
     if(!Frame.documents.has(id))throw new Error("Portable export requires a structured design; custom Canvas code stays in its source files");
@@ -191,6 +191,14 @@
     const existing=archives.get(doc.id)?.revisions.find(r=>r.revisionId===doc.revisionId);
     if(existing&&JSON.stringify(existing.document)!==JSON.stringify(doc))throw new Error("A revision ID cannot identify two different documents");
   };
+  function revisionTitle(id, entry) {
+    const named=entry.document.metadata?.revisionTitle;
+    if(typeof named==='string' && named.trim())return named.trim().slice(0,120);
+    if(!entry.parentRevisionId || !archives.get(id)?.revisions.some(r=>r.revisionId===entry.parentRevisionId))return 'Initial design';
+    const diff=compare(id,entry.parentRevisionId,entry.revisionId);
+    const ids=[...diff.added,...diff.changed.map(n=>n.id),...diff.removed];
+    return ids.length ? `${ids.length} ${ids.length===1?'element':'elements'} updated` : diff.settings.includes('views')||diff.settings.includes('states') ? 'Updated screens and states' : 'Updated design settings';
+  }
   Frame.revisions={
     acknowledgeCheckpoint: archive => {
       const current=archives.get(archive.designId);
@@ -202,7 +210,7 @@
       } else if (JSON.stringify(current) !== JSON.stringify(archive)) return false;
       unsaved.delete(archive.designId); notify(); return true;
     },
-    list:id=>copy((archives.get(id)?.revisions||[]).map(({revisionId,capturedAt,parentRevisionId,document})=>({revisionId,capturedAt,parentRevisionId,elementCount:document.elements.length}))),
+    list:id=>copy((archives.get(id)?.revisions||[]).map(entry=>({revisionId:entry.revisionId,capturedAt:entry.capturedAt,parentRevisionId:entry.parentRevisionId,title:revisionTitle(id,entry),elementCount:entry.document.elements.length}))),
     get:(id,revisionId)=>copy(revision(id,revisionId).document),
     restore:(id,revisionId)=>Frame.agent.updateDocument(copy(revision(id,revisionId).document)),
     compare,
@@ -272,7 +280,7 @@
     const id=currentId(),enabled=Frame.documents.has(id);
     picker.disabled=!enabled;
     for(const name of ["restore-revision","download-project"])document.getElementById(name).disabled=!enabled;
-    picker.replaceChildren(...(archives.get(id)?.revisions||[]).map(r=>{const o=document.createElement("option");o.value=r.revisionId;o.textContent=r.revisionId;return o;}));
+    picker.replaceChildren(...(archives.get(id)?.revisions||[]).map(r=>{const o=document.createElement("option");o.value=r.revisionId;o.textContent=revisionTitle(id,r);o.title=r.revisionId;return o;}));
     picker.value=Frame.designs.get(id)?.revisionId||"";
     notify();
   }
@@ -280,8 +288,12 @@
     const url=URL.createObjectURL(new Blob([data],{type})),link=document.createElement("a");link.href=url;link.download=filename;link.click();setTimeout(()=>URL.revokeObjectURL(url),1000);
   }
   if(picker) {
-    picker.addEventListener("change",()=>Frame.revisions.restore(currentId(),picker.value));
-    document.getElementById("restore-revision").addEventListener("click",()=>Frame.revisions.restore(currentId(),picker.value));
+    picker.addEventListener("change",()=>{
+      const selected=picker.value,id=currentId();
+      picker.value=Frame.agent.getDocument(id).revisionId;
+      Frame.revisionReview.open(id,{afterRevisionId:selected});
+    });
+    document.getElementById("restore-revision").addEventListener("click",()=>Frame.revisionReview.open(currentId()));
     document.getElementById("download-project").addEventListener("click",()=>download(JSON.stringify(exportProject(),null,2),currentId()+".frame.json","application/json"));
     document.getElementById("retry-project-save").addEventListener("click",Frame.revisions.retry);
 

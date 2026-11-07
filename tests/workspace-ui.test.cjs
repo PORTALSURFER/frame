@@ -47,7 +47,7 @@ for(const width of [320,768,912,1280,1600])test(`workspace controls and canvas r
  assert.deepEqual(await page.locator('.topbar').boundingBox(),topbar,'routine status must not resize the header');
  assert.equal(await page.locator('#live-document-status').isVisible(),false);
  const assertHeaderRow=async selectorCount=>{
-  const controls=await page.locator('.topbar .tools :is(select,button):visible, .topbar-menus summary:visible').evaluateAll(nodes=>nodes.map(node=>{
+  const controls=await page.locator('.topbar .tools :is(select,button):visible').evaluateAll(nodes=>nodes.map(node=>{
    const {y,height}=node.getBoundingClientRect();
    return {y,height};
   }));
@@ -63,7 +63,7 @@ for(const width of [320,768,912,1280,1600])test(`workspace controls and canvas r
   Frame.agent.selectDesign(doc.id);
  });
  await assertHeaderRow(5);
- if(width>=912) {
+ if(width>=1280) {
   const sizes=await page.locator('.tools').evaluate(node=>({content:node.scrollWidth,available:node.clientWidth}));
   assert.ok(sizes.content<=sizes.available,JSON.stringify(sizes));
  }

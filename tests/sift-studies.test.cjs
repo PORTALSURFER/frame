@@ -26,6 +26,7 @@ test('Sift guide studies retain old revisions and expose a refined guide-driven 
  const output=path.join(root,'artifacts/sift-style-studies');await fs.mkdir(output,{recursive:true});
  for(const [revision,guide] of [['sift-technical-futurist-r1','technical-futurist'],['sift-hardware-r2','sift-hardware'],['sift-technical-futurist-r3','technical-futurist'],['sift-hardware-r4','sift-hardware'],['sift-hardware-r5','sift-hardware'],['sift-technical-futurist-r6','technical-futurist'],['sift-technical-futurist-r7','technical-futurist'],['sift-technical-futurist-r8','technical-futurist']]) {
   await page.locator('#revision-picker').selectOption(revision);
+  await page.locator('#restore-history-revision').click();
   assert.equal(await page.evaluate(()=>Frame.agent.getDocument('sift-style-studies').revisionId),revision);
   assert.equal(await page.locator('#styleguide-picker').inputValue(),guide);
   const doc=await page.evaluate(()=>Frame.agent.getDocument('sift-style-studies'));

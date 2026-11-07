@@ -260,3 +260,39 @@ scraped or inferred; the source file and origin remain unchanged.
 Marked element IDs and reviewed revisions persist through edits. Surviving bound marks move with their targets; missing/hidden targets and position-only feedback are marked needsReview with a reason. Restoring a snapshot can bring surviving anchors back into position. Review original geometry using the archived document and each mark's reviewedViewport.
 
 Revision snapshots and projects describe structured designs; custom paint functions are code, not serializable project data. Visual comparison baselines remain in-session, while revision and feedback data are portable.
+
+Revision titles can be supplied as `document.metadata.revisionTitle` on a new immutable document revision. Existing snapshots receive readable labels from their element changes. `Frame.revisionReview.open(designId, {beforeRevisionId?, afterRevisionId?, viewport?, state?})` opens a detached comparison without restoring snapshots or changing the live review. Titles are labels; exact revision IDs remain the identity.
+
+Use `Frame.feedback.propose(markId, {revisionId, summary})` after making a targeted
+revision. This records a pending proposal and retains the original review context.
+The reviewer can accept or reopen it. `Frame.feedback.accept(markId)` and
+`Frame.feedback.reopen(markId)` record those decisions with undo and persistence;
+they do not authenticate the caller as a human. Legacy resolution is never treated
+as acceptance. A new proposal clears an earlier decision and needs review again.
+
+## Implementation handoff
+
+Choose **Inspect** and click an element, or open **Designs → Inspect & handoff**
+for keyboard selection. Inspection exposes resolved bounds/styles, stable IDs,
+component definition and instance identity, and prototype behavior. It never edits
+the document or annotations.
+
+For the selected design, `Frame.handoff.report(id)` returns a versioned
+`frame-implementation-handoff` with exact revision, viewport, state, input values,
+resolved elements, layout declarations, screens/states, shared tokens, component
+library, embedded assets, feedback and acceptance checks. `inspect(id, elementId)`
+returns one element. `export(id, {format: 'json' | 'markdown'})` returns portable
+JSON with assets or a concise Markdown brief. Exports are deterministic for the
+same document and review context; they do not save, resolve feedback or certify
+application behavior.
+
+An element is `illustrated` unless it has a Frame input or declared state
+transition (`frame-interactive`). Optional `document.metadata.runtimeEvidence`
+records reported external checks. Each record requires `elementId`, `revisionId`,
+`state`, `viewport: {width,height}`, `result: 'passed' | 'failed'`, canonical ISO
+`checkedAt`, and nonempty `platform`, `applicationVersion`, `source` and `reference`.
+Only the latest check matching this exact revision, element, state and viewport
+can yield `runtime-verified`, and only when it passed. A later matching failure
+supersedes a pass. Other checks remain listed with their original context.
+Frame validates record shape; it does not authenticate the report or execute the
+external check. Omit evidence until the target application was actually checked.
