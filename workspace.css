@@ -206,3 +206,11 @@ footer>div:first-child { grid-row:2; }
 #feedback-instructions { position:absolute; width:1px; height:1px; overflow:hidden; clip-path:inset(50%); }
 .workspace-status>.design-size,.workspace-status>span:empty { display:none; }
 .workspace-status:not(:has(span:not(:empty):not(.design-size))) { display:none; }
+
+.design-guide-setting { display:flex; flex-direction:column; gap:4px; padding:6px 0; }
+#concept-version { min-width:100px; max-width:190px; }
+#new-concept,#choose-concept { min-width:32px; padding-inline:6px; }
+#choose-concept[aria-pressed="true"] { color:var(--ui-accent); border-color:var(--ui-accent); }
+#concept-dialog label { display:flex; flex-direction:column; gap:8px; }
+#concept-dialog input { padding:8px; min-width:240px; }
+#concept-error:empty { display:none; }

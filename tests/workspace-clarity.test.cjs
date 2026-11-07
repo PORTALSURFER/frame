@@ -43,7 +43,7 @@ for(const width of [320,912,1600])test(`workspace identity and review controls f
   assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);
   const stage=await page.locator('#stage').boundingBox(),header=await page.locator('.topbar').boundingBox();
   assert.ok(stage.y>=header.y+header.height);
-  assert.equal(await page.getByRole('combobox',{name:'Design guide',exact:true}).count(),1);
+  assert.equal(await page.getByRole('combobox',{name:'Design guide',exact:true}).count(),0);
   assert.equal(await page.locator('#mode-annotate').count(),0);
   assert.equal(await page.locator('#tool-interact').isVisible(),false);
   assert.equal(await page.locator('#revision-picker').isVisible(),false);
