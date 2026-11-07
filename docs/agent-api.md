@@ -260,3 +260,12 @@ scraped or inferred; the source file and origin remain unchanged.
 Marked element IDs and reviewed revisions persist through edits. Surviving bound marks move with their targets; missing/hidden targets and position-only feedback are marked needsReview with a reason. Restoring a snapshot can bring surviving anchors back into position. Review original geometry using the archived document and each mark's reviewedViewport.
 
 Revision snapshots and projects describe structured designs; custom paint functions are code, not serializable project data. Visual comparison baselines remain in-session, while revision and feedback data are portable.
+
+Revision titles can be supplied as `document.metadata.revisionTitle` on a new immutable document revision. Existing snapshots receive readable labels from their element changes. `Frame.revisionReview.open(designId, {beforeRevisionId?, afterRevisionId?, viewport?, state?})` opens a detached comparison without restoring snapshots or changing the live review. Titles are labels; exact revision IDs remain the identity.
+
+Use `Frame.feedback.propose(markId, {revisionId, summary})` after making a targeted
+revision. This records a pending proposal and retains the original review context.
+The reviewer can accept or reopen it. `Frame.feedback.accept(markId)` and
+`Frame.feedback.reopen(markId)` record those decisions with undo and persistence;
+they do not authenticate the caller as a human. Legacy resolution is never treated
+as acceptance. A new proposal clears an earlier decision and needs review again.
