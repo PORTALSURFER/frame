@@ -204,3 +204,7 @@ footer>div:first-child { grid-row:2; }
 .handoff-actions { display:flex; gap:8px; flex-wrap:wrap; }
 @media(max-width:600px) { .handoff-layout { grid-template-columns:minmax(0,1fr); } }
 .stage[data-inspection-mode="true"] .board { z-index:5; }
+.mode-tools { display:flex; align-items:center; gap:4px; }
+#feedback-instructions { position:absolute; width:1px; height:1px; overflow:hidden; clip-path:inset(50%); }
+.workspace-status>.design-size,.workspace-status>span:empty { display:none; }
+.workspace-status:not(:has(span:not(:empty):not(.design-size))) { display:none; }
