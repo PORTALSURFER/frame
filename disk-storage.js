@@ -3,7 +3,8 @@
   const base = '/__frame/';
   const url = (kind, id) => base + kind + (id === undefined ? '' : '/' + encodeURIComponent(id));
   async function request(path, options = {}, {missing = false} = {}) {
-    const response = await fetch(path, {cache: 'no-store', ...options});
+    const response = await fetch(path, {cache: 'no-store', ...options,
+      headers: {...options.headers, ...(window.FrameDiskWorkspace ? {'X-Frame-Workspace':window.FrameDiskWorkspace.id} : {})}});
     if (missing && response.status === 404) return null;
     if (!response.ok) {
       let data;
@@ -58,6 +59,7 @@
     return result;
   }
   Frame.disk = {
+    workspace: async () => (await request(base + 'workspace')).json(),
     read, save, digest,
     list: async () => (await request(url('projects'))).json(),
     async canRetryProject(saved, open) {
