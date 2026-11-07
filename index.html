@@ -31,6 +31,8 @@
   <script src="automatic-checkpoint-ui.js" defer></script>
   <script src="startup-restore.js" defer></script>
   <script src="workspace-sync.js" defer></script>
+  <script src="workspace-ui.js" defer></script>
+  <script src="revision-review.js" defer></script>
   <script src="project-transfer.js" defer></script>
   <script src="project-transfer-ui.js" defer></script>
   <script src="source-store.js" defer></script>
@@ -41,15 +43,16 @@
   <select id="design-picker" hidden></select>
   <main class="app">
     <header class="topbar">
-      <a class="brand" href="./" aria-label="Frame home"><strong>FRAME</strong></a>
+      <div class="workspace-identity"><a class="brand" href="./" aria-label="Frame home"><strong>FRAME</strong></a><strong id="workspace-title">No design open</strong><output id="workspace-save-state" role="status"></output></div>
       <div class="tools" role="group" aria-label="Review controls">
-        <select id="viewport-picker" aria-label="Viewport" title="Viewport" disabled></select>
-        <select id="view-picker" aria-label="View" title="View" hidden></select>
-        <select id="context-picker" aria-label="Context" title="Context" hidden></select>
-        <select id="state-picker" aria-label="Interface state" title="Interface state"></select>
-        <select id="revision-picker" aria-label="Revision" title="Revision"></select>
-        <select id="styleguide-picker" aria-label="Styleguide" title="Styleguide"></select>
-        <button id="view-styleguide" type="button" aria-label="View guide" disabled>Guide</button>
+        <label class="review-picker">Viewport<select id="viewport-picker" aria-label="Viewport" title="Viewport" disabled></select></label>
+        <label class="review-picker">Screen<select id="view-picker" aria-label="Screen" title="View" hidden></select></label>
+        <label class="review-picker">State<select id="context-picker" aria-label="State" title="Context" hidden></select></label>
+        <label class="review-picker">State<select id="state-picker" aria-label="State" title="Interface state"></select></label>
+        <label class="review-picker">Revision<select id="revision-picker" aria-label="Revision" title="Revision"></select></label>
+        <label class="review-picker">Design guide<select id="styleguide-picker" aria-label="Design guide" title="Styleguide"></select></label>
+        <button id="revision-history" type="button" disabled>History</button>
+        <button id="view-styleguide" type="button" title="Read design guidance; choosing a guide does not restyle the design" aria-label="View guide" disabled>Guide</button>
       </div>
       <div class="topbar-menus">
         <details class="project-menu"><summary>Designs <span class="project-warning">Attention</span><span aria-hidden="true">⌄</span></summary><div class="project-actions">
@@ -64,7 +67,7 @@
           <button id="recover-checkpoint" type="button">Recover checkpoint</button>
           <button id="import-project" type="button">Import design</button>
           <button id="source-settings" type="button">Source connection</button>
-          <button id="restore-revision" type="button">Restore revision</button>
+          <button id="restore-revision" type="button">Revision history</button>
           <button id="retry-project-save" type="button" hidden>Retry project save</button>
           <div class="project-statuses" role="group" aria-label="Design status">
             <output id="live-document-status" role="status"></output>
@@ -125,13 +128,15 @@
         </details>
       </div>
       <nav class="tool-rail" aria-label="Canvas tools">
+        <div class="mode-tools" role="group" aria-label="Review mode"><button id="mode-annotate" type="button" aria-pressed="true">Annotate</button>
+          <button id="tool-interact" type="button" data-feedback-tool="interact" aria-pressed="false" aria-label="Interact" aria-keyshortcuts="I" title="Interact (I)"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 3v11l3-3 3 7 3-1-3-7h4zM18 4l2-2m-1 5h3"/></svg></button></div>
+        <output id="active-tool" aria-live="polite">Pen</output>
         <div class="feedback-tools" role="group" aria-label="Feedback tools">
           <button id="tool-pen" type="button" data-feedback-tool="pen" aria-pressed="true" aria-label="Pen" aria-keyshortcuts="P" title="Pen (P)"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m3 21 4-1 13-13-3-3L4 17zM14 7l3 3"/></svg></button>
           <button id="tool-erase" type="button" data-feedback-tool="erase" aria-pressed="false" aria-label="Eraser" aria-keyshortcuts="E" title="Eraser (E)"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m4 13 9-9a2 2 0 0 1 3 0l4 4a2 2 0 0 1 0 3l-8 8H9l-5-5zm4-4 8 8m-4 2h8"/></svg></button>
           <button id="tool-note" type="button" data-feedback-tool="note" aria-pressed="false" aria-label="Note" aria-keyshortcuts="N" title="Note (N)"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 3h14v12l-6 6H5zM13 21v-6h6M8 8h8M8 12h5"/></svg></button>
           <button id="tool-pan" type="button" data-feedback-tool="pan" aria-pressed="false" aria-label="Pan" aria-keyshortcuts="H" title="Pan (H)"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v18M3 12h18M9 6l3-3 3 3m-6 12 3 3 3-3M6 9l-3 3 3 3m12-6 3 3-3 3"/></svg></button>
-          <button id="tool-interact" type="button" data-feedback-tool="interact" aria-pressed="false" aria-label="Interact" aria-keyshortcuts="I" title="Interact (I)"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 3v11l3-3 3 7 3-1-3-7h4zM18 4l2-2m-1 5h3"/></svg></button>
-          <button id="tool-select" type="button" data-feedback-tool="select" aria-pressed="false" aria-label="Select" aria-keyshortcuts="V" title="Select (V)"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9V4h5m6 0h5v5m0 6v5h-5m-6 0H4v-5"/></svg></button>
+          <button id="tool-select" type="button" data-feedback-tool="select" aria-pressed="false" aria-label="Select feedback" aria-keyshortcuts="V" title="Select feedback (V)"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9V4h5m6 0h5v5m0 6v5h-5m-6 0H4v-5"/></svg></button>
         </div>
         <div class="history-tools" role="group" aria-label="History">
           <button id="undo" type="button" disabled aria-label="Undo" aria-keyshortcuts="Control+Z Meta+Z" title="Undo"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 5 4 10l5 5m-5-5h10a5 5 0 0 1 0 10h-3"/></svg></button>
@@ -187,7 +192,7 @@
   <dialog id="styleguide-dialog" aria-labelledby="styleguide-title" data-text-editor>
     <div class="guide-heading"><h2 id="styleguide-title"></h2><button id="close-styleguide" type="button" autofocus>Close</button></div>
     <p id="styleguide-summary"></p>
-    <p class="guide-hint">A reference for creating and reviewing designs. Designs can use the selected guide's tokens when painting.</p>
+    <p class="guide-hint">Design guidance for you and your agent. Choosing a guide does not automatically restyle this design. Apply its tokens through a design revision.</p>
     <section aria-labelledby="guide-palette-title"><h3 id="guide-palette-title">Palette · choose one accent</h3><div id="styleguide-palette" class="guide-palette"></div></section>
     <dl id="styleguide-tokens"></dl>
     <h3>Design principles</h3><ul id="styleguide-rules"></ul>
