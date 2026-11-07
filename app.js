@@ -270,7 +270,8 @@
       if (expectedCard !== card) feedbackList.insertBefore(card, expectedCard);
       previousCard = card;
       const status = item.metadata?.status || "open";
-      const values = [item.title, item.text, status === "resolved" ? "Resolved" : "Open"];
+      const decision=item.metadata?.review?.decision;
+      const values = [item.title, item.text, decision==='accepted'?'Accepted':decision==='reopened'?'Reopened':decision==='pending'?'Fix proposed':status === "resolved" ? "Resolved" : "Open"];
       [...card.children].forEach((child, index) => { if (child.textContent !== values[index]) child.textContent = values[index]; });
       card.dataset.status = status;
       card.setAttribute("aria-pressed", String(item.mark === selectedLine || item.mark === selectedNote));
@@ -293,7 +294,7 @@
     download.disabled = !design;
     const selected = selectedNote || (selectedLine && lineMetadata.get(selectedLine));
     resolveSelected.disabled = !selected;
-    resolveSelected.textContent = selected?.status === "resolved" ? "Reopen" : "Mark resolved";
+    resolveSelected.textContent = selected?.review ? selected.review.decision==='accepted'?'Reopen':'Accept fix' : selected?.status === "resolved" ? "Reopen" : "Mark resolved";
     deleteSelected.disabled = !designReady || (!selectedLine && !selectedNote);
     retrySave.hidden = !feedback.unsaved;
     retrySave.disabled = !!feedbackGestureActive(design?.id);
@@ -302,6 +303,8 @@
     clear.disabled = lines.length === 0 && notes.length === 0;
     const visibleLines=marks.filter(mark=>mark.type==="stroke").length,visibleNotes=marks.length-visibleLines;
     const openCount = marks.filter(mark=>mark.status!=="resolved").length;
+    document.getElementById('feedback-open-count').textContent=openCount+' open';
+    document.getElementById('feedback-open-count').title='Open feedback in this viewport';
     count.title = openCount + " open · " + (marks.length-openCount) + " resolved";
     count.textContent = `${visibleLines} ${visibleLines === 1 ? "line" : "lines"}`;
     if (visibleNotes) count.textContent += ` · ${visibleNotes} ${visibleNotes === 1 ? "note" : "notes"}`;
@@ -916,7 +919,7 @@
     zoom = nextZoom; fitBoard(true);
   }, {passive:false});
   document.addEventListener("pointerdown", event => {
-    if (feedbackMenu.open && !feedbackMenu.contains(event.target)) feedbackMenu.open = false;
+    if (feedbackMenu.open && !document.querySelector(".app").classList.contains("feedback-pinned") && !feedbackMenu.contains(event.target)) feedbackMenu.open = false;
   });
   feedbackMenu.addEventListener("keydown", event => {
     if (event.key !== "Escape" || !feedbackMenu.open) return;
@@ -1084,6 +1087,15 @@
       const disk = diskFeedback.get(design?.id);
       return {pending: !!(disk?.loading || disk?.running || disk?.next), error: feedback.notice || null};
     },
+    selected: () => {
+      const mark=selectedNote||(selectedLine&&{...lineMetadata.get(selectedLine),points:selectedLine});
+      return mark?JSON.parse(JSON.stringify(mark)):null;
+    },
+    select: id => {
+      const note=notes.find(mark=>mark.id===id),line=lines.find(line=>lineMetadata.get(line).id===id);
+      if(!note&&!line)throw new Error('Unknown feedback ID');
+      setMode('select');if(note)selectNote(note);else selectLine(line);
+    },
     propose: (id,{revisionId,summary}={}) => {
       Frame.revisions.get(design.id,revisionId);
       return changeFeedbackReview(id,mark=>FrameFeedback.propose(mark,revisionId,summary),'Propose feedback fix');
@@ -1094,7 +1106,9 @@
   };
   resolveSelected.addEventListener("click", () => {
     const mark=selectedNote || (selectedLine && lineMetadata.get(selectedLine));
-    if (mark) setFeedbackStatus(mark.id, mark.status==="resolved"?"open":"resolved");
+    if (mark?.review) {
+      if(mark.review.decision==='accepted')Frame.feedback.reopen(mark.id);else Frame.feedback.accept(mark.id);
+    } else if (mark) setFeedbackStatus(mark.id, mark.status==="resolved"?"open":"resolved");
   });
   statusFilter.addEventListener("change",()=>{selectLine(null);redrawMarks();updateControls();});
   deleteSelected.addEventListener("click", deleteSelection);

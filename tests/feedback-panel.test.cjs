@@ -1,0 +1,36 @@
+const {test}=require('node:test');
+const assert=require('node:assert/strict');
+const {reviewHarness}=require('./review-harness.cjs');
+const open=reviewHarness();
+for(const width of [320,1280])test(`feedback can stay pinned and review a proposed revision at ${width}px`,async t=>{
+  const page=await open(t,{width});
+  const id=await page.evaluate(()=>{
+    const marks=Frame.agent.getFeedback(),note={...FrameFeedback.metadata('note',Frame.designs.get('instrument')),text:'Give the title room',anchor:[40,40],reviewedState:'default',reviewedViewport:{width:1000,height:700},elementAnchor:{elementId:'title',offset:[16,16]}};
+    marks.notes.push(note);Frame.projectBridge.importFeedback(marks);
+    const changed=Frame.agent.applyEdits('instrument',[{op:'update',id:'title',patch:{text:'A roomier title'}}]);
+    Frame.feedback.propose(note.id,{revisionId:changed.revisionId,summary:'Revised title'});return note.id;
+  });
+  assert.equal(await page.locator('#feedback-open-count').textContent(),'1 open');
+  await page.locator('#feedback-menu summary').click();await page.locator('#pin-feedback').click();
+  assert.equal(await page.locator('#feedback-dock').isVisible(),true);
+  const card=page.locator('.feedback-card');await card.click();
+  assert.equal(await page.locator('#feedback-target rect').count(),1);
+  assert.match(await page.locator('#feedback-review-detail').textContent(),/title.*instrument-r1/);
+  assert.match(await card.textContent(),/Fix proposed/);
+  await page.getByRole('button',{name:'Review change',exact:true}).click();
+  assert.equal(await page.locator('#review-before').inputValue(),'instrument-r1');
+  assert.equal(await page.locator('#review-after').inputValue(),await page.evaluate(()=>Frame.agent.getDocument('instrument').revisionId));
+  await page.locator('#close-revision-review').click();
+  await page.locator('#resolve-selected').click();
+  assert.equal(await page.locator('#feedback-open-count').textContent(),'0 open');
+  assert.match(await card.textContent(),/Accepted/);
+  await page.locator('#resolve-selected').click();
+  assert.match(await card.textContent(),/Reopened/);
+  assert.equal(await page.locator('#feedback-open-count').textContent(),'1 open');
+  await page.reload();await page.evaluate(()=>Frame.agent.selectDesign('instrument'));
+  assert.equal(await page.locator('#feedback-dock').isVisible(),true);
+  assert.equal(await page.evaluate(id=>Frame.feedback.list().find(n=>n.id===id).review.decision,id),'reopened');
+  await page.locator('#pin-feedback').click();
+  assert.equal(await page.locator('#feedback-dock').isVisible(),false);
+  assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);
+});
