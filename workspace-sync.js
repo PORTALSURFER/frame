@@ -9,6 +9,24 @@
 
   async function poll() {
     if (busy || document.hidden) return;
+    if (window.FrameDiskWorkspace) {
+      busy = true;
+      try {
+        const workspace = await Frame.disk.workspace();
+        if (workspace.id !== window.FrameDiskWorkspace.id) {
+          const leaving = new Event('beforeunload', {cancelable:true});
+          window.dispatchEvent(leaving);
+          if (leaving.defaultPrevented || Frame.project.hasUnsavedRevision(current()) ||
+              !Frame.projectBridge.canCheckpoint() || document.querySelector('dialog[open]')) {
+            Frame.setProjectStatus(output, 'Workspace changed. Finish or save current edits to switch.', true);
+          } else window.location.reload();
+          return;
+        }
+      } catch (error) {
+        Frame.setProjectStatus(output, 'Workspace updates are paused: ' + error.message, true);
+        return;
+      } finally { busy = false; }
+    }
     const id = current();
     if (!Frame.documents.has(id)) return;
     const epoch = Frame.projectBridge.restorationEpoch();
