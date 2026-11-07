@@ -31,7 +31,7 @@ test('Frame redesign is a structured guide-led prototype with usable state contr
  const board=await page.locator('#board').boundingBox();await page.mouse.move(board.x+200,board.y+180);await page.mouse.down();await page.mouse.move(board.x+260,board.y+210);await page.mouse.up();
  const stable=lines=>lines.map(({needsReview,anchorRevisionId,...mark})=>mark);
  const marks=stable(await page.evaluate(()=>Frame.agent.getFeedback().lines));
- await page.locator('[data-feedback-tool="interact"]').click();
+ await page.locator('.project-menu summary').click();await page.locator('[data-feedback-tool="interact"]').click();
  await page.getByRole('button',{name:'Feedback mark 1',exact:true}).click();
  assert.equal(await page.evaluate(()=>Frame.currentState('frame-workspace')),'selected');
  assert.equal(await page.getByRole('button',{name:'Resolve',exact:true}).isEnabled(),true);

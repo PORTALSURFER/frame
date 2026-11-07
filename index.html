@@ -25,6 +25,7 @@
   <script src="feedback.js" defer></script>
   <script src="app.js?v=5" defer></script>
   <script src="review-tools.js" defer></script>
+  <script src="keyboard-navigation.js" defer></script>
   <script src="project-storage-ui.js" defer></script>
   <script src="automatic-checkpoints.js" defer></script>
   <script src="automatic-checkpoint-tools.js" defer></script>
@@ -44,16 +45,16 @@
 </head>
 <body>
   <select id="design-picker" hidden></select>
+  <select id="revision-picker" aria-label="Revision" hidden></select>
   <main class="app">
     <header class="topbar">
       <div class="workspace-identity"><a class="brand" href="./" aria-label="Frame home"><strong>FRAME</strong></a><strong id="workspace-title">No design open</strong><output id="workspace-save-state" role="status"></output></div>
       <div class="tools" role="group" aria-label="Review controls">
-        <label class="review-picker">Viewport<select id="viewport-picker" aria-label="Viewport" title="Viewport" disabled></select></label>
-        <label class="review-picker">Screen<select id="view-picker" aria-label="Screen" title="View" hidden></select></label>
-        <label class="review-picker">State<select id="context-picker" aria-label="State" title="Context" hidden></select></label>
-        <label class="review-picker">State<select id="state-picker" aria-label="State" title="Interface state"></select></label>
-        <label class="review-picker">Revision<select id="revision-picker" aria-label="Revision" title="Revision"></select></label>
-        <label class="review-picker">Design guide<select id="styleguide-picker" aria-label="Design guide" title="Styleguide"></select></label>
+        <label class="review-picker">Viewport<select id="viewport-picker" data-preview-picker aria-label="Viewport" title="Viewport" disabled></select></label>
+        <label class="review-picker">Screen<select id="view-picker" data-preview-picker aria-label="Screen" title="View" hidden></select></label>
+        <label class="review-picker">State<select id="context-picker" data-preview-picker aria-label="State" title="Context" hidden></select></label>
+        <label class="review-picker">State<select id="state-picker" data-preview-picker aria-label="State" title="Interface state"></select></label>
+        <label class="review-picker">Design guide<select id="styleguide-picker" data-preview-picker aria-label="Design guide" title="Styleguide"></select></label>
         <button id="revision-history" type="button" disabled>History</button>
         <button id="view-styleguide" type="button" title="Read design guidance; choosing a guide does not restyle the design" aria-label="View guide" disabled>Guide</button>
       </div>
@@ -72,6 +73,7 @@
           <button id="import-project" type="button">Import design</button>
           <button id="source-settings" type="button">Source connection</button>
           <button id="restore-revision" type="button">Revision history</button>
+          <button id="tool-interact" type="button" data-feedback-tool="interact" aria-pressed="false" aria-label="Legacy prototype interaction">Legacy prototype interaction</button>
           <button id="retry-project-save" type="button" hidden>Retry project save</button>
           <div class="project-statuses" role="group" aria-label="Design status">
             <output id="live-document-status" role="status"></output>
@@ -85,7 +87,7 @@
           <summary>Feedback <span id="feedback-open-count">0 open</span><span aria-hidden="true">⌄</span></summary>
           <section id="feedback-panel" class="feedback-panel" aria-label="Feedback">
             <div class="feedback-heading"><button id="pin-feedback" type="button" aria-pressed="false">Pin feedback</button>
-              <label>Show <select id="feedback-filter" aria-label="Feedback status filter"><option value="all">All marks</option><option value="open">Open</option><option value="resolved">Resolved</option></select></label>
+              <label>Show <select id="feedback-filter" data-preview-picker aria-label="Feedback status filter"><option value="all">All marks</option><option value="open">Open</option><option value="resolved">Resolved</option></select></label>
               <span id="mark-count">0 lines</span>
             </div>
             <div id="feedback-list" class="feedback-list" aria-label="Feedback marks"></div>
@@ -133,8 +135,6 @@
         </details>
       </div>
       <nav class="tool-rail" aria-label="Canvas tools">
-        <div class="mode-tools" role="group" aria-label="Review mode"><button id="mode-annotate" type="button" aria-pressed="true">Annotate</button>
-          <button id="tool-interact" type="button" data-feedback-tool="interact" aria-pressed="false" aria-label="Interact" aria-keyshortcuts="I" title="Interact (I)"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 3v11l3-3 3 7 3-1-3-7h4zM18 4l2-2m-1 5h3"/></svg></button></div>
         <output id="active-tool" aria-live="polite">Pen</output>
         <div class="feedback-tools" role="group" aria-label="Feedback tools">
           <button id="tool-pen" type="button" data-feedback-tool="pen" aria-pressed="true" aria-label="Pen" aria-keyshortcuts="P" title="Pen (P)"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m3 21 4-1 13-13-3-3L4 17zM14 7l3 3"/></svg></button>

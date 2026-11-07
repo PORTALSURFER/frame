@@ -5,7 +5,7 @@
   dialog.innerHTML=`<div class="review-heading"><h2 id="revision-review-title">Revision history</h2><button id="close-revision-review" type="button">Close</button></div>
     <p id="revision-review-context"></p><div class="revision-workspace"><aside aria-label="Revision history"><div id="revision-timeline"></div><button id="earlier-revisions" type="button">Show earlier revisions</button></aside>
     <section class="revision-comparison" aria-label="Revision comparison"><div class="comparison-controls">
-    <label>Before<select id="review-before"></select></label><label>After<select id="review-after"></select></label>
+    <label>Before<select id="review-before" data-preview-picker></select></label><label>After<select id="review-after" data-preview-picker></select></label>
     <label><input id="review-overlay" type="checkbox"> Overlay</label><button id="review-fit" type="button">Fit comparison</button></div>
     <p id="revision-diff" role="status"></p><div class="revision-images"><figure><figcaption>Before</figcaption><div class="revision-picture"><canvas id="review-before-image" role="img" aria-label="Before revision"></canvas></div></figure><figure><figcaption>After</figcaption><div class="revision-picture"><canvas id="review-after-image" role="img" aria-label="After revision"></canvas></div></figure></div>
     <div class="review-heading"><p id="revision-review-status" role="status"></p><button id="restore-history-revision" type="button">Restore this revision</button></div></section></div>`;

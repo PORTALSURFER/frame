@@ -2,6 +2,8 @@
 
 Frame is a UI design tool built specifically for AI agents. Its goal is to give AI the right tools to create, review, test, and refine interface designs quickly, with a simple visual toolkit for humans to give feedback.
 
+The [product brief](docs/product-brief.md) defines Frame's visual concepting and feedback loop. Screen and state previews show appearance without requiring application behavior. Legacy prototype interaction remains available from the Designs menu.
+
 AI handles the design work; humans guide it by pointing directly at what needs to change. Circle an element with a red pen, place a note beside a button, or mark an area that feels too crowded. Frame should give the AI enough visual and structured context to understand that feedback and turn it into a precise revision.
 
 ## The vision
@@ -12,7 +14,7 @@ The intended toolset covers four activities:
 
 - **Create:** Build screens, layouts, components, and design variations through a predictable, programmatic interface.
 - **Review:** Render designs and inspect visual details, hierarchy, spacing, typography, and consistency.
-- **Test:** Preview different screen sizes and interface states, exercise interactions, and check usability and accessibility where the design supports them.
+- **Test:** Preview different screen sizes and visual states, and check visual consistency and readability.
 - **Refine:** Read human feedback in context, make targeted changes, and compare revisions.
 
 The aim is a short loop from an idea to a visible design, from feedback to a change, and from a change to a checked result.
@@ -131,7 +133,7 @@ The Sift reference screenshot in `assets/` is source material for that example. 
 
 ## Revisions and portable handoff
 
-Structured design edits preserve snapshots with immutable revision IDs. The Revision picker opens a read-only historical preview. History offers thumbnails, before/after views, an overlay, and synchronized zoom/pan. **Restore this revision** explicitly changes the current design; browsing history leaves its document, feedback, viewport and canvas view intact. The agent API can compare snapshots by element ID. Snapshots persist in browser storage and are included in project downloads. A saved browser draft resumes when its source revision has not changed; changing the source revision starts a new source snapshot. Storage failures show a project notice, retry, and a download path instead of discarding the in-memory project.
+Structured design edits preserve snapshots with immutable revision IDs. History provides read-only revision browsing with thumbnails, before/after views, an overlay, and synchronized zoom/pan. **Restore this revision** explicitly changes the current design; browsing history leaves its document, feedback, viewport and canvas view intact. The agent API can compare snapshots by element ID. Snapshots persist in browser storage and are included in project downloads. A saved browser draft resumes when its source revision has not changed; changing the source revision starts a new source snapshot. Storage failures show a project notice, retry, and a download path instead of discarding the in-memory project.
 
 Feedback retains the revision and viewport originally reviewed. Bound marks follow surviving element IDs when layouts move; removed or hidden targets and position-only marks are flagged for review. Moving a bound note updates its offset. These rules preserve human context instead of silently assigning a different element.
 
@@ -173,3 +175,5 @@ shows stable identity, bounds, component membership and behavior scope.
 inspection, and downloads of a portable JSON handoff with assets or a Markdown
 brief. The handoff distinguishes illustrations, Frame prototype interactions and
 explicit recorded runtime evidence; it does not establish native application parity.
+
+Keyboard review: Tab between selectors, then use arrows, Home, or End to preview choices immediately. Enter, Space, or Alt+Down retains the native picker. History provides read-only revision browsing; restoration requires an explicit action. Pen, Eraser, Note, Pan, Select feedback, and Inspect stay directly available on the canvas toolbar.

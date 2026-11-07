@@ -54,7 +54,7 @@ for(const width of [320,768,912,1280,1600])test(`workspace controls and canvas r
   assert.equal(await page.locator('.topbar select:visible').count(),selectorCount,'review selectors are in the header');
   assert.ok(Math.max(...controls.map(control=>control.y))<Math.min(...controls.map(control=>control.y+control.height)),'header controls share a single row');
  };
- await assertHeaderRow(4);
+ await assertHeaderRow(3);
  assert.equal(await page.getByRole('combobox',{name:'Design',exact:true}).count(),0,'the separate design picker is hidden');
  await page.evaluate(()=>{
   const {states,...doc}=Frame.agent.getDocument('instrument');
@@ -62,7 +62,7 @@ for(const width of [320,768,912,1280,1600])test(`workspace controls and canvas r
   Frame.agent.updateDocument({...doc,revisionId:'header-views',views:[{id:'preview',label:'Preview',contexts}]});
   Frame.agent.selectDesign(doc.id);
  });
- await assertHeaderRow(5);
+ await assertHeaderRow(4);
  if(width>=1280) {
   const sizes=await page.locator('.tools').evaluate(node=>({content:node.scrollWidth,available:node.clientWidth}));
   assert.ok(sizes.content<=sizes.available,JSON.stringify(sizes));
@@ -71,7 +71,7 @@ for(const width of [320,768,912,1280,1600])test(`workspace controls and canvas r
  const stage=await page.locator('#stage').boundingBox(),rail=await page.locator('.tool-rail').boundingBox();
  assert.equal(stage.width,topbar.width,'the canvas takes the full workspace width');
  assert.ok(stage.height>=300&&rail.y>=stage.y+stage.height,'tools sit below the canvas');
- assert.equal(await page.locator('.tool-rail button svg').count(),8,'all eight canvas tools use icons');
+ assert.equal(await page.locator('.tool-rail button svg').count(),7,'all seven canvas tools use icons');
  assert.equal(await page.locator('.tool-rail #fit-view, .tool-rail #download-image').count(),2,'zoom and export belong to the bottom bar');
  assert.equal(await page.locator('#compare-revisions, #check-design').count(),0);
  await fs.mkdir(path.join(root,'artifacts/workspace-ui'),{recursive:true});
@@ -111,6 +111,7 @@ test('wheel zoom stays anchored to the cursor, respects limits, and preserves an
 test('middle-drag pans over prototype controls in every mode without edits and recovers from cancellation',async t=>{
  const context=await browser.newContext({viewport:{width:1400,height:1000}});t.after(()=>context.close());const page=await context.newPage();await page.goto(url);await page.evaluate(id=>Frame.agent.selectDesign(id),'sift-style-studies');
  for(const mode of ['pen','note','select','interact']){
+  if(mode==='interact')await page.locator('.project-menu summary').click();
   await page.locator('#tool-'+mode).click();await page.locator('#fit-view').click();
   const bounds=await page.locator('#board').boundingBox();let point={x:bounds.x+100,y:bounds.y+100};
   if(mode==='interact'){const button=await page.locator('.prototype-control').first().boundingBox();point={x:button.x+button.width/2,y:button.y+button.height/2};}

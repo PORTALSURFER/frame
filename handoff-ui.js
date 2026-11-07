@@ -8,7 +8,7 @@
   openButton.type='button';openButton.textContent='Open implementation handoff';floating.append(name,description,openButton);stage.append(floating);
   const dialog=document.createElement('dialog');dialog.id='handoff-dialog';dialog.dataset.textEditor='';dialog.setAttribute('aria-labelledby','handoff-title');
   dialog.innerHTML=`<div class="review-heading"><h2 id="handoff-title">Implementation handoff</h2><button id="close-handoff" type="button">Close</button></div>
-    <p id="handoff-context"></p><div class="handoff-layout"><label>Element<select id="handoff-element"></select></label><section><h3 id="handoff-element-title"></h3><dl id="handoff-properties"></dl></section></div>
+    <p id="handoff-context"></p><div class="handoff-layout"><label>Element<select id="handoff-element" data-preview-picker></select></label><section><h3 id="handoff-element-title"></h3><dl id="handoff-properties"></dl></section></div>
     <details><summary>Shared tokens</summary><pre id="handoff-tokens"></pre></details><p id="handoff-assets"></p>
     <p class="guide-hint">Illustrated elements describe appearance. Frame interactions exercise prototype inputs and declared state changes. Runtime verification requires recorded evidence for this exact revision, element, state and viewport.</p>
     <div class="handoff-actions"><button id="download-handoff-json" type="button">Download JSON with assets</button><button id="download-handoff-md" type="button">Download Markdown brief</button></div><p id="handoff-status" role="status"></p>`;
