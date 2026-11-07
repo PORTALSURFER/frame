@@ -63,3 +63,7 @@ Frame should support the visual language of the product being explored. Its host
 ## Relationship to shared guidance
 
 This local brief applies the global Product design philosophy from the Codex configuration folder (`$CODEX_HOME/design-philosophy.md`, normally `~/.codex/design-philosophy.md`). Product-specific decisions stay here. Additional briefs can describe distinct user-facing systems within Frame if needed, linked to this parent brief.
+
+## Parallel exploration
+
+A person can compare several alternatives for the same screen, visual state and viewport by switching a Version selector. Each alternative retains independent feedback and revision history. An explicit preference identifies the version to continue; alternatives and their feedback stay available so an agent can combine selected ideas into another concept. This review flow uses one canvas. Infrequent design-guide selection lives with design setup.

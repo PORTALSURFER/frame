@@ -89,11 +89,11 @@ test('Zebra Modular guide is complete, downloadable, and styles the host indepen
  const before=await page.evaluate(()=>({design:Frame.selectedDesignId,guide:Frame.activeStyleguide.id}));
  assert.equal(await page.evaluate(()=>Frame.styleguides.get('zebra-modular').document),source);
  assert.match(await page.locator('.topbar').evaluate(n=>getComputedStyle(n).fontFamily),/Helvetica Neue|Arial/);
- await page.locator('#styleguide-picker').selectOption('zebra-modular');await page.locator('#view-styleguide').click();
+ await openDesignMenu(page); await page.locator('#styleguide-picker').selectOption('zebra-modular');await openDesignMenu(page); await page.locator('#view-styleguide').click();
  assert.equal(await page.locator('#styleguide-title').textContent(),'Zebra Modular');assert.equal(await page.locator('#styleguide-document').textContent(),source);
  const waiting=page.waitForEvent('download');await page.locator('#download-styleguide').click();const file=await waiting;
  assert.equal(file.suggestedFilename(),'zebra-modular.md');assert.equal(await fs.readFile(await file.path(),'utf8'),source);
- await page.locator('#close-styleguide').click();await page.locator('#styleguide-picker').selectOption(before.guide);
+ await page.locator('#close-styleguide').click();await openDesignMenu(page); await page.locator('#styleguide-picker').selectOption(before.guide);
  assert.equal(await page.locator('.topbar').evaluate(n=>getComputedStyle(n).fontFamily),'"Helvetica Neue", Arial, system-ui, sans-serif');
 });
 test('wheel zoom stays anchored to the cursor, respects limits, and preserves annotations',async t=>{
@@ -149,3 +149,8 @@ for(const width of [320,1280])test(`feedback menu overlays the canvas and preser
  assert.equal(await panel.isVisible(),false);
  assert.deepEqual(await page.evaluate(()=>Frame.agent.getFeedback()),marks);
 });
+
+async function openDesignMenu(page) {
+ const menu=page.locator('.project-menu');
+ if(!await menu.evaluate(node=>node.open))await menu.locator('summary').click();
+}

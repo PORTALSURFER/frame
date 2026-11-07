@@ -41,6 +41,8 @@
   <script src="handoff-ui.js" defer></script>
   <script src="project-transfer.js" defer></script>
   <script src="project-transfer-ui.js" defer></script>
+  <script src="concept-versions.js" defer></script>
+  <script src="concept-ui.js" defer></script>
   <script src="source-store.js" defer></script>
   <script src="source-sessions.js" defer></script>
   <script src="source-session-ui.js" defer></script>
@@ -56,9 +58,10 @@
         <label class="review-picker">Screen<select id="view-picker" data-preview-picker aria-label="Screen" title="View" hidden></select></label>
         <label class="review-picker">State<select id="context-picker" data-preview-picker aria-label="State" title="Context" hidden></select></label>
         <label class="review-picker">State<select id="state-picker" data-preview-picker aria-label="State" title="Interface state"></select></label>
-        <label class="review-picker">Design guide<select id="styleguide-picker" data-preview-picker aria-label="Design guide" title="Styleguide"></select></label>
+        <label class="review-picker">Version<select id="concept-version" data-preview-picker aria-label="Version" disabled><option>Original</option></select></label>
+        <button id="new-concept" type="button" aria-label="New concept version" title="New concept version" disabled>+</button>
+        <button id="choose-concept" type="button" aria-label="Use this version" title="Use this version" aria-pressed="false" disabled>✓</button>
         <button id="revision-history" type="button" disabled>History</button>
-        <button id="view-styleguide" type="button" title="Read design guidance; choosing a guide does not restyle the design" aria-label="View guide" disabled>Guide</button>
       </div>
       <div class="topbar-menus">
         <details class="project-menu"><summary>Designs <span class="project-warning">Attention</span><span aria-hidden="true">⌄</span></summary><div class="project-actions">
@@ -67,6 +70,11 @@
           <button id="browse-designs" type="button">Browse designs</button>
           <button id="inspect-design" type="button" disabled>Inspect &amp; handoff</button>
           <button id="configure-viewports" type="button" disabled>Viewport sizes</button>
+          <label class="design-guide-setting">Design guide<select id="styleguide-picker" data-preview-picker aria-label="Design guide" title="Styleguide"></select></label>
+          <button id="view-styleguide" type="button" title="Read design guidance; choosing a guide does not restyle the design" aria-label="View guide" disabled>View guide</button>
+          <button id="rename-concept" type="button" disabled>Rename version</button>
+          <button id="download-concepts" type="button" disabled>Download all versions</button>
+          <button id="import-concepts" type="button">Import versions</button>
           <button id="download-project" type="button">Download design</button>
           <button id="save-checkpoint" type="button" disabled>Save checkpoint</button>
           <label><input id="automatic-checkpoints" type="checkbox"> Automatic checkpoints</label>
@@ -83,6 +91,7 @@
             <output id="automatic-checkpoint-status" role="status"></output>
             <output id="startup-restore-status" role="status"></output>
             <output id="workspace-sync-status" role="status"></output>
+            <output id="concept-status" role="status"></output>
           </div>
         </div></details>
         <details id="feedback-menu" class="feedback-menu">

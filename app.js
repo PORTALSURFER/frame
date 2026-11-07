@@ -1295,6 +1295,7 @@
     document.getElementById("feedback-revision-notice").textContent=[...lines.map(line=>lineMetadata.get(line)),...notes].filter(mark=>mark.needsReview).length+" marks need review after layout changes.";
   }
   Frame.projectBridge={
+    feedbackForDesign: id => sessions.has(id) ? structuredClone(feedbackDocument(id,sessions.get(id))) : null,
     canCheckpoint: () => activePointerId === null && !noteDrag && !noteDraft && !panDrag,
     restorationEpoch: () => restorationEpoch,
     restoreCheckpointFeedback: data => {

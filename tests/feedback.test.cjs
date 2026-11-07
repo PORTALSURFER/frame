@@ -1318,7 +1318,7 @@ test('Technical Futurist is the first guide and preserves the complete supplied 
   assert.equal(await page.locator('#styleguide-picker').inputValue(), 'technical-futurist');
   const source = await fs.readFile(path.join(root, 'styleguides/technical-futurist.md'), 'utf8');
   assert.equal(await page.evaluate(() => Frame.activeStyleguide.document), source);
-  await page.locator('#view-styleguide').click();
+  await openDesignMenu(page); await page.locator('#view-styleguide').click();
   assert.equal(await page.locator('#styleguide-dialog').evaluate(dialog => dialog.open), true);
   assert.equal(await page.locator('#styleguide-title').textContent(), 'Technical Futurist');
   assert.equal(await page.locator('#styleguide-palette .guide-color').count(), 9);
@@ -1356,14 +1356,14 @@ test('guide selection repaints opt-in designs and retains feedback and independe
   await beginMouse(page); await page.mouse.up();
   await addNote(page, 'Keep my feedback');
   const original = await savedFeedback(page);
-  await page.locator('#styleguide-picker').selectOption('minimal');
+  await openDesignMenu(page); await page.locator('#styleguide-picker').selectOption('minimal');
   assert.deepEqual(await savedFeedback(page), original);
   assert.equal(await page.locator('.note-pin').count(), 1);
   await page.evaluate(id=>Frame.agent.selectDesign(id),'guided');
   assert.equal(await page.evaluate(() => window.paintedGuide), 'technical-futurist');
   await page.locator('#tool-pen').click();
   await beginMouse(page);
-  await page.locator('#styleguide-picker').selectOption('minimal');
+  await openDesignMenu(page); await page.locator('#styleguide-picker').selectOption('minimal');
   await page.mouse.up();
   assert.equal(await page.evaluate(() => window.paintedGuide), 'minimal');
   assert.equal(await page.locator('#brush path').count(), 1);
@@ -1383,9 +1383,9 @@ test('Sift Hardware guide is selectable, persistent, readable and downloadable w
   await addNote(page, 'Keep this feedback');
   const original = await savedFeedback(page);
   const source = await fs.readFile(path.join(root, 'styleguides/sift-hardware.md'), 'utf8');
-  await page.locator('#styleguide-picker').selectOption('sift-hardware');
+  await openDesignMenu(page); await page.locator('#styleguide-picker').selectOption('sift-hardware');
   assert.equal(await page.evaluate(() => Frame.activeStyleguide.document), source);
-  await page.locator('#view-styleguide').click();
+  await openDesignMenu(page); await page.locator('#view-styleguide').click();
   assert.equal(await page.locator('#styleguide-title').textContent(), 'Sift Hardware');
   assert.equal(await page.locator('#styleguide-document').textContent(), source);
   assert.match(await page.locator('#styleguide-prompt').textContent(), /purple outer envelope/);
@@ -1409,8 +1409,8 @@ test('guide registration rejects invalid and duplicate definitions and renders g
   assert.equal(await page.locator('#styleguide-picker option').count(), 3);
   await registerTestStyleguide(page);
   assert.equal(await page.locator('#styleguide-picker option').count(), 4);
-  await page.locator('#styleguide-picker').selectOption('minimal');
-  await page.locator('#view-styleguide').click();
+  await openDesignMenu(page); await page.locator('#styleguide-picker').selectOption('minimal');
+  await openDesignMenu(page); await page.locator('#view-styleguide').click();
   assert.equal(await page.locator('#styleguide-summary').textContent(), '<img src=x onerror=alert(1)>');
   assert.equal(await page.locator('#styleguide-summary img').count(), 0);
 });
@@ -1419,7 +1419,7 @@ test('guide picker and reader remain usable at 320px without capturing feedback 
   const page = await openPage(t);
   await addNote(page, 'Do not undo while reading');
   await page.setViewportSize({width: 320, height: 740});
-  await page.locator('#view-styleguide').click();
+  await openDesignMenu(page); await page.locator('#view-styleguide').click();
   await page.keyboard.press('Control+Z');
   await page.keyboard.press('p');
   assert.equal(await page.locator('#tool-note').getAttribute('aria-pressed'), 'true');
@@ -1438,11 +1438,11 @@ test('guide selection survives unavailable storage in memory and clipboard error
     Storage.prototype.setItem = () => { throw new DOMException('Denied', 'SecurityError'); };
     Object.defineProperty(navigator, 'clipboard', {configurable: true, value: {writeText: async () => { throw new Error('Denied'); }}});
   });
-  await page.locator('#styleguide-picker').selectOption('minimal');
+  await openDesignMenu(page); await page.locator('#styleguide-picker').selectOption('minimal');
   await page.evaluate(id=>Frame.agent.selectDesign(id),'sift');
   await page.evaluate(id=>Frame.agent.selectDesign(id),'starter');
   assert.equal(await page.locator('#styleguide-picker').inputValue(), 'minimal');
-  await page.locator('#view-styleguide').click();
+  await openDesignMenu(page); await page.locator('#view-styleguide').click();
   await page.locator('#copy-styleguide-prompt').click();
   assert.match(await page.locator('#styleguide-action-status').textContent(), /Clipboard unavailable/);
   await page.evaluate(() => {
@@ -1461,7 +1461,7 @@ test('missing and stale guide selections recover when a guide becomes available'
   await page.addScriptTag({url: baseURL + '/styleguides/technical-futurist.js?late=1'});
   assert.equal(await page.locator('#styleguide-picker').isDisabled(), false);
   assert.equal(await page.locator('#styleguide-picker').inputValue(), 'technical-futurist');
-  await page.locator('#view-styleguide').click();
+  await openDesignMenu(page); await page.locator('#view-styleguide').click();
   assert.equal(await page.locator('#styleguide-title').textContent(), 'Technical Futurist');
 });
 
@@ -1476,12 +1476,12 @@ test('the embedded guide reader also works when index.html is opened directly', 
     throw error;
   }
   assert.equal(await page.locator('#styleguide-picker').inputValue(), 'technical-futurist');
-  await page.locator('#view-styleguide').click();
+  await openDesignMenu(page); await page.locator('#view-styleguide').click();
   assert.match(await page.locator('#styleguide-document').textContent(), /# 72. Compact Master Specification/);
   assert.equal(await page.locator('#styleguide-palette .guide-color').count(), 9);
   await page.keyboard.press('Escape');
-  await page.locator('#styleguide-picker').selectOption('sift-hardware');
-  await page.locator('#view-styleguide').click();
+  await openDesignMenu(page); await page.locator('#styleguide-picker').selectOption('sift-hardware');
+  await openDesignMenu(page); await page.locator('#view-styleguide').click();
   assert.equal(await page.locator('#styleguide-document').textContent(), await fs.readFile(path.join(root, 'styleguides/sift-hardware.md'), 'utf8'));
 });
 
@@ -1637,3 +1637,8 @@ test('notes can be placed, moved and resolved entirely through keyboard with a v
  await page.setViewportSize({width:320,height:740});
  assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);
 });
+
+async function openDesignMenu(page) {
+ const menu=page.locator('.project-menu');
+ if(!await menu.evaluate(node=>node.open))await menu.locator('summary').click();
+}
