@@ -15,7 +15,7 @@
     const editing = event.target.closest?.('input, textarea, select:not([data-preview-picker]), [role="textbox"], .prototype-control, .note-pin') || event.target.isContentEditable;
     const modal = document.querySelector('dialog[open]');
     const hoverNavigation = ['ArrowDown', 'ArrowUp'].includes(event.key) && !editing &&
-      hoveredPicker?.checkVisibility() && (!modal || modal.contains(hoveredPicker));
+      hoveredPicker?.checkVisibility() && !hoveredPicker.disabled && (!modal || modal.contains(hoveredPicker));
     const picker = hoverNavigation ? hoveredPicker : event.target;
     if (!(picker instanceof HTMLSelectElement) || !picker.matches('[data-preview-picker]') ||
         picker.disabled) return;

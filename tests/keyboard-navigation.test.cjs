@@ -26,6 +26,10 @@ test('Tab navigation and moving the pointer away release the hovered picker', as
   await state.hover(); await page.mouse.move(0, 0); await page.keyboard.press('ArrowUp');
   assert.equal(await viewport.evaluate(n => n === document.activeElement), true);
   assert.equal(await page.evaluate(() => Frame.currentState('instrument')), 'default');
+  await state.evaluate(n => { n.disabled = true; }); await state.hover();
+  const size = await viewport.inputValue(); await page.keyboard.press('ArrowDown');
+  assert.notEqual(await viewport.inputValue(), size);
+  assert.equal(await viewport.evaluate(n => n === document.activeElement), true);
 });
 
 test('a hovered picker never takes arrows from text editing or an open dialog', async t => {
