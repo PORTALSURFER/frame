@@ -44,6 +44,8 @@ Infrequent setup, source/storage configuration, and long-term preferences can li
 
 Tab and Shift+Tab move through working controls in a predictable order. Arrow keys, Home, and End immediately preview screen, visual-state, and viewport choices while keeping focus on the selector. Keyboard users can browse revisions in History without changing the live design; restoring a revision remains an explicit action. Native picker access and ordinary text editing remain available.
 
+Pointing at a preview selector and pressing Up or Down focuses it and previews the adjacent choice without opening the dropdown. Hover alone does not move focus. Tab resumes ordinary keyboard navigation; text editing and open dialogs keep their own keyboard behavior. Clicking a selector still opens its native menu, where Enter confirms a highlighted choice.
+
 ## Visual character
 
 Frame's own interface should feel calm, minimal, visually pleasing, and carefully composed. Readable typography, proportion, spacing, and restrained controls should make long review sessions comfortable while giving the concept room to be judged.

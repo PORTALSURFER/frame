@@ -3,6 +3,48 @@ const assert = require('node:assert/strict');
 const {reviewHarness} = require('./review-harness.cjs');
 const open = reviewHarness();
 
+test('hover waits for Up or Down before focusing and immediately previewing a choice', async t => {
+  const page = await open(t), viewport = page.locator('#viewport-picker'), state = page.locator('#state-picker');
+  await viewport.focus(); await state.hover();
+  assert.equal(await viewport.evaluate(n => n === document.activeElement), true);
+  assert.equal(await page.evaluate(() => Frame.currentState('instrument')), 'default');
+  await page.keyboard.press('ArrowDown');
+  assert.equal(await state.evaluate(n => n === document.activeElement), true);
+  assert.equal(await page.evaluate(() => Frame.currentState('instrument')), 'loading');
+  assert.notEqual(await state.evaluate(n => getComputedStyle(n).outlineStyle), 'none');
+  await page.keyboard.press('ArrowUp');
+  assert.equal(await page.evaluate(() => Frame.currentState('instrument')), 'default');
+});
+
+test('Tab navigation and moving the pointer away release the hovered picker', async t => {
+  const page = await open(t), viewport = page.locator('#viewport-picker'), state = page.locator('#state-picker');
+  await viewport.focus(); await state.hover();
+  await page.keyboard.press('Tab'); await page.keyboard.press('Shift+Tab');
+  await page.keyboard.press('ArrowDown');
+  assert.equal(await viewport.evaluate(n => n === document.activeElement), true);
+  assert.equal(await page.evaluate(() => Frame.currentState('instrument')), 'default');
+  await state.hover(); await page.mouse.move(0, 0); await page.keyboard.press('ArrowUp');
+  assert.equal(await viewport.evaluate(n => n === document.activeElement), true);
+  assert.equal(await page.evaluate(() => Frame.currentState('instrument')), 'default');
+  await state.evaluate(n => { n.disabled = true; }); await state.hover();
+  const size = await viewport.inputValue(); await page.keyboard.press('ArrowDown');
+  assert.notEqual(await viewport.inputValue(), size);
+  assert.equal(await viewport.evaluate(n => n === document.activeElement), true);
+});
+
+test('a hovered picker never takes arrows from text editing or an open dialog', async t => {
+  const page = await open(t), state = page.locator('#state-picker');
+  await page.locator('#tool-note').click(); await state.hover();
+  await page.locator('#brush').focus(); await page.keyboard.press('Enter');
+  const input = page.locator('#note-text'); await input.fill('abc');
+  await page.keyboard.press('ArrowLeft'); await page.keyboard.type('X');
+  assert.equal(await input.inputValue(), 'abXc');
+  assert.equal(await page.evaluate(() => Frame.currentState('instrument')), 'default');
+  const cancel = page.locator('#note-cancel'); await cancel.focus(); await page.keyboard.press('ArrowDown');
+  assert.equal(await cancel.evaluate(n => n === document.activeElement), true);
+  assert.equal(await page.evaluate(() => Frame.currentState('instrument')), 'default');
+});
+
 test('Tab and arrows preview screens, states and viewports without Enter or losing focus', async t => {
   const page = await open(t);
   await page.evaluate(() => {
