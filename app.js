@@ -86,6 +86,7 @@
     const metadata = FrameFeedback.metadata(type, design);
     metadata.reviewedViewport = {width:design.width,height:design.height};
     if (Frame.documents.has(design.id)) {
+      metadata.reviewedState = Frame.currentState(design.id);
       const element = Frame.agent.hitTest(design.id, anchor[0], anchor[1])[0];
       if (element) metadata.elementAnchor = {elementId: element.id, offset: [anchor[0] - element.bounds.x, anchor[1] - element.bounds.y]};
     }
@@ -1065,8 +1066,17 @@
     if (mark.status === status) return;
     const before = snapshot();
     mark.status = status; mark.updatedAt = new Date().toISOString();
+    if(mark.review) mark.review={...mark.review,decision:status==='open'?'reopened':'pending',decidedAt:status==='open'?mark.updatedAt:null};
     record(before, status === "resolved" ? "Resolve feedback" : "Reopen feedback");
     selectLine(null);redrawMarks();save();
+  }
+  function changeFeedbackReview(id, transform, label) {
+    finishBrush();finishNoteDrag();
+    const mark=notes.find(mark=>mark.id===id)||lineMetadata.get(lines.find(line=>lineMetadata.get(line).id===id));
+    if(!mark)throw new Error('Unknown feedback ID');
+    const next=transform(mark),before=snapshot();
+    Object.assign(mark,next);record(before,label);redrawMarks();save();
+    return JSON.parse(JSON.stringify(mark));
   }
   Frame.feedback = {
     list: (status="all") => { if (!["all","open","resolved"].includes(status)) throw new Error("Unknown feedback filter"); return JSON.parse(JSON.stringify([...currentDocument().lines,...notes].filter(mark=>status==="all"||mark.status===status))); },
@@ -1074,6 +1084,12 @@
       const disk = diskFeedback.get(design?.id);
       return {pending: !!(disk?.loading || disk?.running || disk?.next), error: feedback.notice || null};
     },
+    propose: (id,{revisionId,summary}={}) => {
+      Frame.revisions.get(design.id,revisionId);
+      return changeFeedbackReview(id,mark=>FrameFeedback.propose(mark,revisionId,summary),'Propose feedback fix');
+    },
+    accept: id => changeFeedbackReview(id,mark=>FrameFeedback.decide(mark,'accepted'),'Accept feedback fix'),
+    reopen: id => changeFeedbackReview(id,mark=>FrameFeedback.decide(mark,'reopened'),'Reopen feedback fix'),
     setStatus: setFeedbackStatus
   };
   resolveSelected.addEventListener("click", () => {
