@@ -112,6 +112,20 @@ the structural checks are clean or that native product behavior is implemented.
 
 Viewport presets and Frame.agent.setViewport(id,{width,height}) recompute responsive bounds rather than shrink a fixed canvas. Elements can specify percentage responsive bounds and maxWidth breakpoints. Frame.agent.setState(id,state) applies named overrides; controls use accessible labels and declarative set-state actions.
 
+Every structured design has a **Design size** preview using its own `width` and
+`height`. That option follows dimension changes in later revisions. A preview at
+the previous design size follows the new size automatically. Other selected
+preview dimensions are preserved, including when switching designs.
+
+A document may declare `viewportPresets: [{name: "Expanded", width: 1100,
+height: 200}]` for its own named preview sizes. Dimensions are whole numbers from
+1 to 8192, with up to 16 unique names and resolutions. Without a declaration,
+Frame offers the design's own size. The **Designs → Viewport sizes** dialog and
+`Frame.project.setViewportPresets(id, presets)` save overrides for that project.
+`Frame.project.getViewportPresets(id)` returns those overrides or the document's
+defaults. Design size stays available alongside the configured presets. Saved
+projects retain their existing presets and selected viewport.
+
 Use `views` to organize a design's screens and the contexts available within each screen:
 
 ```json

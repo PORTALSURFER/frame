@@ -391,7 +391,7 @@ test('viewport sizes are named per design and survive a browser reload',async t=
  const page=await pageFor(t),picker=page.locator('#viewport-picker');
  const options=()=>picker.locator('option').allTextContents();
  const settings=async()=>{await page.locator('.project-menu summary').click();await page.locator('#configure-viewports').click();};
- assert.deepEqual(await options(),['Desktop · 1000 × 700','Tablet · 768 × 1024','Phone · 360 × 740']);
+ assert.deepEqual(await options(),['Design size · 1000 × 700','Tablet · 768 × 1024','Phone · 360 × 740']);
  assert.equal(await picker.inputValue(),'1000×700');
  await picker.selectOption('360×740');
  await settings();
@@ -411,9 +411,50 @@ test('viewport sizes are named per design and survive a browser reload',async t=
  assert.equal(await page.evaluate(()=>Frame.project.export('instrument').archive.viewportPresets[2].name),'Pulse mobile');
  await page.reload();
  assert.equal(await picker.inputValue(),'393×852');
- assert.deepEqual(await options(),['Desktop · 1000 × 700','Tablet · 768 × 1024','Pulse mobile · 393 × 852']);
+ assert.deepEqual(await options(),['Design size · 1000 × 700','Tablet · 768 × 1024','Pulse mobile · 393 × 852']);
  await page.evaluate(id=>Frame.agent.selectDesign(id),'sift-style-studies');
  assert.ok((await options()).every(option=>!option.includes('Pulse mobile')));
+});
+test('design size follows revisions while independent presets and custom previews survive switching and import',async t=>{
+ const page=await pageFor(t),picker=page.locator('#viewport-picker');
+ await page.evaluate(()=>{
+  Frame.registerDocument({version:1,id:'compact-vector',name:'Vector',revisionId:'r1',width:930,height:200,elements:[]});
+  Frame.agent.selectDesign('compact-vector');
+ });
+ assert.deepEqual(await picker.locator('option').allTextContents(),['Design size · 930 × 200']);
+ await page.evaluate(()=>{
+  Frame.agent.setViewport('compact-vector',{width:930,height:200});
+  const doc=Frame.agent.getDocument('compact-vector');
+  doc.revisionId='r2';doc.width=819;
+  doc.viewportPresets=[{name:'Expanded',width:1100,height:200}];
+  Frame.agent.updateDocument(doc);
+ });
+ assert.equal(await picker.inputValue(),'819×200');
+ assert.deepEqual(await picker.locator('option').allTextContents(),['Design size · 819 × 200','Expanded · 1100 × 200']);
+ await picker.selectOption('1100×200');
+ await page.evaluate(()=>{
+  const doc=Frame.agent.getDocument('compact-vector');doc.revisionId='r3';doc.width=835;
+  Frame.agent.updateDocument(doc);
+  Frame.agent.setViewport('compact-vector',{width:950,height:200});
+  Frame.agent.selectDesign('instrument');
+  Frame.agent.selectDesign('compact-vector');
+ });
+ assert.equal(await picker.inputValue(),'950×200');
+ await picker.selectOption('835×200');
+ assert.deepEqual(await page.evaluate(()=>Frame.currentViewport('compact-vector')),{width:835,height:200});
+ await page.evaluate(()=>{
+  Frame.project.setViewportPresets('compact-vector',[{name:'Wide device',width:1200,height:200}]);
+ });
+ assert.deepEqual(await picker.locator('option').allTextContents(),['Design size · 835 × 200','Wide device · 1200 × 200']);
+ await picker.selectOption('835×200');
+ await page.evaluate(()=>{
+  const project=Frame.project.export('compact-vector');
+  project.archive.designId='imported-vector';project.feedback.design='imported-vector';
+  for(const revision of project.archive.revisions)revision.document.id='imported-vector';
+  Frame.project.import(project);
+ });
+ assert.equal(await picker.inputValue(),'835×200');
+ assert.deepEqual(await picker.locator('option').allTextContents(),['Design size · 835 × 200','Wide device · 1200 × 200']);
 });
 test('one saved Pulse design switches layouts, states and feedback by viewport',async t=>{
  const page=await pageFor(t),id='pulse-browser-reference';

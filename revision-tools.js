@@ -11,32 +11,10 @@
   const key=id=>"frame-project-v1:"+id;
   const maxProjectBytes = 128 * 1024 * 1024;
   let registering = false;
-  const defaultViewports=[
-    {name:"Desktop",width:1000,height:700},
-    {name:"Tablet",width:768,height:1024},
-    {name:"Phone",width:360,height:740}
-  ];
+  const validatePresets=FrameDocument.validateViewportPresets;
   const sameSize=(a,b)=>a.width===b.width&&a.height===b.height;
   function defaultPresets(size) {
-    const presets=copy(defaultViewports);
-    if(!presets.some(preset=>sameSize(preset,size))) {
-      const device=size.width<=480?"Phone":size.width<900&&size.height>size.width?"Tablet":"Desktop";
-      const preset=presets.find(preset=>preset.name===device);
-      preset.width=size.width; preset.height=size.height;
-    }
-    return presets;
-  }
-  function validatePresets(presets) {
-    const validDimensions=({width,height})=>[width,height].every(n=>Number.isInteger(n)&&n>=1&&n<=8192);
-    if(!Array.isArray(presets)||!presets.length||presets.length>16||
-       presets.some(p=>!p||typeof p.name!=="string"||!p.name.trim()||p.name.length>60||!validDimensions(p))) {
-      throw new Error("Enter 1–16 named sizes with whole-number dimensions from 1 to 8192.");
-    }
-    if(new Set(presets.map(p=>p.name.trim().toLowerCase())).size!==presets.length||
-       new Set(presets.map(p=>p.width+"×"+p.height)).size!==presets.length) {
-      throw new Error("Each size needs a unique name and resolution.");
-    }
-    return presets.map(({name,width,height})=>({name:name.trim(),width,height}));
+    return copy(size.viewportPresets || [{name:"Design size",width:size.width,height:size.height}]);
   }
   function getViewportPresets(id) {
     const archive=archives.get(id);
@@ -176,6 +154,7 @@
   function seedImportedPresets(project) {
     if(project.archive.viewportPresets)return;
     const doc=project.archive.revisions.find(r=>r.revisionId===project.archive.currentRevisionId).document;
+    if(doc.viewportPresets || sameSize(doc,project.viewport))return;
     const presets=defaultPresets(doc);
     project.archive.viewportPresets=presets.some(preset=>sameSize(preset,project.viewport))?presets:defaultPresets(project.viewport);
   }

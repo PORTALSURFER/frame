@@ -8,6 +8,14 @@
   const addSize=document.getElementById("add-viewport");
   const sizeKey=({width,height})=>width+"×"+height;
   let configuredId=null,renderedPresets="";
+  function availableSizes() {
+    const doc=Frame.documents.get(designId),current=Frame.currentViewport(designId);
+    const native={name:"Design size",width:doc.width,height:doc.height};
+    const presets=Frame.project.getViewportPresets(designId).filter(preset=>sizeKey(preset)!==sizeKey(native));
+    const sizes=[native,...presets];
+    if(!sizes.some(size=>sizeKey(size)===sizeKey(current))) sizes.push({name:"Custom",...current});
+    return sizes;
+  }
   function updateSizeButtons() {
     addSize.disabled=sizes.children.length>=16;
     for(const [i,row] of [...sizes.children].entries()) {
@@ -73,19 +81,13 @@
     document.getElementById("tool-interact").disabled=!enabled;
     refreshNavigation(Frame.documents.get(designId));
     if(enabled) {
-      const presets=Frame.project.getViewportPresets(designId),signature=JSON.stringify(presets);
+      const presets=availableSizes(),signature=JSON.stringify(presets);
       if(renderedPresets!==signature) {
         renderedPresets=signature;
         viewportPicker.replaceChildren(...presets.map(preset=>new Option(preset.name+" · "+preset.width+" × "+preset.height,sizeKey(preset))));
       }
       const current=Frame.currentViewport(designId);
-      const matching=presets.find(preset=>sizeKey(preset)===sizeKey(current));
-      const active=matching||presets[0];
-      viewportPicker.value=sizeKey(active);
-      if(!matching&&(event?.type==="frame:design-selected"||event?.type==="frame:project-restored")) {
-        Frame.agent.setViewport(designId,{width:active.width,height:active.height});
-        return;
-      }
+      viewportPicker.value=sizeKey(current);
     } else {
       const design=Frame.designs.get(designId);
       const signature=design?sizeKey(design):"";
@@ -172,7 +174,7 @@
   };
   viewportPicker.addEventListener("change",()=>{
     if(!structured())return;
-    const preset=Frame.project.getViewportPresets(designId).find(preset=>sizeKey(preset)===viewportPicker.value);
+    const preset=availableSizes().find(preset=>sizeKey(preset)===viewportPicker.value);
     if(preset)Frame.agent.setViewport(designId,{width:preset.width,height:preset.height});
   });
   statePicker.addEventListener("change",()=>Frame.agent.setState(designId,statePicker.value));
