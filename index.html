@@ -25,6 +25,7 @@
   <script src="feedback.js" defer></script>
   <script src="app.js?v=5" defer></script>
   <script src="review-tools.js" defer></script>
+  <script src="keyboard-navigation.js" defer></script>
   <script src="project-storage-ui.js" defer></script>
   <script src="automatic-checkpoints.js" defer></script>
   <script src="automatic-checkpoint-tools.js" defer></script>
@@ -48,10 +49,10 @@
     <header class="topbar">
       <div class="workspace-identity"><a class="brand" href="./" aria-label="Frame home"><strong>FRAME</strong></a><strong id="workspace-title">No design open</strong><output id="workspace-save-state" role="status"></output></div>
       <div class="tools" role="group" aria-label="Review controls">
-        <label class="review-picker">Viewport<select id="viewport-picker" aria-label="Viewport" title="Viewport" disabled></select></label>
-        <label class="review-picker">Screen<select id="view-picker" aria-label="Screen" title="View" hidden></select></label>
-        <label class="review-picker">State<select id="context-picker" aria-label="State" title="Context" hidden></select></label>
-        <label class="review-picker">State<select id="state-picker" aria-label="State" title="Interface state"></select></label>
+        <label class="review-picker">Viewport<select id="viewport-picker" data-preview-picker aria-label="Viewport" title="Viewport" disabled></select></label>
+        <label class="review-picker">Screen<select id="view-picker" data-preview-picker aria-label="Screen" title="View" hidden></select></label>
+        <label class="review-picker">State<select id="context-picker" data-preview-picker aria-label="State" title="Context" hidden></select></label>
+        <label class="review-picker">State<select id="state-picker" data-preview-picker aria-label="State" title="Interface state"></select></label>
         <label class="review-picker">Revision<select id="revision-picker" aria-label="Revision" title="Revision"></select></label>
         <label class="review-picker">Design guide<select id="styleguide-picker" aria-label="Design guide" title="Styleguide"></select></label>
         <button id="revision-history" type="button" disabled>History</button>
